@@ -328,14 +328,14 @@ const BooklibApp = (() => {
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
             ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:`<span class="bl-badge" style="color:var(--tx3)">반 미배정</span>`}
             ${stuNames?`<span class="bl-badge" style="background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#3b82f6">👤 ${_e(stuNames)}</span>`:''}
-            ${hasGrade?`<span class="bl-badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#d97706">📝 성적설정</span>`:''}
+            ${hasGrade?`<span class="bl-badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#d97706;cursor:pointer" onclick="event.stopPropagation();BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📝 성적설정</span>`:''}
             ${isArchived?`<span class="bl-badge" style="color:var(--tx3)">📦 완결 ${b.archivedAt?b.archivedAt.slice(0,10):''}</span>`:''}
           </div>
         </div>
         ${isAdmin?`<div class="bl-book-acts" onclick="event.stopPropagation()">
           ${!isArchived?`<button class="ibtn" onclick="BooklibApp.openEditor('${b.id}')" title="수정">✏️</button>`:''}
           ${!isArchived?`<button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>`:''}
-          ${!isArchived?`<button class="ibtn" onclick="BooklibApp._archiveBook('${b.id}')" title="완결 처리">📦</button>`:`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`}
+          ${isArchived?`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`:''}
           <button class="ibtn red" onclick="BooklibApp.deleteBook('${b.id}')" title="삭제">🗑</button>
         </div>`:''}
       </div>
@@ -458,6 +458,11 @@ const BooklibApp = (() => {
   }
 
   /* ══ EDITOR MODAL (챕터 + 성적 설정 통합) ══ */
+  function _openEvalTab(bookId){
+    _editorTab='eval';
+    openEditor(bookId);
+  }
+
   function openEditor(bookId){
     _st.editBookId=bookId;
     /* 편집 시작 시 현재 config 로드 */
@@ -1453,6 +1458,8 @@ const BooklibApp = (() => {
     modal.id = 'bl-csv-modal';
     modal.className = 'ov';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:flex;align-items:flex-end;justify-content:center';
+    // ★ 기존 면제 설정 로드 (반/교재별 영구 저장된 값)
+    _loadExempts();
     // CSV에서 학생명 목록 추출 (모달 표시용)
     const csvStudents = _extractCsvStudentNames(file);
 
@@ -1492,6 +1499,11 @@ const BooklibApp = (() => {
         </div>
       </div>`;
     document.body.appendChild(modal);
+    // ★ 기존 면제 항목 UI 복원
+    const savedExcs = _csvImportState.exceptions || {};
+    Object.entries(savedExcs).forEach(([name, items]) => {
+      _addExcRow(name, items);
+    });
 
     /* 임시로 file 참조 보관 */
     _csvImportState._pendingFile = file;
@@ -1609,7 +1621,8 @@ const BooklibApp = (() => {
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
-    _archiveBook,_unarchiveBook,_copyBook,
+    _saveExempts, _loadExempts,
+    _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
   };
 })();

@@ -73,7 +73,7 @@ const GradeApp = (() => {
 .gr-content::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
 
 /* student panel */
-.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:87px;height:87px;}
+.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:87px;height:87px;overflow:hidden;box-sizing:border-box;}
 .gr-stu-item:hover{background:var(--a10);}
 .gr-stu-item.on{background:var(--a20);border-left:3px solid var(--a);}
 .gr-stu-item.dirty-item::after{content:'●';position:absolute;top:3px;right:4px;color:#f59e0b;font-size:10px;}
@@ -357,8 +357,10 @@ const GradeApp = (() => {
   }
   function _fillBooks() {
     const sel = document.getElementById('gr-bsel'); if (!sel) return;
-    if (!_st.classId) { sel.innerHTML = `<option value="">— 교재 선택 —</option>`; sel.disabled = true; return; }
-    const books = typeof BookLibDB !== 'undefined' ? BookLibDB.getBooksForClass(_st.classId) : [];
+    // ★ 반 미선택 시: 전체 교재 표시 (반 소속 없는 학생용)
+    const books = typeof BookLibDB !== 'undefined'
+      ? (_st.classId ? BookLibDB.getBooksForClass(_st.classId) : BookLibDB.getBooks())
+      : [];
     sel.disabled = false;
     sel.innerHTML = `<option value="">— 교재 선택 —</option>` +
       books.map(b => `<option value="${b.id}" ${_st.bookId===b.id?'selected':''}>${_e(b.name)}</option>`).join('');
@@ -375,6 +377,17 @@ const GradeApp = (() => {
       <span style="font-size:20px;line-height:1">👨‍🎓</span>
       <span style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.5px">학생명</span>
     </div>`;
+    // ★ 렌더 후 테이블 행 높이와 동기화
+    requestAnimationFrame(() => {
+      const rows = document.querySelectorAll('.gr-sheet tbody tr');
+      const items = document.querySelectorAll('.gr-stu-item');
+      rows.forEach((row, i) => {
+        if (items[i]) {
+          const h = row.getBoundingClientRect().height;
+          if (h > 0) { items[i].style.height = h + 'px'; items[i].style.minHeight = h + 'px'; }
+        }
+      });
+    });
     panel.innerHTML = headerH + students.map((s, i) => {
       const rec  = _st.classId && _st.bookId ? GradeDB.getLatest(_st.classId, s.id, _st.bookId) : null;
       const achW = rec?.word?.totalQ > 0 ? Math.round(rec.word.pass / rec.word.totalQ * 100) : null;
