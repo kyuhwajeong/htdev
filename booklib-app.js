@@ -300,7 +300,12 @@ const BooklibApp = (() => {
         </div>
       </div>`:''}`}
     </div>`;
-    if(isAdmin){_bindDrop('bl-book-csv',null,_importBookFile);setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);}
+    if(isAdmin){
+      _bindDrop('bl-book-csv',null,_importBookFile);
+      setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);
+      // ★ 교재 드래그앤드롭 순서 변경 이벤트 바인딩
+      setTimeout(()=>_bindBookListDrag(), 50);
+    }
   }
 
   function _bookCardHTML(b,isAdmin){
@@ -465,6 +470,8 @@ const BooklibApp = (() => {
 
   function openEditor(bookId){
     _st.editBookId=bookId;
+    // ★ 일반 편집은 항상 챕터 관리 탭으로 (성적설정 버튼은 _openEvalTab으로 별도 처리)
+    if (_editorTab !== 'eval') _editorTab = 'chapters';
     /* 편집 시작 시 현재 config 로드 */
     if(typeof GradeDB!=='undefined'){
       _st.editConfig=JSON.parse(JSON.stringify(GradeDB.getReportConfig(bookId)));
@@ -495,10 +502,26 @@ const BooklibApp = (() => {
     sh.innerHTML=`
       <div class="sh-handle"></div>
       <div class="sh-title">📖 ${_e(book.name)}</div>
-      <!-- ★ 카드 탭 -->
-      <div class="bl-etab-bar">
-        <button class="bl-etab ${_editorTab==='chapters'?'on':''}" onclick="BooklibApp._switchEdTab('chapters')">📑 챕터 관리</button>
-        <button class="bl-etab ${_editorTab==='eval'?'on':''}" onclick="BooklibApp._switchEdTab('eval')">📝 평가 설정</button>
+      <!-- ★ 카드 슬라이드 탭 (인사카드 스택 스타일) -->
+      <div class="bl-card-tabs">
+        <div class="bl-card-tab-stack">
+          <!-- 뒤 카드: 평가 설정 -->
+          <div class="bl-card-back ${_editorTab==='eval'?'active':''}"
+               onclick="BooklibApp._switchEdTab('eval')"
+               title="평가 설정">
+            <span class="bl-card-back-label">📝 평가 설정</span>
+          </div>
+          <!-- 앞 카드: 챕터 관리 -->
+          <div class="bl-card-front ${_editorTab==='chapters'?'active':''}"
+               onclick="BooklibApp._switchEdTab('chapters')"
+               title="챕터 관리">
+            <span class="bl-card-front-icon">📑</span>
+            <span class="bl-card-front-label">챕터 관리</span>
+          </div>
+        </div>
+        ${_editorTab==='eval'?`<div class="bl-card-tab-back-front"
+          onclick="BooklibApp._switchEdTab('chapters')"
+          style="font-size:11px;color:var(--a);cursor:pointer;text-align:right;padding:2px 4px">← 챕터 관리로</div>`:''}
       </div>
       <div class="bl-editor-body" id="bl-editor-body">
         ${_editorTab==='chapters'?_edChaptersHTML(book,chs,allCls,allStus,isAdmin):_edEvalHTML(cfg,isAdmin)}
