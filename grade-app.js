@@ -19,7 +19,7 @@ const GradeApp = (() => {
   /* ══ 상수 ══ */
   const ANIMALS_M = ['🐯','🦊','🐻','🐼','🦁','🐮','🐸','🐺'];
   const ANIMALS_F = ['🐱','🐰','🐹','🐨','🦋','🦄','🐧','🐔'];
-  const CM_W = 340; // Comment column width px
+  const CM_W = 340; // Comment column width px (헤더 정의, 실제는 flex)
 
   /* ══ 상태 ══ */
   let _st = {
@@ -125,13 +125,13 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{min-width:${CM_W}px;width:${CM_W}px;}
-.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:11px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
+.gs-cm-cell{min-width:260px;width:260px;max-width:260px;}
+.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;font-weight:600;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
 /* average row */
 .gr-avg-row td{background:var(--surf2)!important;}
-.gr-avg-row .gs-fix{color:var(--a);font-weight:800;font-size:12px;}
+.gr-avg-row .gs-fix{color:var(--a);font-weight:800;font-size:12px;display:flex!important;align-items:center;gap:4px;}
 
 /* chart */
 .gr-chart-wrap{padding:10px 12px 6px;border-top:1.5px solid var(--bdr);background:var(--surf2);flex-shrink:0;}
@@ -557,10 +557,12 @@ const GradeApp = (() => {
     }).filter(v => v != null);
     const avgW = achWs.length ? Math.round(achWs.reduce((a,b)=>a+b,0)/achWs.length) : null;
 
-    // ★ 그래프 아이콘 토글 버튼
+    // ★ 그래프 아이콘 - 하나만, 토글 스타일
+    const isOn = _st.showGraph;
     const graphBtn = `<button id="gr-graph-toggle" onclick="GradeApp._toggleGraph()"
-      title="그래프 표시/숨기기"
-      style="background:none;border:none;cursor:pointer;font-size:13px;padding:0 4px;opacity:${_st.showGraph?1:.4}">${_st.showGraph?'📊':'📊'}</button>`;
+      title="${isOn?'그래프 숨기기':'그래프 표시'}"
+      style="background:${isOn?'var(--a)':'transparent'};border:${isOn?'none':'1.5px solid var(--bdr2)'};border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;color:${isOn?'#fff':'var(--tx3)'};transition:all .15s;margin-left:6px">
+      📊</button>`;
 
     let rdAvgCells = '';
     if (hasRd) {
@@ -571,6 +573,7 @@ const GradeApp = (() => {
         return _calcRdN(rd, actRevs);
       }).filter(v => v != null);
       const avgRd = achRds.length ? Math.round(achRds.reduce((a,b)=>a+b,0)/achRds.length) : null;
+      // 이미지처럼: 총문제(빈) | 정답수들(빈) | 점수들(빈) | 성취율(평균%)
       rdAvgCells = `
         <td class="gs-td ro"></td>
         ${actRevs.map(()=>'<td class="gs-td ro"></td>').join('')}
@@ -579,8 +582,8 @@ const GradeApp = (() => {
     }
 
     return `<tr class="gr-avg-row">
-      <td class="gs-fix" style="text-align:left;padding:5px 8px">
-        <span style="font-weight:800;color:var(--a);font-size:12px">📊 평균</span>
+      <td class="gs-fix" style="text-align:left;padding:5px 8px;display:flex;align-items:center;gap:0">
+        <span style="font-weight:800;color:var(--a);font-size:12px">평균</span>
         ${graphBtn}
       </td>
       <td class="gs-td ro"></td>
@@ -591,7 +594,6 @@ const GradeApp = (() => {
       <td class="gs-td ro gs-cm-cell"></td>
     </tr>`;
   }
-
   /* 평균 실시간 갱신 */
   function _updateAvg() {
     const students = _getSorted();
@@ -832,8 +834,14 @@ const GradeApp = (() => {
     _st.showGraph = !_st.showGraph;
     const wrap = document.getElementById('gr-chart-wrap');
     if (wrap) wrap.style.display = _st.showGraph ? 'block' : 'none';
+    // ★ 버튼 토글 스타일 업데이트
     const btn = document.getElementById('gr-graph-toggle');
-    if (btn) btn.style.opacity = _st.showGraph ? '1' : '0.4';
+    if (btn) {
+      btn.style.background   = _st.showGraph ? 'var(--a)' : 'transparent';
+      btn.style.border       = _st.showGraph ? 'none' : '1.5px solid var(--bdr2)';
+      btn.style.color        = _st.showGraph ? '#fff' : 'var(--tx3)';
+      btn.title              = _st.showGraph ? '그래프 숨기기' : '그래프 표시';
+    }
     if (_st.showGraph) _updateChart();
   }
 
@@ -1172,17 +1180,19 @@ const GradeApp = (() => {
   }
 
   /* ══ 선택 핸들러 ══ */
-  function _onCls(clsId) {
-    if (_st.dirty.size > 0 && !confirm('저장하지 않은 성적이 있습니다. 계속하시겠습니까?')) {
-      document.getElementById('gr-csel').value = _st.classId||''; return;
+  async function _onCls(clsId) {
+    if (_st.dirty.size > 0) {
+      const ans = confirm('변경되거나 입력된 값이 있습니다.\n저장하시겠습니까?\n\n[확인] 저장 후 이동   [취소] 저장 없이 이동');
+      if (ans) { await saveAll(); }
     }
     _st.classId=clsId||null; _st.bookId=null; _st.studentId=null; _st.data={}; _st.dirty.clear(); _st.sortCol=null;
     _fillBooks(); _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub();
     const bsel=document.getElementById('gr-bsel'); if(bsel)bsel.disabled=!_st.classId;
   }
-  function _onBk(bkId) {
-    if (_st.dirty.size > 0 && !confirm('저장하지 않은 성적이 있습니다. 계속하시겠습니까?')) {
-      document.getElementById('gr-bsel').value = _st.bookId||''; return;
+  async function _onBk(bkId) {
+    if (_st.dirty.size > 0) {
+      const ans = confirm('변경되거나 입력된 값이 있습니다.\n저장하시겠습니까?\n\n[확인] 저장 후 이동   [취소] 저장 없이 이동');
+      if (ans) { await saveAll(); }
     }
     _st.bookId=bkId||null; _st.studentId=null; _st.data={}; _st.dirty.clear(); _st.sortCol=null;
     _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub();
