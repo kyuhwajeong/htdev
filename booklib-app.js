@@ -1166,20 +1166,23 @@ const BooklibApp = (() => {
    * + CSV 타입(단어/문장)이 챕터명에 포함
    */
   function _matchChapter(chTitle, csvTitle, csvType) {
-    /* ★ 타입 접두사([단어]/[문장])를 먼저 제거하고 제목만 비교 */
     const stripType = s => s.replace(/\[단어\]|\[문장\]/g,'').trim();
-    const ct = stripType(chTitle).toLowerCase().replace(/\s+/g,'');
-    const cv = stripType(csvTitle).toLowerCase().replace(/\s+/g,'');
-    /* ★ 정확한 포함 관계 (양방향 포함 → 단방향으로 변경: ct가 cv를 포함하거나 완전 일치) */
-    /* ★ 단방향 포함: ct가 cv를 포함하거나 같을 때만 (역방향 제거 → Unit.9가 Unit.9 Story 흡수 방지) */
-    const titleMatch = ct === cv || ct.includes(cv);
-    if (!titleMatch) return false;
+    // ★ normalize: 괄호 안 번호를 _N으로 변환하여 "Unit.10(1)"→"unit.10_1" 구분 보장
+    // 이렇게 하면 "Unit.10"≠"Unit.10(1)"이면서 L01≠L01-02 구분도 유지됨
+    const norm = s => {
+      let r = stripType(s).toLowerCase();
+      r = r.replace(/\s*\((\d+)\)/g, '_$1');   // "(1)"→"_1", "(2)"→"_2"
+      r = r.replace(/[\s.\-~\[\]]+/g, '');      // 나머지 특수문자 제거
+      return r;
+    };
+    const ct = norm(chTitle);
+    const cv = norm(csvTitle);
+    // ★ 정확 일치만 허용 (이전 포함 관계 제거로 흡수 버그 방지)
+    if (ct !== cv) return false;
     if (!csvType) return true;
-    /* ★ 타입 매칭: 챕터명의 [타입] 접두사와 비교 */
     const chTypeMatch =
       (csvType === '단어' && /\[단어\]/.test(chTitle)) ||
-      (csvType === '문장' && /\[문장\]/.test(chTitle)) ||
-      chTitle.includes(csvType); // fallback
+      (csvType === '문장' && /\[문장\]/.test(chTitle));
     return chTypeMatch;
   }
 
