@@ -32,7 +32,10 @@ const GradeApp = (() => {
     sortCol:   null,   // null | 'name' | 'wordAch' | 'rdAch'
     sortDesc:  true,
     slideIdx:  0,
-    reportLayout: 1,
+    reportLayout:    1,
+    pageSize:        'A4',      // A4 / A5 / B5
+    reportTitleSize: 16,        // 제목 글자크기 (px)
+    reportBodySize:  11,        // 본문 글자크기 (px)
     reportGraph:  true,
     showGraph:    false,   // ★ 그래프 표시 여부
     chartStyle:   1,       // ★ 1=단어/리딩 분리, 2=학생별
@@ -307,16 +310,16 @@ const GradeApp = (() => {
         <div class="gr-content" id="gr-content"></div>
       </div>
       ${_st.viewMode==='excel' && hasData ? `
-        <div class="gr-chart-wrap" id="gr-chart-wrap" style="display:${_st.showGraph?'block':'none'}">
-          <div class="gr-chart-title" style="display:flex;align-items:center;gap:8px">
-            <span>📊 성취율 현황</span>
+        <div class="gr-chart-wrap" id="gr-chart-wrap" style="display:${_st.showGraph?'flex':'none'};flex-direction:column">
+          <div class="gr-chart-title" style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px">
+            <span style="font-weight:800;font-size:12px">📊 성취율 현황</span>
             <div style="display:flex;gap:4px">
-              <button onclick="GradeApp._setChartStyle(1)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--bdr2);cursor:pointer;background:${_st.chartStyle===1?'var(--a)':'var(--surf2)'};color:${_st.chartStyle===1?'#fff':'var(--tx2)'};font-family:var(--font)">단어/리딩</button>
-              <button onclick="GradeApp._setChartStyle(2)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--bdr2);cursor:pointer;background:${_st.chartStyle===2?'var(--a)':'var(--surf2)'};color:${_st.chartStyle===2?'#fff':'var(--tx2)'};font-family:var(--font)">학생별</button>
+              <button id="gr-cs1-btn" onclick="GradeApp._setChartStyle(1)" style="font-size:11px;padding:2px 10px;border-radius:6px;border:1.5px solid var(--bdr2);cursor:pointer;background:${_st.chartStyle===1?'var(--a)':'var(--surf2)'};color:${_st.chartStyle===1?'#fff':'var(--tx2)'};font-family:var(--font);font-weight:700;transition:all .15s">단어|리딩</button>
+              <button id="gr-cs2-btn" onclick="GradeApp._setChartStyle(2)" style="font-size:11px;padding:2px 10px;border-radius:6px;border:1.5px solid var(--bdr2);cursor:pointer;background:${_st.chartStyle===2?'var(--a)':'var(--surf2)'};color:${_st.chartStyle===2?'#fff':'var(--tx2)'};font-family:var(--font);font-weight:700;transition:all .15s">학생별</button>
             </div>
-            <span style="font-size:10px;font-weight:400;color:var(--tx3)">· 학생 클릭 시 하이라이트</span>
+            <span style="font-size:10px;color:var(--tx3)">학생 클릭 시 하이라이트</span>
           </div>
-          <canvas class="gr-chart-canvas" id="gr-chart"></canvas>
+          <canvas class="gr-chart-canvas" id="gr-chart" style="display:block;width:100%;height:130px"></canvas>
         </div>` : ''}
       <!-- 성적표 모달 -->
       <div id="gr-rpt-ov" class="ov hidden" onclick="if(event.target.id==='gr-rpt-ov')GradeApp.closeReport()">
@@ -584,7 +587,7 @@ const GradeApp = (() => {
     return `<tr class="gr-avg-row">
       <td class="gs-fix" style="display:none"></td>
       <td class="gs-td ro" colspan="3"
-        style="text-align:left;padding:5px 10px;vertical-align:middle;background:var(--surf2)">
+        style="text-align:center;padding:5px 8px;vertical-align:middle;background:var(--surf2)">
         <span style="font-weight:800;color:var(--a);font-size:12px">평균</span>
         ${graphBtn}
       </td>
@@ -832,16 +835,20 @@ const GradeApp = (() => {
   function _toggleGraph() {
     _st.showGraph = !_st.showGraph;
     const wrap = document.getElementById('gr-chart-wrap');
-    if (wrap) wrap.style.display = _st.showGraph ? 'block' : 'none';
-    // ★ 버튼 토글 스타일 업데이트
+    if (wrap) wrap.style.display = _st.showGraph ? 'flex' : 'none';
     const btn = document.getElementById('gr-graph-toggle');
     if (btn) {
-      btn.style.background   = _st.showGraph ? 'var(--a)' : 'transparent';
-      btn.style.border       = _st.showGraph ? 'none' : '1.5px solid var(--bdr2)';
-      btn.style.color        = _st.showGraph ? '#fff' : 'var(--tx3)';
-      btn.title              = _st.showGraph ? '그래프 숨기기' : '그래프 표시';
+      btn.style.background = _st.showGraph ? 'var(--a)' : 'transparent';
+      btn.style.border     = _st.showGraph ? 'none' : '1.5px solid var(--bdr2)';
+      btn.style.color      = _st.showGraph ? '#fff' : 'var(--tx3)';
+      btn.title            = _st.showGraph ? '그래프 숨기기' : '그래프 표시';
     }
-    if (_st.showGraph) _updateChart();
+    if (_st.showGraph) {
+      // DOM에 캔버스가 없으면 _renderStudents로 재생성
+      const canvas = document.getElementById('gr-chart');
+      if (!canvas) { _renderStudents(); return; }
+      _updateChart();
+    }
   }
 
   function _setChartStyle(n) {
@@ -1034,9 +1041,40 @@ const GradeApp = (() => {
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
     cnt.innerHTML=`<div class="gr-report-panel">
       <div class="gr-rpt-cfg">
-        <div class="gr-rpt-cfg-title">레이아웃</div>
-        <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
-        <label class="gr-rpt-toggle"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 📊 그래프 포함</label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+          <div>
+            <div class="gr-rpt-cfg-title">레이아웃</div>
+            <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">📄 페이지 크기</div>
+            <div style="display:flex;gap:5px">
+              ${['A4','A5','B5'].map(s=>`<button onclick="GradeApp._setPageSize('${s}')"
+                style="padding:4px 10px;border-radius:7px;border:1.5px solid ${_st.pageSize===s?'var(--a)':'var(--bdr2)'};background:${_st.pageSize===s?'var(--a20)':'var(--surf2)'};color:${_st.pageSize===s?'var(--a)':'var(--tx3)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">${s}</button>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">🔡 글자 크기</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label style="font-size:11px;color:var(--tx2)">제목
+                <input type="range" min="12" max="24" value="${_st.reportTitleSize}"
+                  oninput="GradeApp._setRptFontSize('title',this.value)"
+                  style="width:60px;vertical-align:middle;accent-color:var(--a)">
+                <span id="gr-rpt-title-sz">${_st.reportTitleSize}px</span>
+              </label>
+              <label style="font-size:11px;color:var(--tx2)">본문
+                <input type="range" min="8" max="16" value="${_st.reportBodySize}"
+                  oninput="GradeApp._setRptFontSize('body',this.value)"
+                  style="width:60px;vertical-align:middle;accent-color:var(--a)">
+                <span id="gr-rpt-body-sz">${_st.reportBodySize}px</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">📊 그래프</div>
+            <label class="gr-rpt-toggle"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 포함</label>
+          </div>
+        </div>
       </div>
       <div class="gr-rpt-preview">
         <div class="rpt-wrap" id="gr-rpt-preview">${_buildReport(s)}</div>
@@ -1086,11 +1124,93 @@ const GradeApp = (() => {
     return`<svg width="${tw}" height="66" style="display:block;margin:0 auto">${svgBars}<line x1="0" y1="55" x2="${tw}" y2="55" stroke="#e2e8f0" stroke-width="1"/></svg>`;
   }
 
+  function _setPageSize(size) {
+    _st.pageSize = size;
+    // 프리뷰에 반영
+    const wrap = document.getElementById('gr-rpt-preview');
+    if (wrap) {
+      const sizes = { A4:'210mm', A5:'148mm', B5:'176mm' };
+      const heights = { A4:'297mm', A5:'210mm', B5:'250mm' };
+      wrap.style.width    = sizes[size] || '210mm';
+      wrap.style.minHeight= heights[size] || '297mm';
+    }
+    // 버튼 스타일 업데이트
+    document.querySelectorAll('[onclick*="_setPageSize"]').forEach(b => {
+      const s = b.textContent.trim();
+      b.style.borderColor = s===size ? 'var(--a)' : 'var(--bdr2)';
+      b.style.background  = s===size ? 'var(--a20)' : 'var(--surf2)';
+      b.style.color       = s===size ? 'var(--a)' : 'var(--tx3)';
+    });
+  }
+
+  function _setRptFontSize(type, val) {
+    val = Number(val);
+    if (type === 'title') {
+      _st.reportTitleSize = val;
+      const el = document.getElementById('gr-rpt-title-sz');
+      if (el) el.textContent = val + 'px';
+    } else {
+      _st.reportBodySize = val;
+      const el = document.getElementById('gr-rpt-body-sz');
+      if (el) el.textContent = val + 'px';
+    }
+    // 프리뷰 즉시 반영
+    const wrap = document.getElementById('gr-rpt-preview');
+    if (wrap) {
+      const title = wrap.querySelector('.rpt-title');
+      if (title && type==='title') title.style.fontSize = val+'px';
+      // 본문 전체 폰트 크기
+      if (type==='body') wrap.style.fontSize = val+'px';
+    }
+  }
+
   function _setLayout(n){_st.reportLayout=n;const s=_getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];if(s){const el=document.getElementById('gr-rpt-preview');if(el)el.innerHTML=_buildReport(s);}document.querySelectorAll('.gr-rpt-lbtn').forEach((b,i)=>b.classList.toggle('on',i+1===n));}
   function _toggleGraph(v){_st.reportGraph=v;_setLayout(_st.reportLayout);}
   async function _copyReport(){const el=document.getElementById('gr-rpt-preview');try{await navigator.clipboard.writeText(el?.innerText||'');_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
   async function _shareReport(){const text=document.getElementById('gr-rpt-preview')?.innerText||'';const sd={title:'Achievement Report',text};if(navigator.share&&navigator.canShare?.(sd)){try{await navigator.share(sd);_toast('📤 공유 완료','success');return;}catch(e){if(e.name==='AbortError')return;}}_copyReport();}
-  function _printReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;let frame=document.getElementById('gr-pf');if(!frame){frame=document.createElement('div');frame.id='gr-pf';document.body.appendChild(frame);}frame.innerHTML=el.innerHTML;window.print();setTimeout(()=>frame.remove(),1500);}
+  function _printReport(){
+    const el=document.getElementById('gr-rpt-preview'); if(!el) return;
+    const sizes  = {A4:'210mm', A5:'148mm', B5:'176mm'};
+    const heights= {A4:'297mm', A5:'210mm', B5:'250mm'};
+    const pw = sizes[_st.pageSize]  || '210mm';
+    const ph = heights[_st.pageSize]|| '297mm';
+
+    // 현재 화면 스타일 시트 복사
+    const existingStyles = [...document.styleSheets].map(ss=>{
+      try{ return [...ss.cssRules].map(r=>r.cssText).join('\n'); }catch{return '';}
+    }).join('\n');
+
+    const printCss = `
+      @charset "UTF-8";
+      @page { size:${pw} ${ph}; margin:12mm; }
+      body  { margin:0; padding:0; background:#fff; }
+      .rpt-wrap { width:100%; box-shadow:none; border:none; padding:0; }
+      .rpt-title { font-size:${_st.reportTitleSize}px !important; }
+      .rpt-info p, .rpt-tbl td, .rpt-tbl th, .rpt-comment-box,
+      .rpt-sec-title { font-size:${_st.reportBodySize}px !important; }
+      ${existingStyles}
+    `;
+    const html = [
+      '<!DOCTYPE html><html><head>',
+      '<meta charset="UTF-8">',
+      '<title>Achievement Report</title>',
+      '<link rel="preconnect" href="https://fonts.googleapis.com">',
+      '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap" rel="stylesheet">',
+      `<style>${printCss}</style>`,
+      '</head><body>',
+      el.outerHTML,
+      '<script>window.onload=function(){window.print();setTimeout(window.close,800)}<\/script>',
+      '</body></html>'
+    ].join('');
+
+    const win = window.open('','_blank','width=900,height=700');
+    if(!win){ _toast('⚠️ 팝업이 차단됐습니다. 팝업을 허용해주세요.','error'); return; }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
+
+
   async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
 
   /* ════════════════════════════════════
@@ -1211,11 +1331,15 @@ const GradeApp = (() => {
       if(el&&sid){const s=_getStudents().find(s=>s.id===sid);if(s)el.innerHTML=_buildReport(s);}
     }
   }
-  function _setView(mode) {
-    if(_st.dirty.size>0&&mode!==_st.viewMode&&!confirm('저장하지 않은 성적이 있습니다. 이동하시겠습니까?'))return;
-    _st.viewMode=mode; _st.data={};
-    document.querySelectorAll('.gr-vbtn').forEach((b,i)=>b.classList.toggle('on',(['excel','card','report'][i])===mode));
-    _renderContent();
+  async function _setView(mode) {
+    if (_st.dirty.size > 0 && mode !== _st.viewMode) {
+      const save = confirm('변경되거나 입력된 값이 있습니다.\n저장하시겠습니까?\n\n[확인] 저장 후 전환   [취소] 저장 없이 전환');
+      if (save) await saveAll();
+      else { _st.data={}; _st.dirty.clear(); }
+    }
+    _st.viewMode = mode;
+    document.querySelectorAll('.gr-vbtn').forEach(b=>b.classList.toggle('on',b.textContent.includes(mode==='excel'?'엑셀':mode==='card'?'카드':'리포트')));
+    _renderStudents(); _renderContent();
   }
   function _updateRptBtn(){const btn=document.getElementById('gr-rpt-btn');if(btn)btn.style.display=(_st.classId&&_st.bookId)?'':'none';}
   function _updateSub(){const sub=document.getElementById('gr-sub');if(!sub)return;const cls=_st.classId?_getCls(_st.classId):null;const bk=_st.bookId&&typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;sub.textContent=cls&&bk?`${cls.name}반 · ${bk.name}`:cls?`${cls.name}반`:'반 · 교재를 선택하세요';}
@@ -1258,7 +1382,7 @@ const GradeApp = (() => {
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
