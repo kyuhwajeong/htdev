@@ -73,12 +73,12 @@ const GradeApp = (() => {
 .gr-content::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
 
 /* student panel */
-.gr-stu-item{padding:8px 4px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;}
+.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:58px;}
 .gr-stu-item:hover{background:var(--a10);}
 .gr-stu-item.on{background:var(--a20);border-left:3px solid var(--a);}
 .gr-stu-item.dirty-item::after{content:'●';position:absolute;top:3px;right:4px;color:#f59e0b;font-size:10px;}
-.gr-stu-emoji{font-size:18px;line-height:1;margin-bottom:2px;}
-.gr-stu-name{font-size:11px;font-weight:700;color:var(--tx);word-break:keep-all;}
+.gr-stu-emoji{font-size:18px;line-height:1;margin-bottom:3px;padding-top:6px;}
+.gr-stu-name{font-size:11px;font-weight:700;color:var(--tx);word-break:keep-all;padding-bottom:4px;}
 .gr-stu-nick{font-size:9px;color:var(--tx3);}
 .gr-stu-dot{width:6px;height:6px;border-radius:50%;margin:2px auto 0;}
 
@@ -352,7 +352,9 @@ const GradeApp = (() => {
     const panel = document.getElementById('gr-stu-panel'); if (!panel) return;
     const students = _getSorted();
     if (!students.length) { panel.innerHTML = ''; return; }
-    panel.innerHTML = students.map((s, i) => {
+    // ★ 학생명 헤더 추가
+    const headerH = `<div style="padding:6px 4px;text-align:center;font-size:10px;font-weight:800;color:var(--tx3);background:var(--surf2);border-bottom:1.5px solid var(--bdr);letter-spacing:.5px;position:sticky;top:0;z-index:2">학생명</div>`;
+    panel.innerHTML = headerH + students.map((s, i) => {
       const rec  = _st.classId && _st.bookId ? GradeDB.getLatest(_st.classId, s.id, _st.bookId) : null;
       const achW = rec?.word?.totalQ > 0 ? Math.round(rec.word.pass / rec.word.totalQ * 100) : null;
       const dotClr = achW != null ? (achW >= 80 ? '#16a34a' : '#f97316') : 'var(--bdr2)';
@@ -1077,7 +1079,7 @@ const GradeApp = (() => {
         </div>
       </div>
       <div class="gr-rpt-preview">
-        <div class="rpt-wrap" id="gr-rpt-preview">${_buildReport(s)}</div>
+        <div class="rpt-wrap" id="gr-rpt-preview" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
         <div class="rpt-acts">
           <button class="rpt-btn copy"  onclick="GradeApp._copyReport()">📋 복사</button>
           <button class="rpt-btn share" onclick="GradeApp._shareReport()">📤 공유</button>
@@ -1126,13 +1128,12 @@ const GradeApp = (() => {
 
   function _setPageSize(size) {
     _st.pageSize = size;
-    // 프리뷰에 반영
+    // ★ 프리뷰에 실시간 반영 (mm → px 변환: 1mm ≈ 3.78px)
+    const pxW = {A4:794, A5:559, B5:665};
     const wrap = document.getElementById('gr-rpt-preview');
     if (wrap) {
-      const sizes = { A4:'210mm', A5:'148mm', B5:'176mm' };
-      const heights = { A4:'297mm', A5:'210mm', B5:'250mm' };
-      wrap.style.width    = sizes[size] || '210mm';
-      wrap.style.minHeight= heights[size] || '297mm';
+      wrap.style.width    = (pxW[size]||794)+'px';
+      wrap.style.maxWidth = (pxW[size]||794)+'px';
     }
     // 버튼 스타일 업데이트
     document.querySelectorAll('[onclick*="_setPageSize"]').forEach(b => {
@@ -1147,20 +1148,24 @@ const GradeApp = (() => {
     val = Number(val);
     if (type === 'title') {
       _st.reportTitleSize = val;
-      const el = document.getElementById('gr-rpt-title-sz');
-      if (el) el.textContent = val + 'px';
+      const lbl = document.getElementById('gr-rpt-title-sz');
+      if (lbl) lbl.textContent = val + 'px';
     } else {
       _st.reportBodySize = val;
-      const el = document.getElementById('gr-rpt-body-sz');
-      if (el) el.textContent = val + 'px';
+      const lbl = document.getElementById('gr-rpt-body-sz');
+      if (lbl) lbl.textContent = val + 'px';
     }
-    // 프리뷰 즉시 반영
+    // ★ 프리뷰 실시간 반영
     const wrap = document.getElementById('gr-rpt-preview');
-    if (wrap) {
-      const title = wrap.querySelector('.rpt-title');
-      if (title && type==='title') title.style.fontSize = val+'px';
-      // 본문 전체 폰트 크기
-      if (type==='body') wrap.style.fontSize = val+'px';
+    if (!wrap) return;
+    if (type === 'title') {
+      wrap.querySelectorAll('.rpt-title').forEach(el => { el.style.fontSize = val+'px'; });
+    } else {
+      // 본문: p, td, th, .rpt-comment-box, .rpt-sec-title
+      wrap.querySelectorAll('p,.rpt-info p,.rpt-tbl td,.rpt-tbl th,.rpt-comment-box,.rpt-sec-title,.rpt-divider+*').forEach(el => {
+        el.style.fontSize = val+'px';
+      });
+      wrap.style.fontSize = val+'px';
     }
   }
 
