@@ -1341,6 +1341,23 @@ const BooklibApp = (() => {
     return gameEmpty && othersEmpty;
   }
 
+  // ★ 면제 항목 저장 키: classId + bookId 조합
+  function _exemptKey() {
+    return 'bl_exempt_' + _st.matrixClassId + '_' + _st.matrixBookId;
+  }
+  // ★ 면제 항목 LocalStorage 영구 저장
+  function _saveExempts(excs) {
+    try { localStorage.setItem(_exemptKey(), JSON.stringify(excs)); } catch(e) {}
+    _csvImportState.exceptions = excs;
+  }
+  // ★ 면제 항목 로드 (반/교재 전환 시 자동 복원)
+  function _loadExempts() {
+    try {
+      const saved = localStorage.getItem(_exemptKey());
+      _csvImportState.exceptions = saved ? JSON.parse(saved) : {};
+    } catch(e) { _csvImportState.exceptions = {}; }
+  }
+
   // ★ 해당 학생(이름)의 면제 항목 목록 반환
   function _getExemptItems(givenName) {
     if (!givenName) return [];
