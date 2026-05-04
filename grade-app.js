@@ -34,6 +34,8 @@ const GradeApp = (() => {
     slideIdx:  0,
     reportLayout: 1,
     reportGraph:  true,
+    showGraph:    false,   // ★ 그래프 표시 여부
+    chartStyle:   1,       // ★ 1=단어/리딩 분리, 2=학생별
     touchStartX: 0,
   };
 
@@ -82,11 +84,12 @@ const GradeApp = (() => {
 .gr-empty-ico{font-size:44px;margin-bottom:10px;}
 
 /* ══ EXCEL MODE ══ */
-.gr-sheet-wrap{min-width:max-content;}
+.gr-sheet-wrap{width:100%;overflow-x:auto;}
+.gr-sheet{border-collapse:collapse;font-size:12px;width:100%;table-layout:fixed;}
 .gr-sheet{border-collapse:collapse;font-size:12px;}
 
 /* fixed student col */
-.gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:110px;width:110px;cursor:pointer;}
+.gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:120px;width:120px;cursor:pointer;}
 .gr-sheet thead .gs-fix{z-index:5;background:var(--surf2);}
 .gr-sheet .gs-fix.sel,.gr-sheet .gs-fix:hover{background:var(--a10);}
 
@@ -109,7 +112,7 @@ const GradeApp = (() => {
 .gs-td.ro.score-c .gs-val{color:var(--a);}
 .gs-td.ro.achv-c .gs-val{color:#8b5cf6;font-weight:800;}
 /* 입력 가능 셀 - 밝은 흰색/강조 배경 */
-.gs-td.inp-cell{background:#fff;}
+.gs-td.inp-cell{background:#fff;width:68px;}
 .dark .gs-td.inp-cell{background:rgba(255,255,255,.04);}
 
 /* selected row highlight */
@@ -117,7 +120,7 @@ const GradeApp = (() => {
 .gr-sheet tbody tr.sel-row .gs-fix{background:var(--a20)!important;}
 
 /* number input */
-.gs-inp{width:100%;min-width:54px;padding:6px 4px;border:none;outline:none;background:transparent;font-size:13px;font-weight:700;color:var(--a);text-align:center;font-family:var(--font);-moz-appearance:textfield;cursor:text;}
+.gs-inp{width:100%;min-width:44px;padding:6px 2px;border:none;outline:none;background:transparent;font-size:13px;font-weight:700;color:var(--a);text-align:center;font-family:var(--font);-moz-appearance:textfield;cursor:text;}
 .gs-inp::-webkit-outer-spin-button,.gs-inp::-webkit-inner-spin-button{-webkit-appearance:none;}
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
@@ -294,7 +297,8 @@ const GradeApp = (() => {
           <button class="gr-vbtn ${_st.viewMode==='card'?'on':''}"   onclick="GradeApp._setView('card')">👤 카드</button>
           <button class="gr-vbtn ${_st.viewMode==='report'?'on':''}" onclick="GradeApp._setView('report')">📄 리포트</button>
         </div>
-        ${hasData ? `<button class="gr-save-all-btn" onclick="GradeApp.saveAll()">
+        ${hasData ? `<button class="gr-save-all-btn" id="gr-save-btn" onclick="GradeApp.saveAll()"
+          style="opacity:${_st.dirty.size>0?1:.45};transform:${_st.dirty.size>0?'none':'scale(.95)'}">
           💾 저장<span class="gr-dirty-count" id="gr-dirty-cnt">${_st.dirty.size?`(${_st.dirty.size})`:''}</span>
         </button>` : ''}
       </div>
@@ -303,8 +307,15 @@ const GradeApp = (() => {
         <div class="gr-content" id="gr-content"></div>
       </div>
       ${_st.viewMode==='excel' && hasData ? `
-        <div class="gr-chart-wrap" id="gr-chart-wrap">
-          <div class="gr-chart-title">📊 성취율 현황 <span style="font-size:10px;font-weight:400;color:var(--tx3)">· 학생 클릭 시 하이라이트</span></div>
+        <div class="gr-chart-wrap" id="gr-chart-wrap" style="display:${_st.showGraph?'block':'none'}">
+          <div class="gr-chart-title" style="display:flex;align-items:center;gap:8px">
+            <span>📊 성취율 현황</span>
+            <div style="display:flex;gap:4px">
+              <button onclick="GradeApp._setChartStyle(1)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--bdr2);cursor:pointer;background:${_st.chartStyle===1?'var(--a)':'var(--surf2)'};color:${_st.chartStyle===1?'#fff':'var(--tx2)'};font-family:var(--font)">단어/리딩</button>
+              <button onclick="GradeApp._setChartStyle(2)" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--bdr2);cursor:pointer;background:${_st.chartStyle===2?'var(--a)':'var(--surf2)'};color:${_st.chartStyle===2?'#fff':'var(--tx2)'};font-family:var(--font)">학생별</button>
+            </div>
+            <span style="font-size:10px;font-weight:400;color:var(--tx3)">· 학생 클릭 시 하이라이트</span>
+          </div>
           <canvas class="gr-chart-canvas" id="gr-chart"></canvas>
         </div>` : ''}
       <!-- 성적표 모달 -->
@@ -546,6 +557,11 @@ const GradeApp = (() => {
     }).filter(v => v != null);
     const avgW = achWs.length ? Math.round(achWs.reduce((a,b)=>a+b,0)/achWs.length) : null;
 
+    // ★ 그래프 아이콘 토글 버튼
+    const graphBtn = `<button id="gr-graph-toggle" onclick="GradeApp._toggleGraph()"
+      title="그래프 표시/숨기기"
+      style="background:none;border:none;cursor:pointer;font-size:13px;padding:0 4px;opacity:${_st.showGraph?1:.4}">${_st.showGraph?'📊':'📊'}</button>`;
+
     let rdAvgCells = '';
     if (hasRd) {
       const achRds = students.map(s => {
@@ -563,7 +579,12 @@ const GradeApp = (() => {
     }
 
     return `<tr class="gr-avg-row">
-      <td class="gs-fix" colspan="3" style="text-align:center;font-weight:800;color:var(--a);font-size:12px">📊 평균</td>
+      <td class="gs-fix" style="text-align:left;padding:5px 8px">
+        <span style="font-weight:800;color:var(--a);font-size:12px">📊 평균</span>
+        ${graphBtn}
+      </td>
+      <td class="gs-td ro"></td>
+      <td class="gs-td ro"></td>
       <td class="gs-td ro"></td>
       <td class="gs-td ro"><span class="gs-val achv-c" id="gr-avg-w">${avgW!=null?avgW+'%':'—'}</span></td>
       ${rdAvgCells}
@@ -690,49 +711,136 @@ const GradeApp = (() => {
     const canvas = document.getElementById('gr-chart'); if (!canvas) return;
     const config  = GradeDB.getReportConfig(_st.bookId||'');
     const hasRd   = config.reading?.enabled && actRevs.length > 0;
-    const W = canvas.offsetWidth || 300, H = 72;
-    canvas.width = W * window.devicePixelRatio; canvas.height = H * window.devicePixelRatio;
-    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    const W = canvas.offsetWidth || 400, H = 120;
+    canvas.width = W * devicePixelRatio; canvas.height = H * devicePixelRatio;
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
     const ctx = canvas.getContext('2d');
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    ctx.clearRect(0, 0, W, H);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    ctx.clearRect(0,0,W,H);
+    if(!students.length) return;
 
-    if (!students.length) return;
-    const n = students.length;
-    const bw = Math.max(8, Math.min(24, (W / n / (hasRd?2:1)) - 3));
-    const gapX = W / n;
+    const n   = students.length;
+    const PAD = 4;
+    const LABEL_H = 30; // 학생 이름 + 성취율
+    const barMaxH = H - LABEL_H;
 
-    students.forEach((s, i) => {
-      const d    = _st.data[s.id] || {};
-      const rec  = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
-      const wd   = d.word || rec?.word || {};
-      const rdD  = d.reading || rec?.reading || {};
-      const achW = wd.totalQ > 0 && wd.pass != null ? Math.round(wd.pass / wd.totalQ * 100) : 0;
-      const achR = hasRd ? (_calcRdN(rdD, actRevs) ?? 0) : 0;
-      const isHL = _st.studentId === s.id;
-      const x    = i * gapX + gapX / 2;
-      const maxH = H - 18;
+    if (_st.chartStyle === 1) {
+      // ━━ 스타일1: 좌측=단어평균, 우측=리딩평균 ━━
+      // 각 학생 막대를 단어/리딩 영역으로 나눔
+      const halfW = hasRd ? W / 2 : W;
+      const wGapX = halfW / n;
+      const rGapX = hasRd ? halfW / n : 0;
+      const bw = Math.max(10, Math.min(28, wGapX * 0.55));
 
+      // 단어 영역 구분선
       if (hasRd) {
-        ctx.fillStyle = isHL ? '#6366f1' : '#a5b4fc';
-        ctx.globalAlpha = isHL ? 1 : .8;
-        const hw = Math.round(achW / 100 * maxH);
-        ctx.fillRect(x - bw - 1, maxH - hw, bw, hw);
-        const rw = Math.round(achR / 100 * maxH);
-        ctx.fillStyle = isHL ? '#8b5cf6' : '#c4b5fd';
-        ctx.fillRect(x + 1, maxH - rw, bw, rw);
-      } else {
-        const hw = Math.round(achW / 100 * maxH);
-        ctx.fillStyle = isHL ? '#6366f1' : (achW >= 80 ? '#10b981' : '#f97316');
-        ctx.globalAlpha = isHL ? 1 : .75;
-        ctx.fillRect(x - bw/2, maxH - hw, bw, hw);
+        ctx.strokeStyle = 'rgba(99,102,241,.2)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(halfW,0); ctx.lineTo(halfW,H); ctx.stroke();
+        ctx.setLineDash([]);
+        // 영역 레이블
+        ctx.font = 'bold 9px sans-serif'; ctx.textAlign='left';
+        ctx.fillStyle='rgba(99,102,241,.5)';
+        ctx.fillText('단어',4,10);
+        ctx.textAlign='left';
+        ctx.fillStyle='rgba(139,92,246,.5)';
+        ctx.fillText('리딩', halfW+4, 10);
       }
-      ctx.globalAlpha = 1;
-      ctx.font = `${isHL?'bold ':''} 9px sans-serif`;
-      ctx.fillStyle = isHL ? '#6366f1' : '#9ca3af';
-      ctx.textAlign = 'center';
-      ctx.fillText(_givN(s.name).slice(0,2), x, H - 3);
-    });
+
+      students.forEach((s,i) => {
+        const d   = _st.data[s.id]||{};
+        const rec = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        const wd  = d.word||rec?.word||{};
+        const rdD = d.reading||rec?.reading||{};
+        const achW = wd.totalQ>0&&wd.pass!=null ? Math.round(wd.pass/wd.totalQ*100) : 0;
+        const achR = hasRd ? (_calcRdN(rdD,actRevs)??0) : 0;
+        const isHL = _st.studentId===s.id;
+        const alpha = isHL ? 1 : 0.75;
+
+        // 단어 막대
+        const wx = i*wGapX + wGapX/2;
+        const hw = Math.round(achW/100*barMaxH);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = isHL ? '#4f46e5' : (achW>=80?'#10b981':'#f97316');
+        ctx.fillRect(wx-bw/2, barMaxH-hw, bw, hw);
+        ctx.globalAlpha=1;
+        ctx.font=`${isHL?'bold ':''} 9px sans-serif`; ctx.textAlign='center';
+        ctx.fillStyle=isHL?'#4f46e5':'#6b7280';
+        ctx.fillText(_givN(s.name).slice(0,2), wx, H-18);
+        if(achW>0){ctx.fillStyle=isHL?'#4f46e5':'#9ca3af';ctx.fillText(achW+'%',wx,H-6);}
+
+        // 리딩 막대
+        if (hasRd) {
+          const rx = halfW + i*rGapX + rGapX/2;
+          const rw = Math.round(achR/100*barMaxH);
+          ctx.globalAlpha=alpha;
+          ctx.fillStyle=isHL?'#7c3aed':'#c4b5fd';
+          ctx.fillRect(rx-bw/2, barMaxH-rw, bw, rw);
+          ctx.globalAlpha=1;
+          ctx.font=`${isHL?'bold ':''} 9px sans-serif`; ctx.textAlign='center';
+          ctx.fillStyle=isHL?'#7c3aed':'#6b7280';
+          ctx.fillText(_givN(s.name).slice(0,2), rx, H-18);
+          if(achR>0){ctx.fillStyle=isHL?'#7c3aed':'#9ca3af';ctx.fillText(Math.round(achR)+'%',rx,H-6);}
+        }
+      });
+
+    } else {
+      // ━━ 스타일2: 학생별 단어+리딩 나란히 ━━
+      const gapX  = W / n;
+      const bw    = Math.max(8, Math.min(22, gapX / (hasRd?2.8:1.5)));
+
+      students.forEach((s,i) => {
+        const d   = _st.data[s.id]||{};
+        const rec = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        const wd  = d.word||rec?.word||{};
+        const rdD = d.reading||rec?.reading||{};
+        const achW = wd.totalQ>0&&wd.pass!=null ? Math.round(wd.pass/wd.totalQ*100) : 0;
+        const achR = hasRd ? (_calcRdN(rdD,actRevs)??0) : 0;
+        const isHL = _st.studentId===s.id;
+        const cx   = i*gapX + gapX/2;
+        const alpha = isHL?1:0.75;
+
+        if(hasRd){
+          const hw=Math.round(achW/100*barMaxH);
+          ctx.globalAlpha=alpha;
+          ctx.fillStyle=isHL?'#4f46e5':'#a5b4fc';
+          ctx.fillRect(cx-bw-1, barMaxH-hw, bw, hw);
+          if(achW>0){ctx.globalAlpha=1;ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillStyle=isHL?'#4f46e5':'#818cf8';ctx.fillText(achW+'%',cx-bw/2-1,barMaxH-hw-2);}
+
+          const rw=Math.round(achR/100*barMaxH);
+          ctx.globalAlpha=alpha;
+          ctx.fillStyle=isHL?'#7c3aed':'#c4b5fd';
+          ctx.fillRect(cx+1, barMaxH-rw, bw, rw);
+          if(achR>0){ctx.globalAlpha=1;ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillStyle=isHL?'#7c3aed':'#a78bfa';ctx.fillText(Math.round(achR)+'%',cx+bw/2+1,barMaxH-rw-2);}
+        } else {
+          const hw=Math.round(achW/100*barMaxH);
+          ctx.globalAlpha=alpha;
+          ctx.fillStyle=isHL?'#4f46e5':(achW>=80?'#10b981':'#f97316');
+          ctx.fillRect(cx-bw/2,barMaxH-hw,bw,hw);
+          if(achW>0){ctx.globalAlpha=1;ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillStyle=isHL?'#4f46e5':'#6b7280';ctx.fillText(achW+'%',cx,barMaxH-hw-2);}
+        }
+        ctx.globalAlpha=1;
+        ctx.font=`${isHL?'bold ':''} 9px sans-serif`; ctx.textAlign='center';
+        ctx.fillStyle=isHL?'#4f46e5':'#6b7280';
+        ctx.fillText(_givN(s.name).slice(0,2), cx, H-5);
+      });
+    }
+  }
+
+  function _toggleGraph() {
+    _st.showGraph = !_st.showGraph;
+    const wrap = document.getElementById('gr-chart-wrap');
+    if (wrap) wrap.style.display = _st.showGraph ? 'block' : 'none';
+    const btn = document.getElementById('gr-graph-toggle');
+    if (btn) btn.style.opacity = _st.showGraph ? '1' : '0.4';
+    if (_st.showGraph) _updateChart();
+  }
+
+  function _setChartStyle(n) {
+    _st.chartStyle = n;
+    _renderStudents(); // 헤더 재렌더 (버튼 색상 업데이트)
+    _updateChart();
   }
 
   function _updateChart() {
