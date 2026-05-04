@@ -125,13 +125,13 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{min-width:260px;width:260px;max-width:260px;}
-.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;font-weight:600;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
+.gs-cm-cell{min-width:160px;width:25%;max-width:400px;overflow:hidden;}
+.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;font-weight:600;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;overflow-y:auto;word-break:break-all;white-space:pre-wrap;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
 /* average row */
 .gr-avg-row td{background:var(--surf2)!important;}
-.gr-avg-row .gs-fix{color:var(--a);font-weight:800;font-size:12px;display:flex!important;align-items:center;gap:4px;}
+.gr-avg-row td.gs-fix{position:relative!important;color:var(--a);font-weight:800;font-size:12px;background:var(--surf2)!important;}
 
 /* chart */
 .gr-chart-wrap{padding:10px 12px 6px;border-top:1.5px solid var(--bdr);background:var(--surf2);flex-shrink:0;}
@@ -460,7 +460,7 @@ const GradeApp = (() => {
                   onclick="GradeApp._toggleSort('name')">학생 ${nmIcon}</th>
               <th class="gs-th sec-w" colspan="4">🔤 단어 평가</th>
               ${rdSection}
-              <th class="gs-th sec-c" rowspan="3" style="min-width:${CM_W}px">💬 Teacher's Comment</th>
+              <th class="gs-th sec-c" rowspan="3" style="width:25%;min-width:140px;max-width:400px;overflow:hidden;white-space:normal;word-break:break-word">💬 Teacher's Comment</th>
             </tr>
             <tr>
               <th class="gs-th" rowspan="2" style="background:var(--a10);color:var(--a);vertical-align:middle">총 테스트<br>(문제) 수</th>
@@ -557,12 +557,11 @@ const GradeApp = (() => {
     }).filter(v => v != null);
     const avgW = achWs.length ? Math.round(achWs.reduce((a,b)=>a+b,0)/achWs.length) : null;
 
-    // ★ 그래프 아이콘 - 하나만, 토글 스타일
+    // ★ 그래프 아이콘 토글 버튼 하나만
     const isOn = _st.showGraph;
     const graphBtn = `<button id="gr-graph-toggle" onclick="GradeApp._toggleGraph()"
       title="${isOn?'그래프 숨기기':'그래프 표시'}"
-      style="background:${isOn?'var(--a)':'transparent'};border:${isOn?'none':'1.5px solid var(--bdr2)'};border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;color:${isOn?'#fff':'var(--tx3)'};transition:all .15s;margin-left:6px">
-      📊</button>`;
+      style="background:${isOn?'var(--a)':'transparent'};border:${isOn?'none':'1.5px solid var(--bdr2)'};border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;color:${isOn?'#fff':'var(--tx3)'};transition:all .15s;margin-left:6px">📊</button>`;
 
     let rdAvgCells = '';
     if (hasRd) {
@@ -573,22 +572,21 @@ const GradeApp = (() => {
         return _calcRdN(rd, actRevs);
       }).filter(v => v != null);
       const avgRd = achRds.length ? Math.round(achRds.reduce((a,b)=>a+b,0)/achRds.length) : null;
-      // 이미지처럼: 총문제(빈) | 정답수들(빈) | 점수들(빈) | 성취율(평균%)
+      // ★ 총문제 + 정답수(rvN) + 점수(rvN) 병합 → "평균"
+      const rdMergeCols = 1 + actRevs.length * 2;
       rdAvgCells = `
-        <td class="gs-td ro"></td>
-        ${actRevs.map(()=>'<td class="gs-td ro"></td>').join('')}
-        ${actRevs.map(()=>'<td class="gs-td ro"></td>').join('')}
+        <td class="gs-td ro" colspan="${rdMergeCols}"
+          style="text-align:center;font-weight:800;color:#8b5cf6;font-size:12px">평균</td>
         <td class="gs-td ro"><span class="gs-val achv-c" id="gr-avg-rd">${avgRd!=null?avgRd+'%':'—'}</span></td>`;
     }
 
+    // ★ 학생~통과(4열) 병합: gs-fix(학생) + 총테스트 + 재시험 + 통과 → colspan=4
     return `<tr class="gr-avg-row">
-      <td class="gs-fix" style="text-align:left;padding:5px 8px;display:flex;align-items:center;gap:0">
+      <td class="gs-fix" colspan="4"
+        style="text-align:left;padding:5px 10px;vertical-align:middle">
         <span style="font-weight:800;color:var(--a);font-size:12px">평균</span>
         ${graphBtn}
       </td>
-      <td class="gs-td ro"></td>
-      <td class="gs-td ro"></td>
-      <td class="gs-td ro"></td>
       <td class="gs-td ro"><span class="gs-val achv-c" id="gr-avg-w">${avgW!=null?avgW+'%':'—'}</span></td>
       ${rdAvgCells}
       <td class="gs-td ro gs-cm-cell"></td>
