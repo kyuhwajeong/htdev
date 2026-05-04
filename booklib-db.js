@@ -103,7 +103,9 @@ const BookLibDB = (() => {
   }
 
   /* ══ BOOKS ══ */
-  const getBooks    = () => _books.slice();
+  const getBooks         = () => _books.filter(b=>!b.archived).sort((a,b)=>(a.sortOrder??9999)-(b.sortOrder??9999));
+  const getAllBooks       = () => _books.slice();
+  const getArchivedBooks = () => _books.filter(b=>b.archived).sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
   const getBookById = id => _books.find(b=>b.id===id) || null;
 
   async function addBook(name) {
@@ -135,12 +137,60 @@ const BookLibDB = (() => {
   }
 
   /* ══ CHAPTERS ══ */
+  async function reorderBooks(ids) {
+    ids.forEach((id,i)=>{ const b=_books.find(x=>x.id===id); if(b) b.sortOrder=i; });
+    _ls(LS_BOOKS, _books);
+    if(_fb()) ids.forEach((id,i)=>FireDB.update(`${FB_BOOKS}/${id}`,{sortOrder:i}).catch(()=>{}));
+  }
+
+  async function archiveBook(id) {
+    const b=_books.find(x=>x.id===id); if(!b) return;
+    b.archived=true; b.archivedAt=_now();
+    _ls(LS_BOOKS, _books);
+    if(_fb()) FireDB.update(`${FB_BOOKS}/${id}`,{archived:true,archivedAt:b.archivedAt}).catch(()=>{});
+    _fire('books');
+  }
+
+  async function unarchiveBook(id) {
+    const b=_books.find(x=>x.id===id); if(!b) return;
+    b.archived=false; delete b.archivedAt;
+    _ls(LS_BOOKS, _books);
+    if(_fb()) FireDB.update(`${FB_BOOKS}/${id}`,{archived:false,archivedAt:null}).catch(()=>{});
+    _fire('books');
+  }
+
+  async function copyBook(id) {
+    const src=_books.find(x=>x.id===id); if(!src) return null;
+    const copy={
+      ...JSON.parse(JSON.stringify(src)),
+      id:_nid(), name:src.name+' (복사)', createdAt:_now(),
+      archived:false, archivedAt:undefined, sortOrder:(_books.length)
+    };
+    delete copy.archivedAt;
+    _books.push(copy); _ls(LS_BOOKS, _books);
+    if(_fb()) FireDB.set(`${FB_BOOKS}/${copy.id}`, copy).catch(()=>{});
+    _fire('books'); return copy;
+  }
+
+  async function assignStudents(bookId, studentIds) {
+    const b=_books.find(x=>x.id===bookId); if(!b) return;
+    b.assignedStudents = studentIds;
+    _ls(LS_BOOKS, _books);
+    if(_fb()) FireDB.update(`${FB_BOOKS}/${bookId}`,{assignedStudents:studentIds}).catch(()=>{});
+    _fire('books');
+  }
+
   async function setChapters(bookId, chapters, mode='replace') {
     const book = getBookById(bookId); if (!book) return null;
     const norm = (items, start=0) => items
       .map(c => typeof c==='string' ? {title:c.trim()} : c)
       .filter(c => String(c.title||'').trim())
-      .map((c,i) => ({ id:c.id||_nid(), title:String(c.title).trim(), order:start+i }));
+      .map((c,i) => ({
+        id:       c.id||_nid(),
+        title:    String(c.title).trim(),
+        order:    start+i,
+        ...(c.fromXlsx ? {fromXlsx:true} : {}),  // ★ 신규 챕터 플래그 보존
+      }));
     const newChs = mode==='append'
       ? [...book.chapters, ...norm(chapters, book.chapters.length)]
       : norm(chapters);
@@ -238,7 +288,9 @@ const BookLibDB = (() => {
 
   return {
     init, on,
-    getBooks, getBookById, addBook, updateBook, deleteBook,
+    getBooks, getAllBooks, getArchivedBooks, getBookById,
+    addBook, updateBook, deleteBook,
+    reorderBooks, archiveBook, unarchiveBook, copyBook, assignStudents,
     setChapters, deleteChapter,
     getBooksForClass, isBookInClass, assignBook, unassignBook,
     getMatrixChecks, getRawCheck, isChecked, getCheckParsed, getSubTasks,

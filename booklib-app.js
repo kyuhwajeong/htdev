@@ -168,6 +168,7 @@ const BooklibApp = (() => {
 .bl-cm{font-size:14px;line-height:1;}
 .bl-cc .bl-cm{color:transparent;}
 .bl-cc.undone .bl-cm{color:#ea580c;font-weight:900;font-size:13px;}
+.bl-chrow.from-xlsx-row .bl-ch-title{background:rgba(99,102,241,.07)!important;border-left:3px solid rgba(99,102,241,.4)!important;}
 .bl-chrow.in-eval .bl-cc:not(.undone):hover .bl-cm{color:rgba(234,88,12,.25);}
 .bl-sub-badges{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;padding:2px 2px 3px;}
 .bl-sub-badge{font-size:8px;font-weight:800;padding:1px 4px;border-radius:4px;background:rgba(234,88,12,.15);color:#ea580c;border:1px solid rgba(234,88,12,.25);}
@@ -712,8 +713,14 @@ const BooklibApp = (() => {
     if(!allStu.length)return`<div class="bl-mempty"><div class="bl-mempty-ico">👨‍🎓</div>${_e(cls.name)}반 재원 학생 없음<br><small>학생 탭에서 엑셀을 가져오세요</small></div>`;
     const savedOrder=_loadColOrder(_st.matrixClassId,_st.matrixBookId);_st.colOrder=_buildColOrder(allStu,savedOrder);const students=_getOrderedStu(allStu);
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
-    const total=students.length*evalChs.length,undone=Object.keys(_checks).length;
-    const pct=total?Math.max(0,Math.round((total-undone)/total*100)):100;
+    // ★ 미수행 = evalChs(타임스탬프 이내) 챕터 × 학생 조합 중 체크된 것만
+    const evalChIds = new Set(evalChs.map(ch=>ch.id));
+    const undone = Object.keys(_checks).filter(k=>{
+      const chId = k.split('__')[1];
+      return evalChIds.has(chId);
+    }).length;
+    const total = students.length * evalChs.length;
+    const pct = total ? Math.max(0, Math.round((total-undone)/total*100)) : 100;
     const doneByS={};students.forEach(s=>{doneByS[s.id]=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;});
     const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
     const stampNote=lastStamp?`📍 기준: ${_e(lastCh?.title||'')} (${_fmtStamp(_stamps[lastStamp.chId])})`:'📍 챕터 셀 탭 → 진도 스탬프 설정';
@@ -879,7 +886,9 @@ const BooklibApp = (() => {
     const book=BookLibDB.getBookById(_st.matrixBookId);if(!book)return;const chs=book.chapters||[];const cls=_getCls(_st.matrixClassId);if(!cls)return;
     const sts=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
-    const total=sts.length*evalChs.length,undone=Object.keys(_checks).length;const pct=total?Math.max(0,Math.round((total-undone)/total*100)):100;
+    const evalChIdsR=new Set(evalChs.map(ch=>ch.id));
+    const undone=Object.keys(_checks).filter(k=>evalChIdsR.has(k.split('__')[1])).length;
+    const total=sts.length*evalChs.length;const pct=total?Math.max(0,Math.round((total-undone)/total*100)):100;
     const nodes=bar.querySelectorAll('.bl-mstat-v');if(nodes[0])nodes[0].textContent=undone;if(nodes[1])nodes[1].textContent=pct+'%';
     const fill=document.getElementById('bl-pct-fill');if(fill)fill.style.width=pct+'%';
   }
@@ -1037,14 +1046,57 @@ const BooklibApp = (() => {
         if (!norm['완료']   && norm['완료여부'])  norm['완료']  = norm['완료여부'];
         return norm;
       });
+      // ★ xlsx 기준 챕터 목록 최신화 (덮어쓰기)
+      await _syncChaptersFromXlsx(rows, _st.matrixBookId);
+
       const result = await _processCsv(rows);  // rows 배열 직접 전달
       const stampMsg = result.stampTitle ? ` | 📍 ${result.stampTitle}까지 처리` : '';
-      _toast(`✅ 반영 완료 — 미수행 ${result.undone}건, 수행 ${result.done}건, 예외 ${result.exception}건${stampMsg}`, 'success');
+      _toast(`✅ 반영 완료 — 챕터 동기화 + 미수행 ${result.undone}건, 수행 ${result.done}건${stampMsg}`, 'success');
       _refreshBody();
     } catch(e) {
       console.error('[XLSX Import]', e);
       _toast('❌ 파일 처리 오류: ' + e.message);
     } finally { ov.remove(); }
+  }
+
+  /**
+   * ★ xlsx 기준 챕터 목록 최신화
+   * - 중복 제거 → "[타입] 세트 제목" 형식으로 챕터 목록 구성
+   * - 기존 챕터와 동일한 것은 id 유지(overwrite), 신규는 새 id 부여
+   * - 기존에 없던 xlsx 신규 챕터: fromXlsx:true 플래그 부여 (배경색 구분용)
+   * - 최종적으로 xlsx 목록 수량 = DB 챕터 수량 (완전 동기화)
+   */
+  async function _syncChaptersFromXlsx(rows, bookId) {
+    const book = BookLibDB.getBookById(bookId); if (!book) return;
+
+    // 1. xlsx에서 중복 제거 챕터 목록 추출 (순서 유지)
+    const seen = new Set(), xlsxChs = [];
+    rows.forEach(r => {
+      const title = String(r['세트 제목'] || r['제목'] || '').trim();
+      const typ   = String(r['타입'] || '').trim();
+      if (!title || !typ) return;
+      const key = `[${typ}] ${title}`;
+      if (!seen.has(key)) { seen.add(key); xlsxChs.push({ key, title, typ }); }
+    });
+    if (!xlsxChs.length) return;
+
+    // 2. 기존 챕터와 매칭: 동일하면 기존 id 유지, 없으면 신규
+    const existingChs = book.chapters || [];
+    const existingMap = {};
+    existingChs.forEach(ch => { existingMap[ch.title] = ch; });
+
+    const newChs = xlsxChs.map((x, i) => {
+      const fullTitle = x.key;  // "[타입] 세트 제목"
+      const existing  = existingMap[fullTitle];
+      return {
+        id:       existing ? existing.id : '',
+        title:    fullTitle,
+        order:    i,
+        fromXlsx: !existing,  // ★ 신규 챕터 표시용 플래그
+      };
+    });
+
+    await BookLibDB.setChapters(bookId, newChs, 'replace');
   }
 
   /* 핵심 처리 로직 - rows 배열(정규화 완료) 직접 받음 */
@@ -1550,7 +1602,7 @@ const BooklibApp = (() => {
     _chWider,_chNarrow,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
-    importCsv, openCsvImportModal, _confirmCsvImport,
+    importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     _archiveBook,_unarchiveBook,_copyBook,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
   };
