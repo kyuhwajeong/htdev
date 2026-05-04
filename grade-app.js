@@ -73,7 +73,7 @@ const GradeApp = (() => {
 .gr-content::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
 
 /* student panel */
-.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:58px;}
+.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70px;height:70px;}
 .gr-stu-item:hover{background:var(--a10);}
 .gr-stu-item.on{background:var(--a20);border-left:3px solid var(--a);}
 .gr-stu-item.dirty-item::after{content:'●';position:absolute;top:3px;right:4px;color:#f59e0b;font-size:10px;}
@@ -206,7 +206,7 @@ const GradeApp = (() => {
 .gr-card-save-btn:active{opacity:.85;}
 
 /* ══ REPORT ══ */
-.gr-report-panel{padding:14px 14px 80px;}
+.gr-report-panel{padding:14px 14px 40px;position:relative;}
 .gr-rpt-cfg{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--sh);}
 .gr-rpt-cfg-title{font-size:11px;font-weight:800;color:var(--tx3);letter-spacing:.5px;margin-bottom:8px;}
 .gr-rpt-layouts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
@@ -215,6 +215,12 @@ const GradeApp = (() => {
 .gr-rpt-toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2);cursor:pointer;}
 .gr-rpt-toggle input{accent-color:var(--a);}
 .gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;box-shadow:var(--sh);animation:cardIn .2s ease;}
+.gr-rpt-float-btns{position:absolute;right:-58px;top:60px;display:flex;flex-direction:column;gap:6px;z-index:10;}
+.gr-rpt-fab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:10px;border:none;background:var(--card);box-shadow:var(--sh2);cursor:pointer;font-family:var(--font);transition:all .15s;width:52px;}
+.gr-rpt-fab:hover{background:var(--a10);transform:translateX(-2px);}
+.gr-rpt-fab:active{transform:scale(.93);}
+.gr-rpt-fab-ico{font-size:18px;line-height:1;}
+.gr-rpt-fab-lbl{font-size:9px;font-weight:700;color:var(--tx2);}
 .rpt-wrap{padding:20px 24px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#111;background:#fff;}
 .rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
 .rpt-title{font-size:20px;font-weight:900;color:#111;flex:1;}
@@ -352,8 +358,11 @@ const GradeApp = (() => {
     const panel = document.getElementById('gr-stu-panel'); if (!panel) return;
     const students = _getSorted();
     if (!students.length) { panel.innerHTML = ''; return; }
-    // ★ 학생명 헤더 추가
-    const headerH = `<div style="padding:6px 4px;text-align:center;font-size:10px;font-weight:800;color:var(--tx3);background:var(--surf2);border-bottom:1.5px solid var(--bdr);letter-spacing:.5px;position:sticky;top:0;z-index:2">학생명</div>`;
+    // ★ 학생명 헤더 - 단어평가 서브컬럼 3행 높이에 맞춤 (약 90px)
+    const headerH = `<div style="height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;text-align:center;background:var(--surf2);border-bottom:1.5px solid var(--bdr);position:sticky;top:0;z-index:2">
+      <span style="font-size:20px;line-height:1">👨‍🎓</span>
+      <span style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.5px">학생명</span>
+    </div>`;
     panel.innerHTML = headerH + students.map((s, i) => {
       const rec  = _st.classId && _st.bookId ? GradeDB.getLatest(_st.classId, s.id, _st.bookId) : null;
       const achW = rec?.word?.totalQ > 0 ? Math.round(rec.word.pass / rec.word.totalQ * 100) : null;
@@ -838,6 +847,7 @@ const GradeApp = (() => {
     _st.showGraph = !_st.showGraph;
     const wrap = document.getElementById('gr-chart-wrap');
     if (wrap) wrap.style.display = _st.showGraph ? 'flex' : 'none';
+    // 버튼 토글 스타일
     const btn = document.getElementById('gr-graph-toggle');
     if (btn) {
       btn.style.background = _st.showGraph ? 'var(--a)' : 'transparent';
@@ -846,10 +856,12 @@ const GradeApp = (() => {
       btn.title            = _st.showGraph ? '그래프 숨기기' : '그래프 표시';
     }
     if (_st.showGraph) {
-      // DOM에 캔버스가 없으면 _renderStudents로 재생성
       const canvas = document.getElementById('gr-chart');
       if (!canvas) { _renderStudents(); return; }
-      _updateChart();
+      // ★ display 변경 후 레이아웃 계산 완료 기다린 뒤 렌더
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { _updateChart(); });
+      });
     }
   }
 
@@ -1041,7 +1053,19 @@ const GradeApp = (() => {
     const s = students.find(s=>s.id===_st.studentId)||students[0];
     if(!s){cnt.innerHTML=`<div class="gr-empty"><div class="gr-empty-ico">👆</div>좌측에서 학생을 선택하세요</div>`;return;}
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
-    cnt.innerHTML=`<div class="gr-report-panel">
+    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative">
+      <!-- 우측 고정 버튼 -->
+      <div class="gr-rpt-float-btns" id="gr-rpt-float-btns">
+        <button class="gr-rpt-fab" onclick="GradeApp._shareReport()" title="공유">
+          <span class="gr-rpt-fab-ico">📤</span><span class="gr-rpt-fab-lbl">공유</span>
+        </button>
+        <button class="gr-rpt-fab" onclick="GradeApp._printReport()" title="PDF 출력">
+          <span class="gr-rpt-fab-ico">🖨️</span><span class="gr-rpt-fab-lbl">PDF</span>
+        </button>
+        <button class="gr-rpt-fab" onclick="GradeApp._captureReport()" title="이미지 캡처">
+          <span class="gr-rpt-fab-ico">📸</span><span class="gr-rpt-fab-lbl">캡처</span>
+        </button>
+      </div>
       <div class="gr-rpt-cfg">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
           <div>
@@ -1080,12 +1104,7 @@ const GradeApp = (() => {
       </div>
       <div class="gr-rpt-preview">
         <div class="rpt-wrap" id="gr-rpt-preview" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
-        <div class="rpt-acts">
-          <button class="rpt-btn copy"  onclick="GradeApp._copyReport()">📋 복사</button>
-          <button class="rpt-btn share" onclick="GradeApp._shareReport()">📤 공유</button>
-          <button class="rpt-btn pdf"   onclick="GradeApp._printReport()">🖨️ PDF</button>
-          <button class="rpt-btn cap"   onclick="GradeApp._captureReport()">📸 캡처</button>
-        </div>
+        <!-- 우측 고정 버튼은 gr-rpt-float-btns에서 렌더됨 -->
       </div>
     </div>`;
   }
@@ -1128,12 +1147,13 @@ const GradeApp = (() => {
 
   function _setPageSize(size) {
     _st.pageSize = size;
-    // ★ 프리뷰에 실시간 반영 (mm → px 변환: 1mm ≈ 3.78px)
     const pxW = {A4:794, A5:559, B5:665};
+    const w = (pxW[size]||794)+'px';
+    // ★ rpt-wrap(배경 카드)도 함께 크기 변경
     const wrap = document.getElementById('gr-rpt-preview');
     if (wrap) {
-      wrap.style.width    = (pxW[size]||794)+'px';
-      wrap.style.maxWidth = (pxW[size]||794)+'px';
+      wrap.style.width    = w;
+      wrap.style.maxWidth = w;
     }
     // 버튼 스타일 업데이트
     document.querySelectorAll('[onclick*="_setPageSize"]').forEach(b => {
@@ -1171,52 +1191,143 @@ const GradeApp = (() => {
 
   function _setLayout(n){_st.reportLayout=n;const s=_getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];if(s){const el=document.getElementById('gr-rpt-preview');if(el)el.innerHTML=_buildReport(s);}document.querySelectorAll('.gr-rpt-lbtn').forEach((b,i)=>b.classList.toggle('on',i+1===n));}
   function _toggleGraph(v){_st.reportGraph=v;_setLayout(_st.reportLayout);}
-  async function _copyReport(){const el=document.getElementById('gr-rpt-preview');try{await navigator.clipboard.writeText(el?.innerText||'');_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
-  async function _shareReport(){const text=document.getElementById('gr-rpt-preview')?.innerText||'';const sd={title:'Achievement Report',text};if(navigator.share&&navigator.canShare?.(sd)){try{await navigator.share(sd);_toast('📤 공유 완료','success');return;}catch(e){if(e.name==='AbortError')return;}}_copyReport();}
+  // _copyReport 제거됨
+  async function _shareReport(){
+    const el=document.getElementById('gr-rpt-preview'); if(!el) return;
+    const s = _getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
+    const name = s?s.name:'';
+    const pw   = {A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
+    const ph   = {A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
+    const innerHtml = el.innerHTML;
+
+    const css = `
+      @charset "UTF-8";
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
+      body{margin:0;padding:20px;background:#f8fafc;font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:center;}
+      .rpt-wrap{background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:20px 24px;max-width:${pw};width:100%;}
+      .rpt-header{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+      .rpt-title{font-size:${_st.reportTitleSize}px;font-weight:800;color:#1e293b;}
+      .rpt-divider{border:none;border-top:1.5px solid #e2e8f0;margin:10px 0;}
+      .rpt-info{margin-bottom:10px;font-size:${_st.reportBodySize}px;}
+      .rpt-info p{margin:3px 0;}
+      .rpt-sec-title{font-size:${_st.reportBodySize}px;font-weight:800;color:#4f46e5;margin:10px 0 5px;}
+      .rpt-tbl{width:100%;border-collapse:collapse;font-size:${_st.reportBodySize}px;}
+      .rpt-tbl th{background:#f1f5f9;padding:5px 8px;border:1px solid #e2e8f0;font-weight:700;text-align:center;}
+      .rpt-tbl td{padding:5px 8px;border:1px solid #e2e8f0;text-align:center;}
+      .rpt-pass{color:#16a34a;font-weight:700;} .rpt-fail{color:#ea580c;font-weight:700;} .rpt-achv{color:#7c3aed;font-weight:800;}
+      .rpt-avg td{background:#f8fafc;font-weight:700;}
+      .rpt-comment-box{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;min-height:40px;font-size:${_st.reportBodySize}px;white-space:pre-wrap;}
+      canvas{max-width:100%;}
+    `;
+    const shareHtml = [
+      '<!DOCTYPE html><html><head>',
+      '<meta charset="UTF-8">',
+      `<meta name="viewport" content="width=device-width,initial-scale=1">`,
+      `<title>${name} 성적 리포트</title>`,
+      `<style>${css}</style>`,
+      '</head><body>',
+      '<div class="rpt-wrap">', innerHtml, '</div>',
+      '</body></html>'
+    ].join('');
+
+    // Web Share API (모바일 등)
+    if(navigator.share){
+      try{
+        // Blob URL 생성
+        const blob=new Blob([shareHtml],{type:'text/html'});
+        const url=URL.createObjectURL(blob);
+        const sd={title:`${name} Achievement Report`,url};
+        if(navigator.canShare&&navigator.canShare(sd)){
+          await navigator.share(sd);
+          _toast('📤 공유 완료','success');
+          setTimeout(()=>URL.revokeObjectURL(url),10000);
+          return;
+        }
+        URL.revokeObjectURL(url);
+      }catch(e){if(e.name==='AbortError')return;}
+    }
+    // 공유 불가 시: 새 창에서 리포트 표시
+    const win=window.open('','_blank','width=900,height=700');
+    if(!win){_toast('⚠️ 팝업이 차단됐습니다.','error');return;}
+    win.document.open();
+    win.document.write(shareHtml);
+    win.document.close();
+    _toast('📤 새 창에서 리포트를 확인하세요','success');
+  }
   function _printReport(){
     const el=document.getElementById('gr-rpt-preview'); if(!el) return;
-    const sizes  = {A4:'210mm', A5:'148mm', B5:'176mm'};
-    const heights= {A4:'297mm', A5:'210mm', B5:'250mm'};
-    const pw = sizes[_st.pageSize]  || '210mm';
-    const ph = heights[_st.pageSize]|| '297mm';
+    const s   = _getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];
+    const pw  = {A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
+    const ph  = {A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
+    const innerHtml = el.innerHTML; // rpt-wrap 내부 컨텐츠
 
-    // 현재 화면 스타일 시트 복사
-    const existingStyles = [...document.styleSheets].map(ss=>{
-      try{ return [...ss.cssRules].map(r=>r.cssText).join('\n'); }catch{return '';}
-    }).join('\n');
-
-    const printCss = `
+    const css = `
       @charset "UTF-8";
-      @page { size:${pw} ${ph}; margin:12mm; }
-      body  { margin:0; padding:0; background:#fff; }
-      .rpt-wrap { width:100%; box-shadow:none; border:none; padding:0; }
-      .rpt-title { font-size:${_st.reportTitleSize}px !important; }
-      .rpt-info p, .rpt-tbl td, .rpt-tbl th, .rpt-comment-box,
-      .rpt-sec-title { font-size:${_st.reportBodySize}px !important; }
-      ${existingStyles}
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
+      @page { size:${pw} ${ph}; margin:10mm; }
+      *, *::before, *::after { box-sizing:border-box; }
+      body { margin:0; padding:0; background:#fff; font-family:'Noto Sans KR',sans-serif; color:#111; }
+      .rpt-wrap { padding:16px 20px; background:#fff; }
+      .rpt-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+      .rpt-title  { font-size:${_st.reportTitleSize}px; font-weight:800; color:#1e293b; }
+      .rpt-divider { border:none; border-top:1.5px solid #e2e8f0; margin:10px 0; }
+      .rpt-info   { margin-bottom:10px; font-size:${_st.reportBodySize}px; }
+      .rpt-info p { margin:3px 0; }
+      .rpt-sec-title { font-size:${_st.reportBodySize}px; font-weight:800; color:#4f46e5; margin:10px 0 5px; }
+      .rpt-tbl    { width:100%; border-collapse:collapse; font-size:${_st.reportBodySize}px; }
+      .rpt-tbl th { background:#f1f5f9; padding:5px 8px; border:1px solid #e2e8f0; font-weight:700; text-align:center; }
+      .rpt-tbl td { padding:5px 8px; border:1px solid #e2e8f0; text-align:center; }
+      .rpt-pass   { color:#16a34a; font-weight:700; }
+      .rpt-fail   { color:#ea580c; font-weight:700; }
+      .rpt-achv   { color:#7c3aed; font-weight:800; }
+      .rpt-avg    td { background:#f8fafc; font-weight:700; }
+      .rpt-graph-wrap { margin:8px 0; }
+      .rpt-comment-box { border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; min-height:40px; font-size:${_st.reportBodySize}px; white-space:pre-wrap; }
+      canvas { max-width:100%; }
     `;
     const html = [
       '<!DOCTYPE html><html><head>',
       '<meta charset="UTF-8">',
-      '<title>Achievement Report</title>',
-      '<link rel="preconnect" href="https://fonts.googleapis.com">',
-      '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap" rel="stylesheet">',
-      `<style>${printCss}</style>`,
+      `<title>성적리포트 - ${s?_e(s.name):''}</title>`,
+      `<style>${css}</style>`,
       '</head><body>',
-      el.outerHTML,
-      '<script>window.onload=function(){window.print();setTimeout(window.close,800)}<\/script>',
+      '<div class="rpt-wrap">', innerHtml, '</div>',
+      '<script>',
+      'window.onload=function(){',
+      '  setTimeout(function(){window.print();},600);',
+      '};',
+      '<\/script>',
       '</body></html>'
     ].join('');
 
-    const win = window.open('','_blank','width=900,height=700');
-    if(!win){ _toast('⚠️ 팝업이 차단됐습니다. 팝업을 허용해주세요.','error'); return; }
+    const win=window.open('','_blank','width=900,height=700');
+    if(!win){_toast('⚠️ 팝업이 차단됐습니다. 팝업을 허용해주세요.','error');return;}
     win.document.open();
     win.document.write(html);
     win.document.close();
   }
 
 
-  async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
+  async function _captureReport(){
+    const el=document.getElementById('gr-rpt-preview'); if(!el) return;
+    const s = _getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];
+    // html2canvas 사용 가능 시
+    if(typeof html2canvas!=='undefined'){
+      try{
+        _toast('📸 캡처 중...','info',2000);
+        const canvas=await html2canvas(el,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
+        const a=document.createElement('a');
+        a.href=canvas.toDataURL('image/png');
+        a.download=`성적리포트_${s?s.name:''}_${new Date().toISOString().slice(0,10)}.png`;
+        a.click();
+        _toast('📸 캡처 완료! 다운로드됩니다','success');
+      }catch(e){ _toast('⚠️ 캡처 실패: '+e.message,'error'); }
+      return;
+    }
+    // html2canvas 없을 때: 인쇄 미리보기로 대체
+    _toast('📸 캡처를 위해 인쇄 창을 이용해주세요 (PDF → 이미지 저장 가능)','info',4000);
+    setTimeout(()=>_printReport(), 1200);
+  }
 
   /* ════════════════════════════════════
    * 저장
@@ -1388,7 +1499,7 @@ const GradeApp = (() => {
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
     _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize,
-    _copyReport, _shareReport, _printReport, _captureReport,
+    _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
 })();
