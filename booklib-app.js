@@ -1412,10 +1412,16 @@ const BooklibApp = (() => {
       // ★ 50% 이상(포함): done/total >= 0.5 → done*2 >= total
       const pct  = done / titleRows.length * 100;
       if (pct >= 50) {
-        /* ★ 학습현황 챕터에서 제목+타입 정확히 매칭 */
-        const matched = chs.find(ch => _matchChapter(ch.title, csvTitle, csvType));
+        /* ★ 학습현황 챕터에서 제목+타입 매칭 (_syncChaptersFromXlsx로 이미 동기화됨) */
+        const fullTitle = `[${csvType}] ${csvTitle}`;
+        // 1차: _matchChapter 정확 매칭
+        let matched = chs.find(ch => _matchChapter(ch.title, csvTitle, csvType));
+        // 2차: fullTitle 직접 매칭 (타입 접두사 포함)
+        if (!matched) matched = chs.find(ch => ch.title === fullTitle);
+        // 3차: 정규화 없이 title만 비교
+        if (!matched) matched = chs.find(ch => ch.title.includes(csvTitle));
         if (matched) return matched.id;
-        /* 매칭 실패 시: 계속 탐색 (챕터명 불일치로 건너뜀) */
+        /* 매칭 실패 시: 계속 탐색 */
       }
     }
     return null;
