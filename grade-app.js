@@ -73,7 +73,7 @@ const GradeApp = (() => {
 .gr-content::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
 
 /* student panel */
-.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70px;height:70px;}
+.gr-stu-item{padding:0;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .12s;text-align:center;position:relative;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:87px;height:87px;}
 .gr-stu-item:hover{background:var(--a10);}
 .gr-stu-item.on{background:var(--a20);border-left:3px solid var(--a);}
 .gr-stu-item.dirty-item::after{content:'●';position:absolute;top:3px;right:4px;color:#f59e0b;font-size:10px;}
@@ -215,7 +215,7 @@ const GradeApp = (() => {
 .gr-rpt-toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2);cursor:pointer;}
 .gr-rpt-toggle input{accent-color:var(--a);}
 .gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;box-shadow:var(--sh);animation:cardIn .2s ease;}
-.gr-rpt-float-btns{position:absolute;right:-58px;top:60px;display:flex;flex-direction:column;gap:6px;z-index:10;}
+.gr-rpt-float-btns{position:fixed;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:999;}
 .gr-rpt-fab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:10px;border:none;background:var(--card);box-shadow:var(--sh2);cursor:pointer;font-family:var(--font);transition:all .15s;width:52px;}
 .gr-rpt-fab:hover{background:var(--a10);transform:translateX(-2px);}
 .gr-rpt-fab:active{transform:scale(.93);}
@@ -327,6 +327,18 @@ const GradeApp = (() => {
           </div>
           <canvas class="gr-chart-canvas" id="gr-chart" style="display:block;width:100%;height:130px"></canvas>
         </div>` : ''}
+      <!-- 리포트 항시 고정 버튼 (리포트 탭에서만 visible) -->
+      <div id="gr-rpt-fixed-btns" style="position:fixed;right:10px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:6px;z-index:999">
+        <button class="gr-rpt-fab" onclick="GradeApp._shareReport()" title="공유">
+          <span class="gr-rpt-fab-ico">📤</span><span class="gr-rpt-fab-lbl">공유</span>
+        </button>
+        <button class="gr-rpt-fab" onclick="GradeApp._printReport()" title="PDF 출력">
+          <span class="gr-rpt-fab-ico">🖨️</span><span class="gr-rpt-fab-lbl">PDF</span>
+        </button>
+        <button class="gr-rpt-fab" onclick="GradeApp._captureReport()" title="이미지 캡처">
+          <span class="gr-rpt-fab-ico">📸</span><span class="gr-rpt-fab-lbl">캡처</span>
+        </button>
+      </div>
       <!-- 성적표 모달 -->
       <div id="gr-rpt-ov" class="ov hidden" onclick="if(event.target.id==='gr-rpt-ov')GradeApp.closeReport()">
         <div class="sh" id="gr-rpt-sh" onclick="event.stopPropagation()" style="max-height:92vh;display:flex;flex-direction:column;"></div>
@@ -359,7 +371,7 @@ const GradeApp = (() => {
     const students = _getSorted();
     if (!students.length) { panel.innerHTML = ''; return; }
     // ★ 학생명 헤더 - 단어평가 서브컬럼 3행 높이에 맞춤 (약 90px)
-    const headerH = `<div style="height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;text-align:center;background:var(--surf2);border-bottom:1.5px solid var(--bdr);position:sticky;top:0;z-index:2">
+    const headerH = `<div style="height:98px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;text-align:center;background:var(--surf2);border-bottom:1.5px solid var(--bdr);position:sticky;top:0;z-index:2">
       <span style="font-size:20px;line-height:1">👨‍🎓</span>
       <span style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.5px">학생명</span>
     </div>`;
@@ -845,24 +857,38 @@ const GradeApp = (() => {
 
   function _toggleGraph() {
     _st.showGraph = !_st.showGraph;
-    const wrap = document.getElementById('gr-chart-wrap');
-    if (wrap) wrap.style.display = _st.showGraph ? 'flex' : 'none';
-    // 버튼 토글 스타일
-    const btn = document.getElementById('gr-graph-toggle');
-    if (btn) {
-      btn.style.background = _st.showGraph ? 'var(--a)' : 'transparent';
-      btn.style.border     = _st.showGraph ? 'none' : '1.5px solid var(--bdr2)';
-      btn.style.color      = _st.showGraph ? '#fff' : 'var(--tx3)';
-      btn.title            = _st.showGraph ? '그래프 숨기기' : '그래프 표시';
-    }
-    if (_st.showGraph) {
-      const canvas = document.getElementById('gr-chart');
-      if (!canvas) { _renderStudents(); return; }
-      // ★ display 변경 후 레이아웃 계산 완료 기다린 뒤 렌더
+
+    // ★ gr-chart-wrap이 없으면(excel 아닌 모드 등) _renderStudents로 재생성
+    let wrap = document.getElementById('gr-chart-wrap');
+    if (!wrap && _st.showGraph) {
+      _renderStudents();
+      // 재생성 후 다시 찾기
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => { _updateChart(); });
+        wrap = document.getElementById('gr-chart-wrap');
+        if (wrap) wrap.style.display = 'flex';
+        _refreshGraphBtn();
+        const canvas = document.getElementById('gr-chart');
+        if (canvas) requestAnimationFrame(() => _updateChart());
       });
+      return;
     }
+
+    if (wrap) wrap.style.display = _st.showGraph ? 'flex' : 'none';
+    _refreshGraphBtn();
+
+    if (_st.showGraph) {
+      // ★ display:flex 변경 후 레이아웃 완료 기다린 뒤 렌더
+      requestAnimationFrame(() => requestAnimationFrame(() => _updateChart()));
+    }
+  }
+
+  function _refreshGraphBtn() {
+    const btn = document.getElementById('gr-graph-toggle');
+    if (!btn) return;
+    btn.style.background = _st.showGraph ? 'var(--a)' : 'transparent';
+    btn.style.border     = _st.showGraph ? 'none' : '1.5px solid var(--bdr2)';
+    btn.style.color      = _st.showGraph ? '#fff' : 'var(--tx3)';
+    btn.title            = _st.showGraph ? '그래프 숨기기' : '그래프 표시';
   }
 
   function _setChartStyle(n) {
@@ -1149,11 +1175,14 @@ const GradeApp = (() => {
     _st.pageSize = size;
     const pxW = {A4:794, A5:559, B5:665};
     const w = (pxW[size]||794)+'px';
-    // ★ rpt-wrap(배경 카드)도 함께 크기 변경
+    // ★ rpt-wrap(카드 배경) + 프리뷰 컨테이너 함께 크기 변경
     const wrap = document.getElementById('gr-rpt-preview');
     if (wrap) {
       wrap.style.width    = w;
       wrap.style.maxWidth = w;
+      // rpt-preview를 감싸는 컨테이너도 조정
+      const parent = wrap.closest('.gr-rpt-preview');
+      if (parent) { parent.style.maxWidth = w; }
     }
     // 버튼 스타일 업데이트
     document.querySelectorAll('[onclick*="_setPageSize"]').forEach(b => {
@@ -1455,6 +1484,9 @@ const GradeApp = (() => {
     }
     _st.viewMode = mode;
     document.querySelectorAll('.gr-vbtn').forEach(b=>b.classList.toggle('on',b.textContent.includes(mode==='excel'?'엑셀':mode==='card'?'카드':'리포트')));
+    // ★ 리포트 탭에서만 고정 버튼 표시
+    const fixedBtns = document.getElementById('gr-rpt-fixed-btns');
+    if (fixedBtns) fixedBtns.style.display = mode==='report' ? 'flex' : 'none';
     _renderStudents(); _renderContent();
   }
   function _updateRptBtn(){const btn=document.getElementById('gr-rpt-btn');if(btn)btn.style.display=(_st.classId&&_st.bookId)?'':'none';}
@@ -1498,7 +1530,7 @@ const GradeApp = (() => {
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _refreshGraphBtn,
     _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
