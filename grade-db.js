@@ -40,12 +40,41 @@ const GradeDB = (() => {
   let _grades = {};
 
   /* ══ INIT ══ */
+  // Firebase 객체 구조 → 메모리 배열 구조 변환
+  function _snapToGrades(snap) {
+    const g = {};
+    if (!snap || typeof snap !== 'object') return g;
+    for (const [cid, byStudent] of Object.entries(snap)) {
+      g[cid] = {};
+      for (const [sid, byBook] of Object.entries(byStudent || {})) {
+        g[cid][sid] = {};
+        for (const [bid, recs] of Object.entries(byBook || {})) {
+          if (Array.isArray(recs)) {
+            // 이미 배열 (로컬스토리지 버전)
+            g[cid][sid][bid] = recs;
+          } else if (recs && typeof recs === 'object') {
+            // Firebase 객체 {recId: rec} → 배열로 변환
+            g[cid][sid][bid] = Object.values(recs).sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
+          } else {
+            g[cid][sid][bid] = [];
+          }
+        }
+      }
+    }
+    return g;
+  }
+
   async function init() {
+    // 로컬스토리지는 이미 배열 구조
     _grades = _lg(LS_GRADES) || {};
     if (!_fb()) { console.log('[GradeDB] offline'); return; }
     try {
       const snap = await FireDB.get(FB_GRADES).catch(()=>null);
-      if (snap) { _grades = snap; _ls(LS_GRADES, _grades); }
+      if (snap) {
+        // ★ Firebase 객체 구조를 배열 구조로 변환 후 저장
+        _grades = _snapToGrades(snap);
+        _ls(LS_GRADES, _grades);
+      }
     } catch(e) { console.warn('[GradeDB] init', e); }
     console.log('[GradeDB] ✅ v2');
   }
@@ -130,7 +159,14 @@ const GradeDB = (() => {
       list.push(rec);
     }
     _ls(LS_GRADES, _grades);
-    if (_fb()) await FireDB.set(`${FB_GRADES}/${classId}/${studentId}/${bookId}/${rec.id}`, rec).catch(console.warn);
+    if (_fb()) {
+      try {
+        await FireDB.set(`${FB_GRADES}/${classId}/${studentId}/${bookId}/${rec.id}`, rec);
+      } catch(e) {
+        console.error('[GradeDB] saveRecord Firebase 오류:', e);
+        // 로컬에는 저장됨, Firebase 실패 시 경고
+      }
+    }
     _fire('grades');
     return rec;
   }
@@ -140,7 +176,13 @@ const GradeDB = (() => {
     const idx  = list.findIndex(r => r.id === recordId); if (idx<0) return;
     list.splice(idx, 1);
     _ls(LS_GRADES, _grades);
-    if (_fb()) await FireDB.remove(`${FB_GRADES}/${cid}/${sid}/${bid}/${recordId}`).catch(console.warn);
+    if (_fb()) {
+      try {
+        await FireDB.remove(`${FB_GRADES}/${cid}/${sid}/${bid}/${recordId}`);
+      } catch(e) {
+        console.error('[GradeDB] deleteRecord Firebase 오류:', e);
+      }
+    }
     _fire('grades');
   }
 
