@@ -89,8 +89,8 @@ const GradeApp = (() => {
 .gr-sheet{border-collapse:collapse;font-size:12px;}
 
 /* fixed student col */
-.gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:120px;width:120px;cursor:pointer;}
-.gr-sheet thead .gs-fix{z-index:5;background:var(--surf2);}
+.gr-sheet .gs-fix{display:none;}
+.gr-sheet thead .gs-fix{display:none;}
 .gr-sheet .gs-fix.sel,.gr-sheet .gs-fix:hover{background:var(--a10);}
 
 /* header */
@@ -125,13 +125,13 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{min-width:160px;width:25%;max-width:400px;overflow:hidden;}
-.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;font-weight:600;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;overflow-y:auto;word-break:break-all;white-space:pre-wrap;}
+.gs-cm-cell{min-width:325px;width:325px;max-width:325px;}
+.gs-cm-inp{width:100%;padding:5px 7px;border:none;outline:none;background:transparent;font-size:13px;font-weight:500;color:var(--tx);font-family:var(--font);resize:none;height:66px;line-height:22px;cursor:text;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;word-break:break-word;white-space:pre-wrap;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
 /* average row */
 .gr-avg-row td{background:var(--surf2)!important;}
-.gr-avg-row td.gs-fix{position:relative!important;color:var(--a);font-weight:800;font-size:12px;background:var(--surf2)!important;}
+.gr-avg-row td.gs-fix{display:none!important;}
 
 /* chart */
 .gr-chart-wrap{padding:10px 12px 6px;border-top:1.5px solid var(--bdr);background:var(--surf2);flex-shrink:0;}
@@ -460,7 +460,7 @@ const GradeApp = (() => {
                   onclick="GradeApp._toggleSort('name')">학생 ${nmIcon}</th>
               <th class="gs-th sec-w" colspan="4">🔤 단어 평가</th>
               ${rdSection}
-              <th class="gs-th sec-c" rowspan="3" style="width:25%;min-width:140px;max-width:400px;overflow:hidden;white-space:normal;word-break:break-word">💬 Teacher's Comment</th>
+              <th class="gs-th sec-c" rowspan="3" style="min-width:325px;width:325px;max-width:325px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">💬 Teacher's Comment</th>
             </tr>
             <tr>
               <th class="gs-th" rowspan="2" style="background:var(--a10);color:var(--a);vertical-align:middle">총 테스트<br>(문제) 수</th>
@@ -582,8 +582,9 @@ const GradeApp = (() => {
 
     // ★ 학생~통과(4열) 병합: gs-fix(학생) + 총테스트 + 재시험 + 통과 → colspan=4
     return `<tr class="gr-avg-row">
-      <td class="gs-fix" colspan="4"
-        style="text-align:left;padding:5px 10px;vertical-align:middle">
+      <td class="gs-fix" style="display:none"></td>
+      <td class="gs-td ro" colspan="3"
+        style="text-align:left;padding:5px 10px;vertical-align:middle;background:var(--surf2)">
         <span style="font-weight:800;color:var(--a);font-size:12px">평균</span>
         ${graphBtn}
       </td>
