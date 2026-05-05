@@ -282,10 +282,12 @@ const BooklibApp = (() => {
             ${isAdmin&&books.filter(b=>!b.archived).length>0?`<button id="bl-multi-arc-btn" style="font-size:11px;padding:3px 10px;border-radius:7px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._toggleMultiSelect()">☑ 다중선택</button>`:''}
           </div>
         </div>
-        <div id="bl-multi-bar" style="display:none;padding:6px 4px 10px;gap:8px;align-items:center;flex-wrap:wrap">
+        <div id="bl-multi-bar" style="display:none;padding:6px 4px 10px;gap:6px;align-items:center;flex-wrap:wrap">
           <span id="bl-multi-cnt" style="font-size:12px;font-weight:700;color:var(--tx2)">0개 선택</span>
-          <button style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#d97706;cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiArchive()">📦 선택 완결 처리</button>
-          <button style="font-size:12px;padding:4px 10px;border-radius:8px;background:var(--surf2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._cancelMultiSelect()">취소</button>
+          <button style="font-size:13px;padding:3px 10px;border-radius:8px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx2);cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiMoveUp()" title="위로 이동">▲ 위로</button>
+          <button style="font-size:13px;padding:3px 10px;border-radius:8px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx2);cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiMoveDown()" title="아래로 이동">▼ 아래로</button>
+          <button style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#d97706;cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiArchive()">📦 완결 처리</button>
+          <button style="font-size:12px;padding:4px 10px;border-radius:8px;background:var(--surf2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._cancelMultiSelect()">✕ 해제</button>
         </div>
         <!-- 활성 교재 -->
       <div id="bl-active-books" style="display:flex;flex-direction:column;gap:8px">
@@ -431,6 +433,43 @@ const BooklibApp = (() => {
     const cnt = document.getElementById('bl-multi-cnt');
     if(cnt) cnt.textContent = checked.length + '개 선택';
   }
+  // ★ 선택된 교재 위로 이동
+  async function _multiMoveUp() {
+    const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
+    if (!ids.length) { _toast('⚠️ 이동할 교재를 선택해주세요'); return; }
+    const books = BookLibDB.getBooks(); // sortOrder 순 정렬된 목록
+    const ordered = books.map(b=>b.id);
+    // 선택된 항목들을 위로 1칸씩 이동
+    for (const id of ids) {
+      const idx = ordered.indexOf(id);
+      if (idx > 0 && !ids.includes(ordered[idx-1])) {
+        // 바로 위 항목과 교환
+        [ordered[idx-1], ordered[idx]] = [ordered[idx], ordered[idx-1]];
+      }
+    }
+    await BookLibDB.reorderBooks(ordered);
+    _renderLibrary();
+    _toast('▲ 위로 이동', 'success');
+  }
+
+  // ★ 선택된 교재 아래로 이동
+  async function _multiMoveDown() {
+    const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
+    if (!ids.length) { _toast('⚠️ 이동할 교재를 선택해주세요'); return; }
+    const books = BookLibDB.getBooks();
+    const ordered = books.map(b=>b.id);
+    // 뒤에서부터 처리 (아래 이동)
+    for (const id of [...ids].reverse()) {
+      const idx = ordered.indexOf(id);
+      if (idx < ordered.length - 1 && !ids.includes(ordered[idx+1])) {
+        [ordered[idx], ordered[idx+1]] = [ordered[idx+1], ordered[idx]];
+      }
+    }
+    await BookLibDB.reorderBooks(ordered);
+    _renderLibrary();
+    _toast('▼ 아래로 이동', 'success');
+  }
+
   async function _multiArchive(){
     const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(ck=>ck.dataset.bid);
     if(!ids.length){_toast('⚠️ 완결 처리할 교재를 선택해주세요');return;}
@@ -501,7 +540,10 @@ const BooklibApp = (() => {
 
     sh.innerHTML=`
       <div class="sh-handle"></div>
-      <div class="sh-title">📖 ${_e(book.name)}</div>
+      <div class="sh-title" style="display:flex;align-items:center;gap:8px">
+        📖 ${_e(book.name)}
+        <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--a10);color:var(--a);border:1px solid var(--a30)">${_editorTab==='eval'?'평가 설정':'챕터 관리'}</span>
+      </div>
       <!-- ★ 프리미엄 탭 (좌: 챕터 관리 | 우: 평가 설정) -->
       <div class="bl-premium-tabs">
         <button class="bl-premium-tab ${_editorTab==='chapters'?'on':''}"
