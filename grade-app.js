@@ -36,6 +36,9 @@ const GradeApp = (() => {
     pageSize:        'A4',      // A4 / A5 / B5
     reportTitleSize: 16,        // 제목 글자크기 (px)
     reportBodySize:  11,        // 본문 글자크기 (px)
+    dividerColor:    '#e5e7eb', // 구분선 색상
+    dividerWidth:    2,         // 구분선 굵기 (px)
+    graphAlign:      'left',    // 그래프 정렬: left/center/right
     reportGraph:  true,
     showGraph:    false,   // ★ 그래프 표시 여부
     chartStyle:   1,       // ★ 1=단어/리딩 분리, 2=학생별
@@ -222,8 +225,8 @@ const GradeApp = (() => {
 .gr-rpt-fab-ico{font-size:18px;line-height:1;}
 .gr-rpt-fab-lbl{font-size:9px;font-weight:700;color:var(--tx2);}
 .rpt-wrap{padding:20px 24px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#111;background:#fff;}
-.rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
-.rpt-title{font-size:20px;font-weight:900;color:#111;flex:1;}
+.rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:8px 0;border-bottom:2px solid #d1fae5;}
+.rpt-title{font-size:20px;font-weight:900;color:#111;}
 .rpt-divider{border:none;border-top:2px solid #e5e7eb;margin:10px 0;}
 .rpt-info p{margin:4px 0;font-size:13px;}
 .rpt-sec-title{font-size:14px;font-weight:800;color:#111;margin:14px 0 6px;}
@@ -747,6 +750,24 @@ const GradeApp = (() => {
   }
 
   /* ── 차트 ── */
+  // 반 평균 계산
+  function _getClassAvgW(students) {
+    const vals = students.map(s => {
+      const d=_st.data[s.id]||{}; const rec=GradeDB.getLatest(_st.classId,s.id,_st.bookId);
+      const wd=d.word||rec?.word||{};
+      return wd.totalQ>0&&wd.pass!=null ? Math.round(wd.pass/wd.totalQ*100) : null;
+    }).filter(v=>v!=null);
+    return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null;
+  }
+  function _getClassAvgR(students, actRevs) {
+    const vals = students.map(s => {
+      const d=_st.data[s.id]||{}; const rec=GradeDB.getLatest(_st.classId,s.id,_st.bookId);
+      const rd=d.reading||rec?.reading||{};
+      return _calcRdN(rd,actRevs);
+    }).filter(v=>v!=null);
+    return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null;
+  }
+
   function _renderChart(students, actRevs) {
     const canvas = document.getElementById('gr-chart'); if (!canvas) return;
     const config  = GradeDB.getReportConfig(_st.bookId||'');
@@ -771,6 +792,10 @@ const GradeApp = (() => {
       const wGapX = halfW / n;
       const rGapX = hasRd ? halfW / n : 0;
       const bw = Math.max(10, Math.min(28, wGapX * 0.55));
+
+      // 반 평균 계산
+      const avgW = _getClassAvgW(students);
+      const avgR = hasRd ? _getClassAvgR(students, actRevs) : null;
 
       // 단어 영역 구분선
       if (hasRd) {
@@ -865,6 +890,25 @@ const GradeApp = (() => {
         ctx.fillStyle=isHL?'#4f46e5':'#6b7280';
         ctx.fillText(_givN(s.name).slice(0,2), cx, H-5);
       });
+      // ★ 스타일2 반 평균 가로선
+      const avgW2 = _getClassAvgW(students);
+      const avgR2 = hasRd ? _getClassAvgR(students, actRevs) : null;
+      ctx.globalAlpha=1; ctx.setLineDash([5,3]);
+      if(avgW2!=null){
+        const wy=barMaxH-Math.round(avgW2/100*barMaxH);
+        ctx.strokeStyle='rgba(239,68,68,.8)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(0,wy); ctx.lineTo(W,wy); ctx.stroke();
+        ctx.font='bold 9px sans-serif'; ctx.fillStyle='#dc2626';
+        ctx.textAlign='left'; ctx.fillText('단어 평균 '+avgW2+'%', 2, wy-2);
+      }
+      if(hasRd&&avgR2!=null){
+        const ry=barMaxH-Math.round(avgR2/100*barMaxH);
+        ctx.strokeStyle='rgba(124,58,237,.8)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(0,ry); ctx.lineTo(W,ry); ctx.stroke();
+        ctx.font='bold 9px sans-serif'; ctx.fillStyle='#7c3aed';
+        ctx.textAlign='right'; ctx.fillText('리딩 평균 '+Math.round(avgR2)+'%', W-2, ry-2);
+      }
+      ctx.setLineDash([]);
     }
   }
 
@@ -1138,6 +1182,24 @@ const GradeApp = (() => {
           <div>
             <div class="gr-rpt-cfg-title">📊 그래프</div>
             <label class="gr-rpt-toggle"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 포함</label>
+            <div style="margin-top:6px;display:flex;gap:4px">
+              ${['left','center','right'].map(a=>`<button onclick="GradeApp._setGraphAlign('${a}')"
+                style="padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);border:1.5px solid ${_st.graphAlign===a?'var(--a)':'var(--bdr2)'};background:${_st.graphAlign===a?'var(--a10)':'var(--surf2)'};color:${_st.graphAlign===a?'var(--a)':'var(--tx3)'}">${a==='left'?'좌':a==='center'?'중앙':'우'}</button>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">🖊 구분선</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <label style="font-size:11px;color:var(--tx2)">색상
+                <input type="color" value="${_st.dividerColor}" oninput="GradeApp._setDivider('color',this.value)"
+                  style="width:30px;height:22px;border:none;cursor:pointer;border-radius:4px;vertical-align:middle">
+              </label>
+              <label style="font-size:11px;color:var(--tx2)">굵기
+                <input type="range" min="1" max="6" value="${_st.dividerWidth}" oninput="GradeApp._setDivider('width',this.value)"
+                  style="width:60px;vertical-align:middle;accent-color:var(--a)">
+                <span id="gr-div-width-lbl">${_st.dividerWidth}px</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -1182,6 +1244,43 @@ const GradeApp = (() => {
     const bW=36,gap=20,tw=bars.length*(bW+gap)+gap;
     const svgBars=bars.map(([l,p,c],i)=>{const h=Math.round(p*0.55);const x=i*(bW+gap)+gap;return`<rect x="${x}" y="${55-h}" width="${bW}" height="${h}" rx="4" fill="${c}" opacity=".85"/><text x="${x+bW/2}" y="62" text-anchor="middle" font-size="9" fill="#555">${l}</text><text x="${x+bW/2}" y="${55-h-3}" text-anchor="middle" font-size="10" font-weight="bold" fill="${c}">${p}%</text>`;}).join('');
     return`<svg width="${tw}" height="66" style="display:block;margin:0 auto">${svgBars}<line x1="0" y1="55" x2="${tw}" y2="55" stroke="#e2e8f0" stroke-width="1"/></svg>`;
+  }
+
+  function _setGraphAlign(align) {
+    _st.graphAlign = align;
+    // 프리뷰에서 그래프 wrap 정렬 업데이트
+    const wrap = document.getElementById('gr-rpt-preview');
+    if (wrap) {
+      wrap.querySelectorAll('.rpt-graph-wrap').forEach(el => {
+        el.style.textAlign = align;
+        el.style.display = 'block';
+      });
+    }
+    // 버튼 스타일 업데이트
+    document.querySelectorAll('[onclick*="_setGraphAlign"]').forEach(b => {
+      const a = b.textContent.trim();
+      const map = {'좌':'left','중앙':'center','우':'right'};
+      const active = map[a] === align;
+      b.style.borderColor = active ? 'var(--a)' : 'var(--bdr2)';
+      b.style.background  = active ? 'var(--a10)' : 'var(--surf2)';
+      b.style.color       = active ? 'var(--a)' : 'var(--tx3)';
+    });
+  }
+
+  function _setDivider(type, val) {
+    if (type === 'color') {
+      _st.dividerColor = val;
+      document.querySelectorAll('#gr-rpt-preview .rpt-divider, #gr-rpt-preview hr').forEach(el => {
+        el.style.borderColor = val; el.style.borderTopColor = val;
+      });
+    } else {
+      _st.dividerWidth = Number(val);
+      const lbl = document.getElementById('gr-div-width-lbl');
+      if (lbl) lbl.textContent = val + 'px';
+      document.querySelectorAll('#gr-rpt-preview .rpt-divider, #gr-rpt-preview hr').forEach(el => {
+        el.style.borderTopWidth = val + 'px';
+      });
+    }
   }
 
   function _setPageSize(size) {
@@ -1544,6 +1643,7 @@ const GradeApp = (() => {
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
     _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _refreshGraphBtn,
+    _setGraphAlign, _setDivider,
     _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
