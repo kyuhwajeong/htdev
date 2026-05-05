@@ -40,6 +40,7 @@ const GradeApp = (() => {
     dividerColor:    '#e2e8f0',
     dividerWidth:    1,
     fontFamily:      'Noto Sans KR', // 리포트 글자체
+    rptBg:           '#ffffff',    // 리포트 배경색
     tableRound:      false,   // 표 모서리 라운드
     graphAlign:      'left',
     logoSize:        80,
@@ -222,7 +223,7 @@ const GradeApp = (() => {
 .gr-rpt-fab:active{transform:scale(.93);}
 .gr-rpt-fab-ico{font-size:18px;line-height:1;}
 .gr-rpt-fab-lbl{font-size:9px;font-weight:700;color:var(--tx2);}
-.gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;box-shadow:var(--sh);animation:cardIn .2s ease;}
+.gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;box-shadow:var(--sh);animation:cardIn .2s ease;margin-top:0;}
 .rpt-wrap{padding:20px 24px;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;font-size:13px;color:#111;background:#fff;}
 .rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
 .rpt-title{font-size:20px;font-weight:900;color:#111;flex:1;}
@@ -323,6 +324,7 @@ const GradeApp = (() => {
         </div>` : ''}
       <!-- 리포트 우측 고정 버튼 (리포트 탭에서만) -->
       <div id="gr-rpt-fixed-btns" style="position:fixed;right:10px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:6px;z-index:999">
+        <button class="gr-rpt-fab" id="gr-cfg-fab" onclick="GradeApp._toggleCfgPanel()" title="설정"><span class="gr-rpt-fab-ico">⚙️</span><span class="gr-rpt-fab-lbl" id="gr-cfg-fab-lbl">설정</span></button>
         <button class="gr-rpt-fab" onclick="GradeApp._shareReport()" title="공유"><span class="gr-rpt-fab-ico">📤</span><span class="gr-rpt-fab-lbl">공유</span></button>
         <button class="gr-rpt-fab" onclick="GradeApp._printReport()" title="PDF"><span class="gr-rpt-fab-ico">🖨️</span><span class="gr-rpt-fab-lbl">PDF</span></button>
         <button class="gr-rpt-fab" onclick="GradeApp._captureReport()" title="캡처"><span class="gr-rpt-fab-ico">📸</span><span class="gr-rpt-fab-lbl">캡처</span></button>
@@ -961,20 +963,13 @@ const GradeApp = (() => {
     const s = students.find(s=>s.id===_st.studentId)||students[0];
     if(!s){cnt.innerHTML=`<div class="gr-empty"><div class="gr-empty-ico">👆</div>좌측에서 학생을 선택하세요</div>`;return;}
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
-    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative;display:flex;flex-direction:column;gap:4px;">
-      <!-- ★ 설정 패널 토글 버튼 (고정) -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-        <span style="font-size:11px;font-weight:700;color:var(--tx3)">리포트 설정</span>
-        <button id="gr-cfg-toggle" onclick="GradeApp._toggleCfgPanel()"
-          style="font-size:11px;padding:3px 10px;border-radius:8px;border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-family:var(--font);font-weight:700">
-          ⚙️ 설정 펼치기
-        </button>
-      </div>
+    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative;display:flex;flex-direction:column;gap:2px;">
+
       <div class="gr-rpt-cfg" id="gr-rpt-cfg-panel" style="display:none">
         <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start;overflow-x:auto">
           <div>
             <div class="gr-rpt-cfg-title">레이아웃</div>
-            <div class="gr-rpt-layouts">${[1,2,3,4,5,6,7].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
+            <div class="gr-rpt-layouts">${[1,3,4,5,6,7].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
           </div>
           <div>
             <div class="gr-rpt-cfg-title">📄 페이지</div>
@@ -1009,11 +1004,18 @@ const GradeApp = (() => {
               <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" id="gr-tbl-round" ${_st.tableRound?'checked':''} onchange="GradeApp._setTableRound(this.checked)" style="accent-color:var(--a)"> 표 라운드</label>
             </div>
           </div>
+          <!-- 배경색 -->
+          <div style="grid-column:1/-1">
+            <div class="gr-rpt-cfg-title">🎨 배경색</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap">
+              ${[['#ffffff','흰색'],['#f8f9ff','연보라'],['#f0fdf4','연초록'],['#fffbeb','크림'],['#f0f9ff','하늘'],['#fdf4ff','라벤더'],['#fff1f2','분홍'],['#1a1a2e','다크']].map(([c,l])=>`<button onclick="GradeApp._setRptBg('${c}')" title="${l}" style="width:22px;height:22px;border-radius:50%;border:2px solid ${_st.rptBg===c?'var(--a)':'#e5e7eb'};background:${c};cursor:pointer;box-shadow:${_st.rptBg===c?'0 0 0 2px var(--a)':'none'};transition:all .15s"></button>`).join('')}
+            </div>
+          </div>
         </div></div>
       </div>
       </div>
       <div class="gr-rpt-preview">
-        <div class="rpt-wrap" id="gr-rpt-preview" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
+        <div class="rpt-wrap" id="gr-rpt-preview" style="background:${_st.rptBg||'#ffffff'}" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
         <!-- 하단 버튼 제거됨: 우측 고정 버튼(gr-rpt-fixed-btns)으로 대체 -->
       </div>
     </div>`;
@@ -1140,12 +1142,11 @@ const GradeApp = (() => {
 
     const bodies={
       1:[hdr,info,wordTbl,rdTbl,graph,comment],
-      2:[hdr,info,wordCard,rdCard,cmtCard],
       3:[hdr,info,wordTbl,comment,rdTbl,graph],
-      4:[hdr,info,wordCard,graph,rdCard,cmtCard],
+      4:[hdr,infoCard,wordCard,graph,rdCard,cmtCard],
       5:[hdr,info,graph,comment,wordTbl,rdTbl],
-      6:[hdr,info,twoColL6],
-      7:[hdr,info,dashL7],
+      6:[hdr,infoCard,twoColL6],
+      7:[hdr,dashL7],
     };
     return(bodies[L]||bodies[1]).filter(Boolean).join('');
   }
@@ -1283,6 +1284,23 @@ const GradeApp = (() => {
       });
     }
     if(btn) btn.textContent = isOpen?'⚙️ 설정 펼치기':'⚙️ 설정 닫기';
+    const fabLbl=document.getElementById('gr-cfg-fab-lbl');
+    if(fabLbl) fabLbl.textContent = isOpen?'설정':'닫기';
+  }
+
+  function _setRptBg(color){
+    _st.rptBg=color;
+    const preview=document.getElementById('gr-rpt-preview');
+    if(preview) preview.style.background=color;
+    // 다크 배경이면 텍스트 색상 반전
+    const isDark=color==='#1a1a2e';
+    if(preview) preview.style.color=isDark?'#e2e8f0':'';
+    // 버튼 상태 업데이트 (재렌더 없이)
+    document.querySelectorAll('[onclick*="_setRptBg"]').forEach(b=>{
+      const c=b.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+      b.style.borderColor=c===color?'var(--a)':'#e5e7eb';
+      b.style.boxShadow=c===color?'0 0 0 2px var(--a)':'none';
+    });
   }
 
   function _setFontFamily(val){
@@ -1610,7 +1628,7 @@ img{max-width:100%}`;
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel, _setRptBg,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
