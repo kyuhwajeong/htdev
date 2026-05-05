@@ -189,10 +189,15 @@ const App = (() => {
     _q('admin-badge')?.classList.toggle('hidden',!isAdmin);
     _q('mg-logout-btn')?.classList.toggle('hidden',!loggedIn);
     // ★ admin 전용 탭 표시/숨김
-    _q('nav-students-btn')?.classList.toggle('hidden',!isAdmin);
-    _q('nav-booklib-btn') ?.classList.toggle('hidden',!isAdmin);
-    _q('nav-staff-btn')   ?.classList.toggle('hidden',!isAdmin);
-    _q('nav-grade-btn')   ?.classList.toggle('hidden',!isAdmin);
+    const _role = typeof DB.getRole==='function'?DB.getRole():(isAdmin?'admin':'operator');
+    const showAll   = ['admin','manager'].includes(_role);
+    const showGrade = showAll || (_role==='operator' && (typeof DB.getSession==='function'?DB.getSession()?.permissions?.grade:false));
+    const showStu   = showAll || (_role==='operator' && (typeof DB.getSession==='function'?DB.getSession()?.permissions?.student:false));
+    const showBook  = showAll || (_role==='operator' && (typeof DB.getSession==='function'?DB.getSession()?.permissions?.booklib:false));
+    _q('nav-students-btn')?.classList.toggle('hidden',!showStu);
+    _q('nav-booklib-btn') ?.classList.toggle('hidden',!showBook);
+    _q('nav-staff-btn')   ?.classList.toggle('hidden',!showAll);
+    _q('nav-grade-btn')   ?.classList.toggle('hidden',!showGrade);
     if(loggedIn)_resetAutoLogout();
   }
 
