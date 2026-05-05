@@ -222,8 +222,8 @@ const GradeApp = (() => {
 .gr-rpt-fab-ico{font-size:18px;line-height:1;}
 .gr-rpt-fab-lbl{font-size:9px;font-weight:700;color:var(--tx2);}
 .rpt-wrap{padding:20px 24px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#111;background:#fff;}
-.rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:8px 0;border-bottom:2px solid #d1fae5;}
-.rpt-title{font-size:20px;font-weight:900;color:#1a5c34;flex:1;}
+.rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.rpt-title{font-size:20px;font-weight:900;color:#111;flex:1;}
 .rpt-divider{border:none;border-top:2px solid #e5e7eb;margin:10px 0;}
 .rpt-info p{margin:4px 0;font-size:13px;}
 .rpt-sec-title{font-size:14px;font-weight:800;color:#111;margin:14px 0 6px;}

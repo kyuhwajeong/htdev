@@ -42,7 +42,7 @@ const BooklibApp = (() => {
 .bl-stabs::-webkit-scrollbar{display:none;}
 .bl-stab{flex:1;min-width:80px;padding:11px 8px;text-align:center;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:2.5px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font);transition:color .18s,border-color .18s;white-space:nowrap;}
 .bl-stab.on{color:var(--a);border-bottom-color:var(--a);}
-.bl-lib-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 120px;}
+.bl-lib-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 120px;}
 .bl-lbl{display:block;font-size:9px;font-weight:800;color:var(--tx3);letter-spacing:1.2px;text-transform:uppercase;padding:8px 2px 5px;}
 .bl-add-row{display:flex;gap:8px;margin-bottom:8px;}
 .bl-add-inp{flex:1;padding:10px 13px;border-radius:10px;background:var(--surf2);border:1.5px solid var(--bdr);font-size:14px;color:var(--tx);outline:none;font-family:var(--font);transition:border-color .2s;}
@@ -269,13 +269,17 @@ const BooklibApp = (() => {
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
     const sub=document.getElementById('bl-ph-sub');if(sub)sub.textContent=`교재 ${books.length}개`;
     cnt.innerHTML=`<div class="bl-lib-scroll">
-      ${isAdmin?`<span class="bl-lbl">교재 등록</span>
+      ${isAdmin?`
+      <!-- ★ 교재 등록 영역 (기본 숨김, 버튼으로 토글) -->
+      <div id="bl-reg-area" style="display:none;margin-bottom:12px;padding:12px;background:var(--surf2);border-radius:12px;border:1.5px solid var(--bdr2)">
+        <div style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:1px;margin-bottom:8px">교재 등록</div>
         <div class="bl-add-row">
           <input class="bl-add-inp" id="bl-book-inp" placeholder="📖 교재명 입력 후 Enter"
                  onkeydown="if(event.key==='Enter'){BooklibApp.addBook();event.preventDefault()}">
           <button class="bl-add-btn" onclick="BooklibApp.addBook()">추가</button>
         </div>
-        <div class="bl-drop-zone" id="bl-book-csv">📂 교재 목록 파일 드롭 · 또는 탭하여 선택<div style="font-size:10px;margin-top:2px;opacity:.7">.csv/.txt/.xlsx</div></div>`:''}
+        <div class="bl-drop-zone" id="bl-book-csv">📂 교재 목록 파일 드롭 · 또는 탭하여 선택<div style="font-size:10px;margin-top:2px;opacity:.7">.csv/.txt/.xlsx</div></div>
+      </div>`:``}
       ${books.length===0?`<div class="bl-empty"><div style="font-size:48px;margin-bottom:10px">📚</div>등록된 교재가 없습니다</div>`:`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 2px 10px">
           <span class="bl-lbl" style="padding:0">교재 목록</span>
@@ -288,6 +292,7 @@ const BooklibApp = (() => {
           <span id="bl-multi-cnt" style="font-size:12px;font-weight:700;color:var(--tx2)">0개 선택</span>
           <button id="bl-multi-copy-btn" style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:var(--a);cursor:pointer;font-family:var(--font);font-weight:700;display:none" onclick="BooklibApp._multiCopy()">📋 복사</button>
           <button id="bl-multi-arch-btn" style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#d97706;cursor:pointer;font-family:var(--font);font-weight:700;display:none" onclick="BooklibApp._multiArchive()">📦 완결 처리</button>
+          <button id="bl-multi-del-btn" style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#dc2626;cursor:pointer;font-family:var(--font);font-weight:700;display:none" onclick="BooklibApp._multiDelete()">🗑 삭제</button>
           <button style="font-size:12px;padding:4px 10px;border-radius:8px;background:var(--surf2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._cancelMultiSelect()">✕ 해제</button>
         </div>
         <!-- 활성 교재 -->
@@ -407,6 +412,18 @@ const BooklibApp = (() => {
   }
   // ★ 다중 선택 완결 처리
   let _multiSelectMode = false;
+
+  // ★ 교재 등록 영역 토글
+  function _toggleRegArea() {
+    const area = document.getElementById('bl-reg-area');
+    if (!area) return;
+    const isVisible = area.style.display !== 'none';
+    area.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      // 열릴 때 입력창에 포커스
+      setTimeout(() => document.getElementById('bl-book-inp')?.focus(), 80);
+    }
+  }
   function _toggleMultiSelect(){
     _multiSelectMode = !_multiSelectMode;
     _applyMultiSelectUI();
@@ -443,6 +460,8 @@ const BooklibApp = (() => {
     const archBtn = document.getElementById('bl-multi-arch-btn');
     if(copyBtn) copyBtn.style.display = hasChecked ? '' : 'none';
     if(archBtn) archBtn.style.display = hasChecked ? '' : 'none';
+    const delBtn = document.getElementById('bl-multi-del-btn');
+    if(delBtn) delBtn.style.display = hasChecked ? '' : 'none';
   }
   // ★ 개별 교재 위/아래 이동 (DOM 직접 조작 + 비동기 DB 저장)
   function _moveBook(id, dir) {
@@ -502,6 +521,17 @@ const BooklibApp = (() => {
   }
 
   // ★ 선택된 교재 복사 (교재명_복사본)
+  async function _multiDelete() {
+    const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
+    if (!ids.length) return;
+    const names = ids.map(id=>BookLibDB.getBookById(id)?.name||'').filter(Boolean).join(', ');
+    if (!confirm(`선택한 ${ids.length}개 교재를 삭제하시겠습니까?\n\n${names}\n\n⚠️ 삭제된 교재와 관련 데이터는 복구할 수 없습니다.`)) return;
+    for (const id of ids) { await BookLibDB.deleteBook(id); }
+    _multiSelectMode = false;
+    _renderLibrary();
+    _toast(`🗑 ${ids.length}개 교재 삭제 완료`,'success');
+  }
+
   async function _multiCopy() {
     const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
     if (!ids.length) { _toast('⚠️ 복사할 교재를 선택해주세요'); return; }
