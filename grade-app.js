@@ -39,6 +39,7 @@ const GradeApp = (() => {
     reportBodySize:  12,
     dividerColor:    '#e2e8f0',
     dividerWidth:    1,
+    fontFamily:      'Noto Sans KR', // 리포트 글자체
     tableRound:      false,   // 표 모서리 라운드
     graphAlign:      'left',
     logoSize:        80,
@@ -209,7 +210,7 @@ const GradeApp = (() => {
 
 /* ══ REPORT ══ */
 .gr-report-panel{padding:14px 14px 80px;}
-.gr-rpt-cfg{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--sh);}
+.gr-rpt-cfg{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:10px 12px;margin-bottom:8px;box-shadow:var(--sh);overflow-x:auto;}
 .gr-rpt-cfg-title{font-size:11px;font-weight:800;color:var(--tx3);letter-spacing:.5px;margin-bottom:8px;}
 .gr-rpt-layouts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
 .gr-rpt-lbtn{width:40px;height:40px;border-radius:8px;border:2px solid var(--bdr2);background:var(--surf2);font-size:10px;font-weight:800;cursor:pointer;color:var(--tx3);display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:var(--font);}
@@ -222,7 +223,7 @@ const GradeApp = (() => {
 .gr-rpt-fab-ico{font-size:18px;line-height:1;}
 .gr-rpt-fab-lbl{font-size:9px;font-weight:700;color:var(--tx2);}
 .gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;box-shadow:var(--sh);animation:cardIn .2s ease;}
-.rpt-wrap{padding:20px 24px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#111;background:#fff;}
+.rpt-wrap{padding:20px 24px;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;font-size:13px;color:#111;background:#fff;}
 .rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
 .rpt-title{font-size:20px;font-weight:900;color:#111;flex:1;}
 .rpt-divider{border:none;border-top:2px solid #e5e7eb;margin:10px 0;}
@@ -960,9 +961,17 @@ const GradeApp = (() => {
     const s = students.find(s=>s.id===_st.studentId)||students[0];
     if(!s){cnt.innerHTML=`<div class="gr-empty"><div class="gr-empty-ico">👆</div>좌측에서 학생을 선택하세요</div>`;return;}
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
-    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative">
-      <div class="gr-rpt-cfg">
-        <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start">
+    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative;display:flex;flex-direction:column;">
+      <!-- ★ 설정 패널 토글 버튼 (고정) -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:700;color:var(--tx3)">리포트 설정</span>
+        <button id="gr-cfg-toggle" onclick="GradeApp._toggleCfgPanel()"
+          style="font-size:11px;padding:3px 10px;border-radius:8px;border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-family:var(--font);font-weight:700">
+          ⚙️ 설정 펼치기
+        </button>
+      </div>
+      <div class="gr-rpt-cfg" id="gr-rpt-cfg-panel" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start;overflow-x:auto">
           <div>
             <div class="gr-rpt-cfg-title">레이아웃</div>
             <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
@@ -1001,6 +1010,7 @@ const GradeApp = (() => {
             </div>
           </div>
         </div></div>
+      </div>
       </div>
       <div class="gr-rpt-preview">
         <div class="rpt-wrap" id="gr-rpt-preview" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
@@ -1146,6 +1156,42 @@ const GradeApp = (() => {
       if(_st.tableRound) document.querySelectorAll('#gr-rpt-preview .rpt-tbl').forEach(t=>{t.style.border=`${val}px solid ${_st.dividerColor||'#e2e8f0'}`;});
     }
   }
+  const RPT_FONTS=[
+    {label:'Noto Sans KR',value:'Noto Sans KR'},
+    {label:'Malgun Gothic',value:'Malgun Gothic,맑은 고딕'},
+    {label:'Apple SD Gothic',value:'Apple SD Gothic Neo'},
+    {label:'Dotum',value:'Dotum,돋움'},
+    {label:'Gulim',value:'Gulim,굴림'},
+    {label:'Georgia',value:'Georgia,serif'},
+    {label:'Arial',value:'Arial,sans-serif'},
+  ];
+
+  function _toggleCfgPanel(){
+    const panel=document.getElementById('gr-rpt-cfg-panel');
+    const btn=document.getElementById('gr-cfg-toggle');
+    if(!panel) return;
+    const isOpen = panel.style.display!=='none';
+    panel.style.display = isOpen?'none':'block';
+    if(btn) btn.textContent = isOpen?'⚙️ 설정 펼치기':'⚙️ 설정 닫기';
+  }
+
+  function _setFontFamily(val){
+    _st.fontFamily=val;
+    // 리포트 프리뷰에 즉시 적용
+    const preview=document.getElementById('gr-rpt-preview');
+    if(preview){
+      preview.style.fontFamily=val+',sans-serif';
+      preview.querySelectorAll('*').forEach(el=>{el.style.fontFamily='';});
+      preview.style.fontFamily=val+',sans-serif';
+    }
+    // 버튼 active 상태
+    document.querySelectorAll('[data-font]').forEach(b=>{
+      b.style.background=b.dataset.font===val?'var(--a20)':'var(--surf2)';
+      b.style.borderColor=b.dataset.font===val?'var(--a)':'var(--bdr2)';
+      b.style.color=b.dataset.font===val?'var(--a)':'var(--tx3)';
+    });
+  }
+
   function _setLogoSize(val){
     _st.logoSize=Number(val);
     // 레이블 업데이트
@@ -1200,7 +1246,7 @@ const GradeApp = (() => {
     const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch{return '';}}).join('\n');
     const css=`@charset "UTF-8";
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
-body{margin:0;padding:20px;background:#f8fafc;font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:center;}
+body{margin:0;padding:20px;background:#f8fafc;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;display:flex;justify-content:center;}
 ${styles}
 .gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
 .rpt-wrap{max-width:${pw};width:100%;margin:0 auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}
@@ -1393,6 +1439,8 @@ img{max-width:100%}`;
       _updateChart();
     } else if (_st.viewMode==='card') {
       _renderContent();
+      // ★ 카드모드도 선택 학생 그래프 하이라이트
+      _updateChart();
     } else if (_st.viewMode==='report') {
       const el=document.getElementById('gr-rpt-preview');
       if(el&&sid){const s=_getStudents().find(s=>s.id===sid);if(s)el.innerHTML=_buildReport(s);}
@@ -1452,7 +1500,7 @@ img{max-width:100%}`;
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
