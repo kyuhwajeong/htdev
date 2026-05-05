@@ -340,7 +340,7 @@ const BooklibApp = (() => {
           </div>
         </div>
         ${isAdmin?`<div class="bl-book-acts" onclick="event.stopPropagation()">
-          ${!isArchived?`<button class="ibtn" onclick="BooklibApp.openEditor('${b.id}')" title="수정">✏️</button>`:''}
+          ${!isArchived?`<button class="ibtn" onclick="BooklibApp.openEditor('${b.id}','chapters')" title="수정">✏️</button>`:''}
           ${!isArchived?`<button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>`:''}
           ${isArchived?`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`:''}
           <button class="ibtn red" onclick="BooklibApp.deleteBook('${b.id}')" title="삭제">🗑</button>
@@ -507,9 +507,10 @@ const BooklibApp = (() => {
     openEditor(bookId);
   }
 
-  function openEditor(bookId){
+  function openEditor(bookId, tab){
     _st.editBookId=bookId;
-    _editorTab = 'chapters'; // 수정 버튼은 항상 챕터 관리
+    // ★ tab 인자로 탭 명시적 지정, 없으면 현재 _editorTab 유지
+    if (tab) _editorTab = tab;
     /* 편집 시작 시 현재 config 로드 */
     if(typeof GradeDB!=='undefined'){
       _st.editConfig=JSON.parse(JSON.stringify(GradeDB.getReportConfig(bookId)));
