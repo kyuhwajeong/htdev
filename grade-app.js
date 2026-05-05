@@ -90,8 +90,8 @@ const GradeApp = (() => {
 .gr-empty-ico{font-size:44px;margin-bottom:10px;}
 
 /* ══ EXCEL MODE ══ */
-.gr-sheet-wrap{min-width:max-content;}
-.gr-sheet{border-collapse:collapse;font-size:12px;}
+.gr-sheet-wrap{width:100%;overflow-x:auto;}
+.gr-sheet{border-collapse:collapse;font-size:12px;width:100%;}
 
 /* fixed student col */
 .gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:110px;width:110px;cursor:pointer;}
@@ -108,7 +108,7 @@ const GradeApp = (() => {
 .gs-th.sort-on{color:var(--a);background:var(--a10);}
 
 /* data cells */
-.gs-td{border:1px solid var(--bdr);text-align:center;padding:0;vertical-align:middle;}
+.gs-td{border:1px solid var(--bdr);text-align:center;padding:0;vertical-align:middle;min-width:52px;}
 /* 계산값 (읽기 전용) - 연한 배경으로 구분 */
 .gs-td.ro{background:var(--surf2);}
 .gs-td.ro .gs-val{padding:5px 6px;font-size:13px;font-weight:700;display:block;}
@@ -130,7 +130,7 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{min-width:220px;}
+.gs-cm-cell{min-width:220px;width:100%;}
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:11px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
@@ -1210,19 +1210,48 @@ img{max-width:100%}`;
   
   function _printReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
+    const s=_getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
     const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
     const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
-    document.getElementById('gr-print-style')?.remove();
-    document.getElementById('gr-print-root')?.remove();
-    const style=document.createElement('style');
-    style.id='gr-print-style';
-    style.textContent=`@page{size:${pw} ${ph};margin:8mm}@media print{body>*{display:none!important}#gr-print-root{display:block!important}}#gr-print-root{display:none;position:fixed;top:0;left:0;width:100%;z-index:99999;background:#fff}.rpt-wrap{box-shadow:none!important;border:none!important;width:${pw}!important;max-width:${pw}!important;border-radius:0!important;padding:0!important}`;
-    document.head.appendChild(style);
-    const root=document.createElement('div');
-    root.id='gr-print-root';
-    root.innerHTML=el.outerHTML;
-    document.body.appendChild(root);
-    requestAnimationFrame(()=>{window.print();setTimeout(()=>{root.remove();style.remove();},1000);});
+
+    // ★ 현재 페이지의 모든 CSS 수집 (grade-app.js에서 동적으로 주입된 스타일 포함)
+    const allCss=[...document.querySelectorAll('style,link[rel="stylesheet"]')].map(n=>{
+      if(n.tagName==='STYLE') return n.textContent;
+      try{return [...n.sheet?.cssRules||[]].map(r=>r.cssText).join('\n');}catch{return '';}
+    }).join('\n');
+
+    const printCss=`
+      @page{size:${pw} ${ph};margin:8mm}
+      body{margin:0;padding:0;background:#fff}
+      .gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
+      #gr-rpt-preview{box-shadow:none!important;border:none!important;border-radius:0!important;}
+      .rpt-wrap{width:100%!important;max-width:100%!important;padding:10mm 12mm!important;box-shadow:none!important;border-radius:0!important;}
+      img{max-width:100%!important}
+    `;
+
+    const html=[
+      '<!DOCTYPE html><html lang="ko"><head>',
+      '<meta charset="UTF-8">',
+      `<title>${s?_e(s.name):''} Achievement Report</title>`,
+      // 현재 화면 CSS 전체 포함 (동적 주입 스타일 포함)
+      `<style>${allCss}</style>`,
+      `<style>${printCss}</style>`,
+      '</head><body>',
+      el.outerHTML,  // 현재 렌더된 DOM 그대로
+      '<script>',
+      // 폰트·이미지 로딩 완료 후 인쇄 (빈 화면 방지)
+      'if(document.fonts&&document.fonts.ready){',
+      '  document.fonts.ready.then(function(){setTimeout(function(){window.print();},300);});',
+      '}else{window.onload=function(){setTimeout(function(){window.print();},600);};}',
+      '<\/script>',
+      '</body></html>'
+    ].join('');
+
+    const win=window.open('','_blank');
+    if(!win){_toast('⚠️ 팝업을 허용해주세요','error');return;}
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
   }
 
   
