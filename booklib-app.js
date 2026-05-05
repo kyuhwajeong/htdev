@@ -317,9 +317,14 @@ const BooklibApp = (() => {
         ${books.length===0?`<div class="bl-empty"><div style="font-size:48px;margin-bottom:10px">📚</div>등록된 교재가 없습니다</div>`:`
         ${books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999)).map(b=>_bookCardHTML(b,isAdmin)).join('')}
         ${books.some(b=>b.archived)?`
-        <div style="margin-top:16px">
-          <div style="font-size:11px;font-weight:800;color:var(--tx3);letter-spacing:.5px;padding:4px 2px 8px;border-top:1px solid var(--bdr);margin-top:4px">📦 완결된 교재</div>
-          <div style="display:flex;flex-direction:column;gap:6px;opacity:.75">
+        <div style="margin-top:20px">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-top:2px solid var(--bdr);cursor:pointer"
+               onclick="BooklibApp._toggleArchivedSection(this)">
+            <span style="font-size:13px;font-weight:800;color:var(--tx2)">📦 완결된 교재</span>
+            <span style="font-size:11px;color:var(--tx3);background:var(--surf2);padding:1px 7px;border-radius:10px">${books.filter(b=>b.archived).length}개</span>
+            <span id="bl-arc-arrow" style="margin-left:auto;font-size:12px;color:var(--tx3)">▼</span>
+          </div>
+          <div id="bl-arc-list" style="display:flex;flex-direction:column;gap:6px;opacity:.8">
             ${books.filter(b=>b.archived).map(b=>_bookCardHTML(b,isAdmin)).join('')}
           </div>
         </div>`:``}
@@ -421,7 +426,42 @@ const BooklibApp = (() => {
     try{const lines=await _fileToLines(file);let added=0;for(const name of lines)if(name&&!BookLibDB.getBooks().some(b=>b.name===name)){await BookLibDB.addBook(name);added++;}_toast(`📚 ${added}개 추가`,'success');_renderLibrary();}
     catch(e){_toast('❌ '+e.message);}finally{ov.remove();}
   }
-  async function addBook(){
+  // ★ 교재 등록 팝업 모달 (bl-reg-area DOM 없을 때 폴백)
+  function _openRegModal() {
+    let modal = document.getElementById('bl-reg-modal');
+    if (modal) { modal.remove(); return; }
+    modal = document.createElement('div');
+    modal.id = 'bl-reg-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.4)';
+    modal.innerHTML = `
+      <div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px 20px 36px;width:100%;max-width:480px;box-shadow:0 -4px 20px rgba(0,0,0,.15)">
+        <div style="text-align:center;width:40px;height:4px;background:var(--bdr);border-radius:2px;margin:0 auto 16px"></div>
+        <div style="font-size:14px;font-weight:800;color:var(--tx);margin-bottom:14px">📖 교재 등록</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="bl-modal-inp" class="bl-add-inp" placeholder="교재명 입력 후 추가" style="flex:1" onkeydown="if(event.key==='Enter')BooklibApp._modalAddBook()">
+          <button class="bl-add-btn" onclick="BooklibApp._modalAddBook()">추가</button>
+        </div>
+        <div class="bl-drop-zone" id="bl-modal-csv">📂 교재 목록 파일 드롭 · 또는 탭하여 선택<div style="font-size:10px;margin-top:2px;opacity:.7">.csv/.txt/.xlsx</div></div>
+        <button onclick="document.getElementById('bl-reg-modal')?.remove()" style="margin-top:12px;width:100%;padding:10px;border:none;border-radius:10px;background:var(--surf2);color:var(--tx3);font-size:13px;font-family:var(--font);cursor:pointer">닫기</button>
+      </div>`;
+    modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+    document.body.appendChild(modal);
+    setTimeout(()=>document.getElementById('bl-modal-inp')?.focus(), 80);
+    // CSV 드롭존 바인딩
+    _bindDrop('bl-modal-csv', null, async(file)=>{
+      modal.remove();
+      await _importBookFile(file);
+    });
+  }
+
+  async function _modalAddBook() {
+    const inp = document.getElementById('bl-modal-inp');
+    if (!inp || !inp.value.trim()) return;
+    await addBook(inp.value.trim());
+    document.getElementById('bl-reg-modal')?.remove();
+  }
+
+  async function addBook(nameArg){
     const inp=document.getElementById('bl-book-inp');const name=(inp?.value||'').trim();
     if(!name){_toast('⚠️ 교재명을 입력해주세요');return;}
     if(BookLibDB.getBooks().some(b=>b.name===name)){_toast('⚠️ 이미 존재합니다');return;}
@@ -434,7 +474,10 @@ const BooklibApp = (() => {
   // ★ 교재 등록 영역 토글
   function _toggleRegArea() {
     const area = document.getElementById('bl-reg-area');
-    if (!area) return;
+    if (!area) {
+      // bl-reg-area가 없으면 팝업 모달로 교재 등록
+      _openRegModal(); return;
+    }
     const isVisible = area.style.display !== 'none';
     area.style.display = isVisible ? 'none' : 'block';
     if (!isVisible) {
@@ -446,6 +489,15 @@ const BooklibApp = (() => {
     _multiSelectMode = !_multiSelectMode;
     _applyMultiSelectUI();
   }
+  function _toggleArchivedSection(header) {
+    const list = document.getElementById('bl-arc-list');
+    const arrow = document.getElementById('bl-arc-arrow');
+    if (!list) return;
+    const isOpen = list.style.display !== 'none';
+    list.style.display = isOpen ? 'none' : 'flex';
+    if (arrow) arrow.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+  }
+
   function _cancelMultiSelect(){
     _multiSelectMode = false;
     _applyMultiSelectUI();

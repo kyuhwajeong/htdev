@@ -130,7 +130,7 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{width:15%;min-width:140px;max-width:240px;}
+.gs-cm-cell{width:22%;min-width:160px;}
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:11px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
@@ -1237,41 +1237,42 @@ img{max-width:100%}`;
   
   function _printReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
+
+    // ★ 방법: html2canvas로 현재 화면 이미지 캡처 후 인쇄창에 이미지로 출력
+    // html2canvas 없으면 @media print 방식으로 폴백
+    if(typeof html2canvas!=='undefined'){
+      _toast('🖨️ 캡처 중...','info',2000);
+      html2canvas(el,{
+        scale:2, backgroundColor:'#fff', useCORS:true, logging:false,
+        onclone:(doc)=>{
+          // 인쇄 불필요한 요소 숨김
+          doc.querySelectorAll('.gr-rpt-fixed-btns,.gr-rpt-cfg').forEach(e=>e.style.display='none');
+        }
+      }).then(canvas=>{
+        const imgUrl=canvas.toDataURL('image/png');
+        const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
+        const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
+        const html='<!DOCTYPE html><html><head>'+
+          '<style>@page{size:'+pw+' '+ph+';margin:0}body{margin:0;padding:0}'+
+          'img{width:100%;height:auto;display:block}</style></head>'+
+          '<body><img src="'+imgUrl+'"></body></html>';
+        const w=window.open('','_blank','width=900,height=700');
+        if(!w){_toast('⚠️ 팝업 허용 필요','error');return;}
+        w.document.open();w.document.write(html);w.document.close();
+        w.onload=function(){setTimeout(()=>{w.print();},300);};
+      }).catch(e=>{_toast('⚠️ 캡처 실패: '+e.message,'error');});
+      return;
+    }
+
+    // 폴백: @media print visibility 방식
     const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
     const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
-
-    // 기존 print style 제거
-    let pStyle=document.getElementById('gr-print-style');
-    if(pStyle) pStyle.remove();
-    pStyle=document.createElement('style');
-    pStyle.id='gr-print-style';
-    // ★ @media print: gr-rpt-preview만 화면 전체에 표시
-    pStyle.textContent=`
-      @page{size:${pw} ${ph};margin:8mm}
-      @media print{
-        body *{visibility:hidden}
-        #gr-rpt-preview,#gr-rpt-preview *{visibility:visible}
-        #gr-rpt-preview{
-          position:fixed;top:0;left:0;
-          width:100%!important;max-width:100%!important;
-          box-shadow:none!important;border:none!important;border-radius:0!important;
-          background:white!important;
-        }
-        #gr-rpt-preview .rpt-wrap{
-          width:100%!important;max-width:100%!important;
-          box-shadow:none!important;border:none!important;
-          padding:0!important;border-radius:0!important;
-        }
-        .gr-rpt-fixed-btns,.gr-rpt-cfg{display:none!important;visibility:hidden!important}
-      }
-    `;
-    document.head.appendChild(pStyle);
-
-    // 인쇄 실행
+    let ps=document.getElementById('gr-ps');if(ps)ps.remove();
+    ps=document.createElement('style');ps.id='gr-ps';
+    ps.textContent='@page{size:'+pw+' '+ph+';margin:8mm}@media print{body *{visibility:hidden}#gr-rpt-preview,#gr-rpt-preview *{visibility:visible}#gr-rpt-preview{position:fixed;top:0;left:0;width:100%!important;box-shadow:none!important;border:none!important}.gr-rpt-fixed-btns,.gr-rpt-cfg{display:none!important;visibility:hidden!important}.rpt-wrap{width:100%!important;padding:0!important;box-shadow:none!important}}';
+    document.head.appendChild(ps);
     window.print();
-
-    // 인쇄 후 스타일 제거
-    setTimeout(()=>{pStyle.remove();},500);
+    setTimeout(()=>ps.remove(),1000);
   }
 
   async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
