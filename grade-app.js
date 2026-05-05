@@ -988,6 +988,12 @@ const GradeApp = (() => {
     return`<svg width="${tw}" height="66" style="display:block;margin:0 auto">${svgBars}<line x1="0" y1="55" x2="${tw}" y2="55" stroke="#e2e8f0" stroke-width="1"/></svg>`;
   }
 
+  function _setChartStyle(n) {
+    _st.chartStyle = n;
+    _renderStudents();
+    _updateChart();
+  }
+
   function _setGraphAlign(align) {
     _st.graphAlign = align;
     const jc = align==='left'?'flex-start': align==='right'?'flex-end':'center';
