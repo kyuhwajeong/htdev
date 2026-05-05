@@ -134,7 +134,7 @@ const BooklibApp = (() => {
 .bl-mtbl{border-collapse:collapse;font-size:12px;width:100%;--ch-w:30%;--stu-w:auto;}
 .bl-ch-hdr{position:sticky;top:0;left:0;z-index:5;width:30%;min-width:140px;background:var(--surf);border:1px solid var(--bdr);padding:7px 8px;font-size:10px;font-weight:800;color:var(--tx3);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);white-space:nowrap;display:flex;align-items:center;justify-content:space-between;gap:6px;}
 .bl-collapse-btn{width:22px;height:22px;border-radius:5px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx3);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font);transition:all .12s;}
-.bl-shdr{position:sticky;top:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:7px 4px;text-align:center;min-width:var(--stu-w);width:var(--stu-w);cursor:pointer;transition:background .12s;user-select:none;-webkit-user-select:none;}
+.bl-shdr{position:sticky;top:0;z-index:7;background:var(--surf);border:1px solid var(--bdr);padding:7px 4px;text-align:center;min-width:var(--stu-w);width:var(--stu-w);cursor:pointer;transition:background .12s;user-select:none;-webkit-user-select:none;}
 .bl-shdr:hover{background:var(--a10)!important;}
 .bl-shdr.dragging{opacity:.4;background:var(--a10)!important;}
 .bl-shdr.drag-over-left{border-left:2.5px solid var(--a)!important;}
@@ -142,7 +142,7 @@ const BooklibApp = (() => {
 .bl-shdr-name{font-size:11px;font-weight:800;color:var(--tx);white-space:nowrap;}
 .bl-shdr-cnt{font-size:10px;margin-top:2px;}
 .bl-shdr-act{font-size:9px;margin-top:2px;color:var(--a);}
-.bl-batch-row{background:var(--surf2);}
+.bl-batch-row{background:var(--surf2);position:sticky;z-index:5;}
 .bl-batch-hdr{position:sticky;left:0;background:var(--surf2);position:sticky;left:0;z-index:2;background:var(--surf2);border:1px solid var(--bdr);padding:5px 8px;font-size:9px;font-weight:800;color:var(--tx3);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);}
 .bl-batch-ck{border:1px solid var(--bdr);text-align:center;cursor:pointer;transition:background .12s;width:var(--stu-w);}
 .bl-batch-ck:hover{background:var(--a10);}
@@ -957,7 +957,7 @@ const BooklibApp = (() => {
       <table class="bl-mtbl ${_st.chCollapsed?'ch-collapsed':''}" id="bl-mtbl" style="--ch-w:${w}px;--stu-w:${STU_W}px">
         <colgroup><col style="width:${w}px">${students.map(()=>`<col style="width:${STU_W}px">`).join('')}</colgroup>
         <thead>
-          <tr>
+          <tr style="position:sticky;top:0;z-index:6;background:var(--surf)">
             <th class="bl-ch-hdr">
               ${!_st.chCollapsed?`<span style="font-size:9px;font-weight:800;color:var(--tx3)">챕터 / 학생</span>`:''}
               <button class="bl-collapse-btn" id="bl-collapse-btn" onclick="BooklibApp._toggleCollapse()">${_st.chCollapsed?'▶':'◀'}</button>
@@ -968,7 +968,7 @@ const BooklibApp = (() => {
               <div class="bl-shdr-act">${uc?'📤':''}</div>
             </th>`;}).join('')}
           </tr>
-          <tr class="bl-batch-row" style="position:sticky;top:0;z-index:4;">
+          <tr class="bl-batch-row" id="bl-batch-row">
             <td class="bl-batch-hdr">전체 토글 ↓</td>
             ${students.map(s=>`<td class="bl-batch-ck" onclick="BooklibApp._batchToggle('${_st.matrixClassId}','${_st.matrixBookId}','${s.id}')"><span style="font-size:12px;color:var(--tx3)">⇅</span></td>`).join('')}
           </tr>
