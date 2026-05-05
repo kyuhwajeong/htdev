@@ -954,49 +954,44 @@ const GradeApp = (() => {
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
     cnt.innerHTML=`<div class="gr-report-panel" style="position:relative">
       <div class="gr-rpt-cfg">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+        <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start">
           <div>
             <div class="gr-rpt-cfg-title">레이아웃</div>
             <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
           </div>
           <div>
-            <div class="gr-rpt-cfg-title">📄 페이지 크기</div>
-            <div style="display:flex;gap:5px">
-              ${['A4','A5','B5'].map(s=>`<button onclick="GradeApp._setPageSize('${s}')"
-                style="padding:4px 10px;border-radius:7px;border:1.5px solid ${_st.pageSize===s?'var(--a)':'var(--bdr2)'};background:${_st.pageSize===s?'var(--a20)':'var(--surf2)'};color:${_st.pageSize===s?'var(--a)':'var(--tx3)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">${s}</button>`).join('')}
+            <div class="gr-rpt-cfg-title">📄 페이지</div>
+            <div style="display:flex;gap:4px">
+              ${['A4','A5','B5'].map(s=>`<button id="gr-ps-${s}" onclick="GradeApp._setPageSize('${s}')"
+                style="padding:3px 9px;border-radius:7px;border:1.5px solid ${_st.pageSize===s?'var(--a)':'var(--bdr2)'};background:${_st.pageSize===s?'var(--a20)':'var(--surf2)'};color:${_st.pageSize===s?'var(--a)':'var(--tx3)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);white-space:nowrap">${s}</button>`).join('')}
             </div>
           </div>
           <div>
-            <div class="gr-rpt-cfg-title">🖼 로고 크기</div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <input type="range" min="40" max="160" value="${_st.logoSize}"
-                oninput="GradeApp._setLogoSize(this.value)"
-                style="width:80px;vertical-align:middle;accent-color:var(--a)">
-              <span id="gr-rpt-logo-sz">${_st.logoSize}px</span>
+            <div class="gr-rpt-cfg-title">🖼 로고</div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <input type="range" min="40" max="160" value="${_st.logoSize}" oninput="GradeApp._setLogoSize(this.value)" style="width:70px;accent-color:var(--a)">
+              <span id="gr-rpt-logo-sz" style="display:inline-block;min-width:34px;font-size:11px;color:var(--tx2)">${_st.logoSize}px</span>
             </div>
           </div>
           <div>
             <div class="gr-rpt-cfg-title">🔡 글자 크기</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <label style="font-size:11px;color:var(--tx2)">제목 <input type="range" min="12" max="28" value="${_st.reportTitleSize}" oninput="GradeApp._setRptFontSize('title',this.value)" style="width:60px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-rpt-title-sz">${_st.reportTitleSize}px</span></label>
-              <label style="font-size:11px;color:var(--tx2)">본문 <input type="range" min="8" max="16" value="${_st.reportBodySize}" oninput="GradeApp._setRptFontSize('body',this.value)" style="width:60px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-rpt-body-sz">${_st.reportBodySize}px</span></label>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:4px;white-space:nowrap">제목 <input type="range" min="12" max="28" value="${_st.reportTitleSize}" oninput="GradeApp._setRptFontSize('title',this.value)" style="width:65px;accent-color:var(--a)"><span id="gr-rpt-title-sz" style="display:inline-block;min-width:28px">${_st.reportTitleSize}px</span></label>
+              <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:4px;white-space:nowrap">본문 <input type="range" min="8" max="16" value="${_st.reportBodySize}" oninput="GradeApp._setRptFontSize('body',this.value)" style="width:65px;accent-color:var(--a)"><span id="gr-rpt-body-sz" style="display:inline-block;min-width:28px">${_st.reportBodySize}px</span></label>
             </div>
           </div>
           <div>
-            <div class="gr-rpt-cfg-title">📊 그래프</div>
-            <label class="gr-rpt-toggle"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 포함</label>
-            <div style="display:flex;gap:4px;margin-top:4px">
-              ${['left','center','right'].map(a=>`<button onclick="GradeApp._setGraphAlign('${a}')" style="padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);border:1.5px solid ${_st.graphAlign===a?'var(--a)':'var(--bdr2)'};background:${_st.graphAlign===a?'var(--a10)':'var(--surf2)'};color:${_st.graphAlign===a?'var(--a)':'var(--tx3)'}">${a==='left'?'좌':a==='center'?'중앙':'우'}</button>`).join('')}
+            <div class="gr-rpt-cfg-title">📊 그래프 &amp; 🖊 라인</div>
+            <label class="gr-rpt-toggle" style="display:flex;align-items:center;gap:4px;margin-bottom:4px"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 그래프 포함</label>
+            <div style="display:flex;gap:3px;margin-bottom:4px">
+              ${['left','center','right'].map(a=>`<button id="gr-ga-${a}" onclick="GradeApp._setGraphAlign('${a}')" style="padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);border:1.5px solid ${_st.graphAlign===a?'var(--a)':'var(--bdr2)'};background:${_st.graphAlign===a?'var(--a10)':'var(--surf2)'};color:${_st.graphAlign===a?'var(--a)':'var(--tx3)'};white-space:nowrap">${a==='left'?'좌':a==='center'?'중앙':'우'}</button>`).join('')}
             </div>
-          </div>
-          <div>
-            <div class="gr-rpt-cfg-title">🖊 표/코멘트 라인</div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <label style="font-size:11px;color:var(--tx2)">색상 <input type="color" value="${_st.dividerColor}" oninput="GradeApp._setDivider('color',this.value)" style="width:30px;height:22px;border:none;cursor:pointer;border-radius:4px;vertical-align:middle"></label>
-              <label style="font-size:11px;color:var(--tx2)">굵기 <input type="range" min="1" max="4" value="${_st.dividerWidth}" oninput="GradeApp._setDivider('width',this.value)" style="width:55px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-div-width-lbl">${_st.dividerWidth}px</span></label>
+              <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:3px;white-space:nowrap">색상 <input type="color" value="${_st.dividerColor}" oninput="GradeApp._setDivider('color',this.value)" style="width:26px;height:20px;border:none;cursor:pointer;border-radius:4px;padding:0"></label>
+              <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:3px;white-space:nowrap">굵기 <input type="range" min="1" max="4" value="${_st.dividerWidth}" oninput="GradeApp._setDivider('width',this.value)" style="width:55px;accent-color:var(--a)"><span id="gr-div-width-lbl" style="display:inline-block;min-width:24px">${_st.dividerWidth}px</span></label>
             </div>
           </div>
-        </div>
+        </div></div>
       </div>
       <div class="gr-rpt-preview">
         <div class="rpt-wrap" id="gr-rpt-preview" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
@@ -1167,31 +1162,22 @@ img{max-width:100%}`;
   
   function _printReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
-    const s=_getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
     const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
     const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
-    const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch{return '';}}).join('\n');
-    const css=`@charset "UTF-8";
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
-@page{size:${pw} ${ph};margin:10mm}
-body{margin:0;padding:0;background:#fff;font-family:'Noto Sans KR',sans-serif;}
-img{max-width:100%}
-${styles}
-.gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
-.rpt-wrap{box-shadow:none!important;border:none!important;width:100%!important;max-width:100%!important;border-radius:0!important;}`;
-    const html=['<!DOCTYPE html><html lang="ko"><head>',
-      '<meta charset="UTF-8">',
-      `<title>${s?_e(s.name):''} 성적 리포트</title>`,
-      `<style>${css}</style>`,
-      '</head><body>',
-      el.outerHTML,
-      '<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script>',
-      '</body></html>'].join('');
-    const win=window.open('','_blank','width=900,height=700');
-    if(!win){_toast('⚠️ 팝업 차단됨. 팝업을 허용해주세요.','error');return;}
-    win.document.open();win.document.write(html);win.document.close();
+    document.getElementById('gr-print-style')?.remove();
+    document.getElementById('gr-print-root')?.remove();
+    const style=document.createElement('style');
+    style.id='gr-print-style';
+    style.textContent=`@page{size:${pw} ${ph};margin:8mm}@media print{body>*{display:none!important}#gr-print-root{display:block!important}}#gr-print-root{display:none;position:fixed;top:0;left:0;width:100%;z-index:99999;background:#fff}.rpt-wrap{box-shadow:none!important;border:none!important;width:${pw}!important;max-width:${pw}!important;border-radius:0!important;padding:0!important}`;
+    document.head.appendChild(style);
+    const root=document.createElement('div');
+    root.id='gr-print-root';
+    root.innerHTML=el.outerHTML;
+    document.body.appendChild(root);
+    requestAnimationFrame(()=>{window.print();setTimeout(()=>{root.remove();style.remove();},1000);});
   }
 
+  
   async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
 
   /* ════════════════════════════════════
