@@ -60,6 +60,8 @@ const BooklibApp = (() => {
 .bl-book-card.multi-selecting{cursor:default;}
 .bl-multi-ck{margin-right:2px;}
 .bl-book-card:hover{border-color:var(--a40);}
+.bl-move-btn{background:var(--surf2);border:1px solid var(--bdr2);border-radius:5px;width:22px;height:18px;font-size:9px;cursor:pointer;color:var(--tx3);line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:all .12s;}
+.bl-move-btn:hover{background:var(--a);color:#fff;border-color:var(--a);}
 .bl-book-chdr{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--bdr);background:var(--surf2);position:relative;}
 .bl-book-ico{width:36px;height:36px;border-radius:9px;background:var(--a20);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
 .bl-book-info{flex:1;min-width:0;}
@@ -284,9 +286,8 @@ const BooklibApp = (() => {
         </div>
         <div id="bl-multi-bar" style="display:none;padding:6px 4px 10px;gap:6px;align-items:center;flex-wrap:wrap">
           <span id="bl-multi-cnt" style="font-size:12px;font-weight:700;color:var(--tx2)">0개 선택</span>
-          <button style="font-size:13px;padding:3px 10px;border-radius:8px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx2);cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiMoveUp()" title="위로 이동">▲ 위로</button>
-          <button style="font-size:13px;padding:3px 10px;border-radius:8px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx2);cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiMoveDown()" title="아래로 이동">▼ 아래로</button>
-          <button style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#d97706;cursor:pointer;font-family:var(--font);font-weight:700" onclick="BooklibApp._multiArchive()">📦 완결 처리</button>
+          <button id="bl-multi-copy-btn" style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:var(--a);cursor:pointer;font-family:var(--font);font-weight:700;display:none" onclick="BooklibApp._multiCopy()">📋 복사</button>
+          <button id="bl-multi-arch-btn" style="font-size:12px;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#d97706;cursor:pointer;font-family:var(--font);font-weight:700;display:none" onclick="BooklibApp._multiArchive()">📦 완결 처리</button>
           <button style="font-size:12px;padding:4px 10px;border-radius:8px;background:var(--surf2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._cancelMultiSelect()">✕ 해제</button>
         </div>
         <!-- 활성 교재 -->
@@ -327,6 +328,7 @@ const BooklibApp = (() => {
     return`<div class="bl-book-card ${isArchived?'archived':chN>0?'has-ch':''}" data-bid="${b.id}" draggable="${isAdmin&&!isArchived}">
       <div class="bl-book-chdr">
         ${isAdmin&&!isArchived?`<div class="bl-drag-handle" title="드래그하여 순서 변경">⠿</div>`:''}
+        ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px"><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',-1)" title="위로">▲</button><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',1)" title="아래로">▼</button></div>`:''}
         ${isAdmin&&!isArchived?`<input type="checkbox" class="bl-multi-ck" data-bid="${b.id}" style="display:none;width:17px;height:17px;accent-color:var(--a);cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();BooklibApp._onMultiCkChange()">`:''}
         <div class="bl-book-ico">${isArchived?'📦':'📖'}</div>
         <div class="bl-book-info">
@@ -417,14 +419,17 @@ const BooklibApp = (() => {
     const bar = document.getElementById('bl-multi-bar');
     const btn = document.getElementById('bl-multi-arc-btn');
     const cks = document.querySelectorAll('.bl-multi-ck');
+    const moveBtns = document.querySelectorAll('.bl-move-btns');
     if(_multiSelectMode){
       if(bar){bar.style.display='flex';}
       if(btn){btn.style.background='var(--a10)';btn.style.color='var(--a)';btn.style.borderColor='var(--a40)';}
       cks.forEach(ck=>{ck.style.display='block';ck.checked=false;});
+      moveBtns.forEach(mb=>{mb.style.display='flex';});
     } else {
       if(bar){bar.style.display='none';}
       if(btn){btn.style.background='var(--card2)';btn.style.color='var(--tx3)';btn.style.borderColor='var(--bdr2)';}
       cks.forEach(ck=>{ck.style.display='none';ck.checked=false;});
+      moveBtns.forEach(mb=>{mb.style.display='none';});
     }
     _onMultiCkChange();
   }
@@ -432,7 +437,33 @@ const BooklibApp = (() => {
     const checked = [...document.querySelectorAll('.bl-multi-ck:checked')];
     const cnt = document.getElementById('bl-multi-cnt');
     if(cnt) cnt.textContent = checked.length + '개 선택';
+    // 체크된 항목 있을 때만 복사/완결 버튼 표시
+    const hasChecked = checked.length > 0;
+    const copyBtn = document.getElementById('bl-multi-copy-btn');
+    const archBtn = document.getElementById('bl-multi-arch-btn');
+    if(copyBtn) copyBtn.style.display = hasChecked ? '' : 'none';
+    if(archBtn) archBtn.style.display = hasChecked ? '' : 'none';
   }
+  // ★ 개별 교재 위/아래 이동 (DOM 직접 조작 + 비동기 DB 저장)
+  function _moveBook(id, dir) {
+    const container = document.getElementById('bl-active-books');
+    if (!container) return;
+    const cards = [...container.querySelectorAll('[data-bid]')];
+    const idx = cards.findIndex(c => c.dataset.bid === id);
+    if (idx < 0) return;
+    const target = idx + dir;
+    if (target < 0 || target >= cards.length) return;
+    // DOM 즉시 이동 (빠른 피드백)
+    if (dir === -1) {
+      container.insertBefore(cards[idx], cards[target]);
+    } else {
+      container.insertBefore(cards[target], cards[idx]);
+    }
+    // DB 비동기 저장 (UI 블로킹 없음)
+    const newOrder = [...container.querySelectorAll('[data-bid]')].map(c => c.dataset.bid);
+    BookLibDB.reorderBooks(newOrder).catch(console.warn);
+  }
+
   // ★ 선택된 교재 위로 이동
   async function _multiMoveUp() {
     const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
@@ -468,6 +499,24 @@ const BooklibApp = (() => {
     await BookLibDB.reorderBooks(ordered);
     _renderLibrary();
     _toast('▼ 아래로 이동', 'success');
+  }
+
+  // ★ 선택된 교재 복사 (교재명_복사본)
+  async function _multiCopy() {
+    const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
+    if (!ids.length) { _toast('⚠️ 복사할 교재를 선택해주세요'); return; }
+    let count = 0;
+    for (const id of ids) {
+      const src = BookLibDB.getBookById(id); if (!src) continue;
+      const copy = await BookLibDB.copyBook(id);
+      if (copy) {
+        // 복사본 이름에 "_복사본" 추가
+        await BookLibDB.updateBook(copy.id, { name: src.name + '_복사본' });
+        count++;
+      }
+    }
+    _renderLibrary();
+    _toast(`📋 ${count}개 교재 복사 완료`, 'success');
   }
 
   async function _multiArchive(){
