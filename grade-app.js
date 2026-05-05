@@ -945,20 +945,46 @@ const GradeApp = (() => {
     const s = students.find(s=>s.id===_st.studentId)||students[0];
     if(!s){cnt.innerHTML=`<div class="gr-empty"><div class="gr-empty-ico">👆</div>좌측에서 학생을 선택하세요</div>`;return;}
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
-    cnt.innerHTML=`<div class="gr-report-panel">
+    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative">
       <div class="gr-rpt-cfg">
-        <div class="gr-rpt-cfg-title">레이아웃</div>
-        <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
-        <label class="gr-rpt-toggle"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 📊 그래프 포함</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+          <div>
+            <div class="gr-rpt-cfg-title">레이아웃</div>
+            <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">📄 페이지 크기</div>
+            <div style="display:flex;gap:5px">
+              ${['A4','A5','B5'].map(s=>`<button onclick="GradeApp._setPageSize('${s}')"
+                style="padding:4px 10px;border-radius:7px;border:1.5px solid ${_st.pageSize===s?'var(--a)':'var(--bdr2)'};background:${_st.pageSize===s?'var(--a20)':'var(--surf2)'};color:${_st.pageSize===s?'var(--a)':'var(--tx3)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">${s}</button>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">🔡 글자 크기</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <label style="font-size:11px;color:var(--tx2)">제목 <input type="range" min="12" max="28" value="${_st.reportTitleSize}" oninput="GradeApp._setRptFontSize('title',this.value)" style="width:60px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-rpt-title-sz">${_st.reportTitleSize}px</span></label>
+              <label style="font-size:11px;color:var(--tx2)">본문 <input type="range" min="8" max="16" value="${_st.reportBodySize}" oninput="GradeApp._setRptFontSize('body',this.value)" style="width:60px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-rpt-body-sz">${_st.reportBodySize}px</span></label>
+            </div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">📊 그래프</div>
+            <label class="gr-rpt-toggle"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 포함</label>
+            <div style="display:flex;gap:4px;margin-top:4px">
+              ${['left','center','right'].map(a=>`<button onclick="GradeApp._setGraphAlign('${a}')" style="padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);border:1.5px solid ${_st.graphAlign===a?'var(--a)':'var(--bdr2)'};background:${_st.graphAlign===a?'var(--a10)':'var(--surf2)'};color:${_st.graphAlign===a?'var(--a)':'var(--tx3)'}">${a==='left'?'좌':a==='center'?'중앙':'우'}</button>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="gr-rpt-cfg-title">🖊 표/코멘트 라인</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <label style="font-size:11px;color:var(--tx2)">색상 <input type="color" value="${_st.dividerColor}" oninput="GradeApp._setDivider('color',this.value)" style="width:30px;height:22px;border:none;cursor:pointer;border-radius:4px;vertical-align:middle"></label>
+              <label style="font-size:11px;color:var(--tx2)">굵기 <input type="range" min="1" max="4" value="${_st.dividerWidth}" oninput="GradeApp._setDivider('width',this.value)" style="width:55px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-div-width-lbl">${_st.dividerWidth}px</span></label>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="gr-rpt-preview">
-        <div class="rpt-wrap" id="gr-rpt-preview">${_buildReport(s)}</div>
-        <div class="rpt-acts">
-          <button class="rpt-btn copy"  onclick="GradeApp._copyReport()">📋 복사</button>
-          <button class="rpt-btn share" onclick="GradeApp._shareReport()">📤 공유</button>
-          <button class="rpt-btn pdf"   onclick="GradeApp._printReport()">🖨️ PDF</button>
-          <button class="rpt-btn cap"   onclick="GradeApp._captureReport()">📸 캡처</button>
-        </div>
+        <div class="rpt-wrap" id="gr-rpt-preview" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
+        <!-- 하단 버튼 제거됨: 우측 고정 버튼(gr-rpt-fixed-btns)으로 대체 -->
       </div>
     </div>`;
   }

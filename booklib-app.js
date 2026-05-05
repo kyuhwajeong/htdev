@@ -42,7 +42,7 @@ const BooklibApp = (() => {
 .bl-stabs::-webkit-scrollbar{display:none;}
 .bl-stab{flex:1;min-width:80px;padding:11px 8px;text-align:center;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:2.5px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font);transition:color .18s,border-color .18s;white-space:nowrap;}
 .bl-stab.on{color:var(--a);border-bottom-color:var(--a);}
-.bl-lib-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 120px;}
+.bl-lib-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 120px;position:relative;}
 .bl-lbl{display:block;font-size:9px;font-weight:800;color:var(--tx3);letter-spacing:1.2px;text-transform:uppercase;padding:8px 2px 5px;}
 .bl-add-row{display:flex;gap:8px;margin-bottom:8px;}
 .bl-add-inp{flex:1;padding:10px 13px;border-radius:10px;background:var(--surf2);border:1.5px solid var(--bdr);font-size:14px;color:var(--tx);outline:none;font-family:var(--font);transition:border-color .2s;}
@@ -226,6 +226,9 @@ const BooklibApp = (() => {
     const pg=document.getElementById('page-booklib');if(!pg)return;
     _stopListeners();pg.innerHTML=_shell();
     if(_st.subTab==='library')_renderLibrary();else _renderMatrixTab();
+    // ★ FAB 표시 상태 초기화
+    const fab=document.getElementById('bl-reg-fab');
+    if(fab) fab.style.display=(_st.subTab==='library'?'flex':'none');
   }
   function _stopListeners(){
     if(_st.stopMatrix){_st.stopMatrix();_st.stopMatrix=null;}
@@ -245,6 +248,12 @@ const BooklibApp = (() => {
       <button class="bl-stab ${_st.subTab==='library'?'on':''}" onclick="BooklibApp.switchTab('library')">📚 교재 관리</button>
       <button class="bl-stab ${_st.subTab==='matrix'?'on':''}"  onclick="BooklibApp.switchTab('matrix')">📊 학습 현황</button>
     </div>
+    <!-- ★ 교재 등록 FAB 버튼 (교재관리 탭에서만 표시) -->
+    <div id="bl-reg-fab" style="position:fixed;right:12px;bottom:90px;z-index:999;display:none;flex-direction:column;align-items:center;gap:4px">
+      <button onclick="BooklibApp._toggleRegArea()" title="교재 등록"
+        style="width:54px;height:54px;border-radius:50%;background:var(--a);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 18px var(--a40);display:flex;align-items:center;justify-content:center;transition:all .15s">＋</button>
+      <span style="font-size:9px;font-weight:800;color:var(--a);background:var(--card);padding:1px 6px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">교재 등록</span>
+    </div>
     <div id="bl-cnt" style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;"></div>
     <div id="bl-editor-ov" class="ov hidden" onclick="if(event.target.id==='bl-editor-ov')BooklibApp.closeEditor()">
       <div class="sh" id="bl-editor-sh" onclick="event.stopPropagation()" style="max-height:94vh;display:flex;flex-direction:column;"></div>
@@ -257,6 +266,9 @@ const BooklibApp = (() => {
     </div>`;}
 
   function switchTab(tab){
+    // ★ 교재관리 탭에서만 FAB 표시
+    const fab=document.getElementById('bl-reg-fab');
+    if(fab) fab.style.display=(tab==='library'?'flex':'none');
     _st.subTab=tab;
     if(tab!=='matrix')_stopListeners();
     document.querySelectorAll('.bl-stab').forEach((b,i)=>b.classList.toggle('on',(i===0&&tab==='library')||(i===1&&tab==='matrix')));
