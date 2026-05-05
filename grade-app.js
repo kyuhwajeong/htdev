@@ -34,6 +34,13 @@ const GradeApp = (() => {
     slideIdx:  0,
     reportLayout: 1,
     reportGraph:  true,
+    pageSize:        'A4',
+    reportTitleSize: 18,
+    reportBodySize:  12,
+    dividerColor:    '#e2e8f0',
+    dividerWidth:    1,
+    graphAlign:      'left',
+    logoSize:        80,
     touchStartX: 0,
   };
 
@@ -960,6 +967,15 @@ const GradeApp = (() => {
             </div>
           </div>
           <div>
+            <div class="gr-rpt-cfg-title">🖼 로고 크기</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="range" min="40" max="160" value="${_st.logoSize}"
+                oninput="GradeApp._setLogoSize(this.value)"
+                style="width:80px;vertical-align:middle;accent-color:var(--a)">
+              <span id="gr-rpt-logo-sz">${_st.logoSize}px</span>
+            </div>
+          </div>
+          <div>
             <div class="gr-rpt-cfg-title">🔡 글자 크기</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <label style="font-size:11px;color:var(--tx2)">제목 <input type="range" min="12" max="28" value="${_st.reportTitleSize}" oninput="GradeApp._setRptFontSize('title',this.value)" style="width:60px;vertical-align:middle;accent-color:var(--a)"> <span id="gr-rpt-title-sz">${_st.reportTitleSize}px</span></label>
@@ -1072,6 +1088,14 @@ const GradeApp = (() => {
       document.querySelectorAll('#gr-rpt-preview .rpt-tbl td,#gr-rpt-preview .rpt-tbl th,#gr-rpt-preview .rpt-comment-box').forEach(el=>{el.style.borderWidth=val+'px';});
     }
   }
+  function _setLogoSize(val){
+    _st.logoSize=Number(val);
+    const lbl=document.getElementById('gr-rpt-logo-sz');
+    if(lbl) lbl.textContent=val+'px';
+    const img=document.getElementById('gr-rpt-logo-img');
+    if(img) img.style.width=val+'px';
+  }
+
   function _setPageSize(size){
     _st.pageSize=size;
     const pxW={A4:794,A5:559,B5:665};
@@ -1098,8 +1122,76 @@ const GradeApp = (() => {
   function _setLayout(n){_st.reportLayout=n;const s=_getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];if(s){const el=document.getElementById('gr-rpt-preview');if(el)el.innerHTML=_buildReport(s);}document.querySelectorAll('.gr-rpt-lbtn').forEach((b,i)=>b.classList.toggle('on',i+1===n));}
   function _toggleGraph(v){_st.reportGraph=v;_setLayout(_st.reportLayout);}
   async function _copyReport(){const el=document.getElementById('gr-rpt-preview');try{await navigator.clipboard.writeText(el?.innerText||'');_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
-  async function _shareReport(){const text=document.getElementById('gr-rpt-preview')?.innerText||'';const sd={title:'Achievement Report',text};if(navigator.share&&navigator.canShare?.(sd)){try{await navigator.share(sd);_toast('📤 공유 완료','success');return;}catch(e){if(e.name==='AbortError')return;}}_copyReport();}
-  function _printReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;let frame=document.getElementById('gr-pf');if(!frame){frame=document.createElement('div');frame.id='gr-pf';document.body.appendChild(frame);}frame.innerHTML=el.innerHTML;window.print();setTimeout(()=>frame.remove(),1500);}
+  async function _shareReport(){
+    const el=document.getElementById('gr-rpt-preview');if(!el)return;
+    const s=_getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
+    const name=s?s.name:'';
+    const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
+    const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch{return '';}}).join('\n');
+    const css=`@charset "UTF-8";
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
+body{margin:0;padding:20px;background:#f8fafc;font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:center;}
+${styles}
+.gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
+.rpt-wrap{max-width:${pw};width:100%;margin:0 auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}
+img{max-width:100%}`;
+    const title=`${name} 학생 성적 리포트`;
+    const html=['<!DOCTYPE html><html lang="ko"><head>',
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width,initial-scale=1">',
+      `<meta property="og:title" content="${title}">`,
+      `<meta property="og:description" content="해피트리 영어학원 Achievement Report">`,
+      `<title>${title}</title>`,
+      `<style>${css}</style>`,
+      '</head><body>',
+      el.outerHTML,
+      '</body></html>'].join('');
+    try{
+      // Blob URL 생성 후 Web Share API
+      const blob=new Blob([html],{type:'text/html'});
+      const url=URL.createObjectURL(blob);
+      if(navigator.share){
+        await navigator.share({title,url});
+        _toast('📤 공유 완료','success');
+        setTimeout(()=>URL.revokeObjectURL(url),30000);
+      } else {
+        // 새 창에서 리포트 열기
+        const win=window.open('','_blank','width=900,height=700');
+        if(win){win.document.open();win.document.write(html);win.document.close();_toast('📤 새 창에서 리포트를 확인하세요','success');}
+        else _toast('⚠️ 팝업을 허용해주세요','error');
+        URL.revokeObjectURL(url);
+      }
+    }catch(e){if(e.name!=='AbortError')_toast('⚠️ 공유 실패: '+e.message,'error');}
+  }
+
+  
+  function _printReport(){
+    const el=document.getElementById('gr-rpt-preview');if(!el)return;
+    const s=_getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
+    const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
+    const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
+    const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch{return '';}}).join('\n');
+    const css=`@charset "UTF-8";
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
+@page{size:${pw} ${ph};margin:10mm}
+body{margin:0;padding:0;background:#fff;font-family:'Noto Sans KR',sans-serif;}
+img{max-width:100%}
+${styles}
+.gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
+.rpt-wrap{box-shadow:none!important;border:none!important;width:100%!important;max-width:100%!important;border-radius:0!important;}`;
+    const html=['<!DOCTYPE html><html lang="ko"><head>',
+      '<meta charset="UTF-8">',
+      `<title>${s?_e(s.name):''} 성적 리포트</title>`,
+      `<style>${css}</style>`,
+      '</head><body>',
+      el.outerHTML,
+      '<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script>',
+      '</body></html>'].join('');
+    const win=window.open('','_blank','width=900,height=700');
+    if(!win){_toast('⚠️ 팝업 차단됨. 팝업을 허용해주세요.','error');return;}
+    win.document.open();win.document.write(html);win.document.close();
+  }
+
   async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
 
   /* ════════════════════════════════════
@@ -1277,7 +1369,7 @@ const GradeApp = (() => {
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };

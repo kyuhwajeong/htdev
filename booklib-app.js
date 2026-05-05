@@ -313,7 +313,7 @@ const BooklibApp = (() => {
         </div>
       </div>
       <!-- ★ 스크롤 영역 (교재 카드만 스크롤) -->
-      <div id="bl-active-books" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 120px;display:flex;flex-direction:column;gap:8px">
+      <div id="bl-active-books" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 120px">
         ${books.length===0?`<div class="bl-empty"><div style="font-size:48px;margin-bottom:10px">📚</div>등록된 교재가 없습니다</div>`:`
         ${books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999)).map(b=>_bookCardHTML(b,isAdmin)).join('')}
         ${books.some(b=>b.archived)?`
