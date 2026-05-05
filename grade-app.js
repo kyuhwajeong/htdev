@@ -94,7 +94,7 @@ const GradeApp = (() => {
 .gr-sheet{border-collapse:collapse;font-size:12px;width:100%;}
 
 /* fixed student col */
-.gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:110px;width:110px;cursor:pointer;}
+.gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:130px;width:130px;cursor:pointer;}
 .gr-sheet thead .gs-fix{z-index:5;background:var(--surf2);}
 .gr-sheet .gs-fix.sel,.gr-sheet .gs-fix:hover{background:var(--a10);}
 
@@ -130,7 +130,7 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{width:20%;min-width:160px;max-width:280px;}
+.gs-cm-cell{width:15%;min-width:140px;max-width:240px;}
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:11px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
@@ -574,16 +574,23 @@ const GradeApp = (() => {
         return _calcRdN(rd, actRevs);
       }).filter(v => v != null);
       const avgRd = achRds.length ? Math.round(achRds.reduce((a,b)=>a+b,0)/achRds.length) : null;
+      // ★ 리딩 평가 그룹: 총문제(1)+정답수N+점수N = 1+N+N 컬럼 병합
+      const rdMergeCols = 1 + actRevs.length * 2;
       rdAvgCells = `
-        <td class="gs-td ro"></td>
-        ${actRevs.map(()=>'<td class="gs-td ro"></td>').join('')}
-        ${actRevs.map(()=>'<td class="gs-td ro"></td>').join('')}
+        <td class="gs-td ro" colspan="${rdMergeCols}"
+          style="text-align:center;font-weight:800;color:#8b5cf6;font-size:12px">평균</td>
         <td class="gs-td ro"><span class="gs-val achv-c" id="gr-avg-rd">${avgRd!=null?avgRd+'%':'—'}</span></td>`;
     }
 
+    // ★ 단어평가 그룹: gs-fix(학생)+총테스트+재시험+통과 = 4컬럼 병합
+    const graphBtn = `<button id="gr-graph-toggle" onclick="GradeApp._toggleGraph()"
+      title="${_st.showGraph?'그래프 숨기기':'그래프 표시'}"
+      style="background:${_st.showGraph?'var(--a)':'transparent'};border:${_st.showGraph?'none':'1.5px solid var(--bdr2)'};border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;color:${_st.showGraph?'#fff':'var(--tx3)'};transition:all .15s;margin-left:6px">📊</button>`;
     return `<tr class="gr-avg-row">
-      <td class="gs-fix" colspan="3" style="text-align:center;font-weight:800;color:var(--a);font-size:12px">📊 평균</td>
-      <td class="gs-td ro"></td>
+      <td class="gs-fix" colspan="4"
+        style="text-align:center;font-weight:800;color:var(--a);font-size:12px">
+        평균${graphBtn}
+      </td>
       <td class="gs-td ro"><span class="gs-val achv-c" id="gr-avg-w">${avgW!=null?avgW+'%':'—'}</span></td>
       ${rdAvgCells}
       <td class="gs-td ro gs-cm-cell"></td>
@@ -1058,6 +1065,26 @@ const GradeApp = (() => {
     _updateChart();
   }
 
+  /* ★ 컬럼 드래그 리사이즈 */
+  function _bindColResize() {
+    const tbl=document.querySelector('.gr-sheet');if(!tbl)return;
+    tbl.querySelectorAll('thead .gs-th.sec-w,thead .gs-th.sec-r,thead .gs-cm-cell').forEach(th=>{
+      if(th.querySelector('.gs-col-resizer'))return;
+      const h=document.createElement('div');
+      h.className='gs-col-resizer';
+      th.appendChild(h);
+      let sx=0,sw=0;
+      h.addEventListener('mousedown',e=>{
+        e.preventDefault();e.stopPropagation();
+        sx=e.clientX;sw=th.offsetWidth;h.classList.add('dragging');
+        const mv=ev=>{const w=Math.max(60,sw+ev.clientX-sx);th.style.width=w+'px';th.style.minWidth=w+'px';};
+        const up=()=>{h.classList.remove('dragging');document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
+        document.addEventListener('mousemove',mv);
+        document.addEventListener('mouseup',up);
+      });
+    });
+  }
+
   function _setGraphAlign(align) {
     _st.graphAlign = align;
     const jc = align==='left'?'flex-start': align==='right'?'flex-end':'center';
@@ -1213,52 +1240,38 @@ img{max-width:100%}`;
     const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
     const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
 
-    // ★ 현재 페이지 CSS 전체 수집
-    const allCss=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
-
-    const html=[
-      '<!DOCTYPE html><html lang="ko"><head>',
-      '<meta charset="UTF-8">',
-      `<style>${allCss}</style>`,
-      '<style>',
-      `@page{size:${pw} ${ph};margin:8mm}`,
-      'html,body{margin:0;padding:0;background:#fff;}',
-      '.gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}',
-      '#gr-rpt-preview,#gr-rpt-preview .rpt-wrap{',
-      '  box-shadow:none!important;border:none!important;',
-      '  border-radius:0!important;width:100%!important;',
-      '  max-width:100%!important;padding:8mm 10mm!important;}',
-      'img{max-width:100%}',
-      '</style>',
-      '</head><body>',
-      el.outerHTML,
-      '</body></html>'
-    ].join('');
-
-    // ★ Blob URL로 iframe 인쇄 (새 창 없이 현재 창 뒤 안 나옴)
-    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-
-    // 숨김 iframe 생성
-    const iframe=document.createElement('iframe');
-    iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-    document.body.appendChild(iframe);
-    iframe.src=url;
-
-    iframe.onload=function(){
-      try{
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      }catch(e){
-        // 보안 정책으로 iframe 접근 불가 시 새 창으로 폴백
-        const win=window.open(url,'_blank');
-        if(!win) _toast('⚠️ 팝업을 허용해주세요','error');
+    // 기존 print style 제거
+    let pStyle=document.getElementById('gr-print-style');
+    if(pStyle) pStyle.remove();
+    pStyle=document.createElement('style');
+    pStyle.id='gr-print-style';
+    // ★ @media print: gr-rpt-preview만 화면 전체에 표시
+    pStyle.textContent=`
+      @page{size:${pw} ${ph};margin:8mm}
+      @media print{
+        body *{visibility:hidden}
+        #gr-rpt-preview,#gr-rpt-preview *{visibility:visible}
+        #gr-rpt-preview{
+          position:fixed;top:0;left:0;
+          width:100%!important;max-width:100%!important;
+          box-shadow:none!important;border:none!important;border-radius:0!important;
+          background:white!important;
+        }
+        #gr-rpt-preview .rpt-wrap{
+          width:100%!important;max-width:100%!important;
+          box-shadow:none!important;border:none!important;
+          padding:0!important;border-radius:0!important;
+        }
+        .gr-rpt-fixed-btns,.gr-rpt-cfg{display:none!important;visibility:hidden!important}
       }
-      setTimeout(()=>{
-        document.body.removeChild(iframe);
-        URL.revokeObjectURL(url);
-      },2000);
-    };
+    `;
+    document.head.appendChild(pStyle);
+
+    // 인쇄 실행
+    window.print();
+
+    // 인쇄 후 스타일 제거
+    setTimeout(()=>{pStyle.remove();},500);
   }
 
   async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
@@ -1438,7 +1451,7 @@ img{max-width:100%}`;
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
