@@ -39,6 +39,7 @@ const GradeApp = (() => {
     reportBodySize:  12,
     dividerColor:    '#e2e8f0',
     dividerWidth:    1,
+    tableRound:      false,   // 표 모서리 라운드
     graphAlign:      'left',
     logoSize:        80,
     touchStartX: 0,
@@ -90,7 +91,7 @@ const GradeApp = (() => {
 
 /* ══ EXCEL MODE ══ */
 .gr-sheet-wrap{min-width:max-content;}
-.gr-sheet{border-collapse:collapse;font-size:12px;width:100%;table-layout:fixed;}
+.gr-sheet{border-collapse:collapse;font-size:12px;}
 
 /* fixed student col */
 .gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:110px;width:110px;cursor:pointer;}
@@ -124,7 +125,7 @@ const GradeApp = (() => {
 .gr-sheet tbody tr.sel-row .gs-fix{background:var(--a20)!important;}
 
 /* number input */
-.gs-inp{width:100%;min-width:40px;padding:6px 2px;border:none;outline:none;background:transparent;font-size:13px;font-weight:700;color:var(--a);text-align:center;font-family:var(--font);-moz-appearance:textfield;cursor:text;}
+.gs-inp{width:100%;min-width:54px;padding:6px 4px;border:none;outline:none;background:transparent;font-size:13px;font-weight:700;color:var(--a);text-align:center;font-family:var(--font);-moz-appearance:textfield;cursor:text;}
 .gs-inp::-webkit-outer-spin-button,.gs-inp::-webkit-inner-spin-button{-webkit-appearance:none;}
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
@@ -989,6 +990,7 @@ const GradeApp = (() => {
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:3px;white-space:nowrap">색상 <input type="color" value="${_st.dividerColor}" oninput="GradeApp._setDivider('color',this.value)" style="width:26px;height:20px;border:none;cursor:pointer;border-radius:4px;padding:0"></label>
               <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:3px;white-space:nowrap">굵기 <input type="range" min="1" max="4" value="${_st.dividerWidth}" oninput="GradeApp._setDivider('width',this.value)" style="width:55px;accent-color:var(--a)"><span id="gr-div-width-lbl" style="display:inline-block;min-width:24px">${_st.dividerWidth}px</span></label>
+              <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" id="gr-tbl-round" ${_st.tableRound?'checked':''} onchange="GradeApp._setTableRound(this.checked)" style="accent-color:var(--a)"> 표 라운드</label>
             </div>
           </div>
         </div></div>
@@ -1073,6 +1075,39 @@ const GradeApp = (() => {
       b.style.color=active?'var(--a)':'var(--tx3)';
     });
   }
+  function _setTableRound(on) {
+    _st.tableRound = on;
+    const preview = document.getElementById('gr-rpt-preview');
+    if (!preview) return;
+    preview.querySelectorAll('.rpt-tbl').forEach(tbl => {
+      if (on) {
+        // 라운드 적용: border-collapse를 separate로 바꿔야 radius 적용됨
+        tbl.style.borderCollapse = 'separate';
+        tbl.style.borderSpacing  = '0';
+        tbl.style.borderRadius   = '10px';
+        tbl.style.overflow       = 'hidden';
+        // 바깥 border 추가 (border-separate라서 필요)
+        tbl.style.border = `${_st.dividerWidth||1}px solid ${_st.dividerColor||'#e2e8f0'}`;
+        // 내부 셀 border 유지
+        tbl.querySelectorAll('td, th').forEach(el => {
+          el.style.borderColor = _st.dividerColor||'#e2e8f0';
+          el.style.borderWidth = (_st.dividerWidth||1)+'px';
+        });
+      } else {
+        tbl.style.borderCollapse = 'collapse';
+        tbl.style.borderRadius   = '0';
+        tbl.style.overflow       = '';
+        tbl.style.border         = '';
+        tbl.querySelectorAll('td, th').forEach(el => {
+          el.style.borderColor = _st.dividerColor||'#e2e8f0';
+          el.style.borderWidth = (_st.dividerWidth||1)+'px';
+        });
+      }
+    });
+    // ★ 라운드 ON일 때 divider 설정도 함께 적용
+    if(on) _setDivider('color', _st.dividerColor||'#e2e8f0');
+  }
+
   function _setDivider(type, val) {
     if (type==='color') {
       _st.dividerColor=val;
@@ -1081,6 +1116,7 @@ const GradeApp = (() => {
       _st.dividerWidth=Number(val);
       const lbl=document.getElementById('gr-div-width-lbl');if(lbl)lbl.textContent=val+'px';
       document.querySelectorAll('#gr-rpt-preview .rpt-tbl td,#gr-rpt-preview .rpt-tbl th,#gr-rpt-preview .rpt-comment-box').forEach(el=>{el.style.borderWidth=val+'px';});
+      if(_st.tableRound) document.querySelectorAll('#gr-rpt-preview .rpt-tbl').forEach(t=>{t.style.border=`${val}px solid ${_st.dividerColor||'#e2e8f0'}`;});
     }
   }
   function _setLogoSize(val){
@@ -1367,7 +1403,7 @@ img{max-width:100%}`;
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize,
+    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
