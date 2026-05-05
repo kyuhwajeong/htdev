@@ -130,7 +130,7 @@ const GradeApp = (() => {
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{min-width:220px;width:100%;}
+.gs-cm-cell{width:20%;min-width:160px;max-width:280px;}
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:11px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
@@ -1210,51 +1210,57 @@ img{max-width:100%}`;
   
   function _printReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
-    const s=_getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
     const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
     const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
 
-    // ★ 현재 페이지의 모든 CSS 수집 (grade-app.js에서 동적으로 주입된 스타일 포함)
-    const allCss=[...document.querySelectorAll('style,link[rel="stylesheet"]')].map(n=>{
-      if(n.tagName==='STYLE') return n.textContent;
-      try{return [...n.sheet?.cssRules||[]].map(r=>r.cssText).join('\n');}catch{return '';}
-    }).join('\n');
-
-    const printCss=`
-      @page{size:${pw} ${ph};margin:8mm}
-      body{margin:0;padding:0;background:#fff}
-      .gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
-      #gr-rpt-preview{box-shadow:none!important;border:none!important;border-radius:0!important;}
-      .rpt-wrap{width:100%!important;max-width:100%!important;padding:10mm 12mm!important;box-shadow:none!important;border-radius:0!important;}
-      img{max-width:100%!important}
-    `;
+    // ★ 현재 페이지 CSS 전체 수집
+    const allCss=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
 
     const html=[
       '<!DOCTYPE html><html lang="ko"><head>',
       '<meta charset="UTF-8">',
-      `<title>${s?_e(s.name):''} Achievement Report</title>`,
-      // 현재 화면 CSS 전체 포함 (동적 주입 스타일 포함)
       `<style>${allCss}</style>`,
-      `<style>${printCss}</style>`,
+      '<style>',
+      `@page{size:${pw} ${ph};margin:8mm}`,
+      'html,body{margin:0;padding:0;background:#fff;}',
+      '.gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}',
+      '#gr-rpt-preview,#gr-rpt-preview .rpt-wrap{',
+      '  box-shadow:none!important;border:none!important;',
+      '  border-radius:0!important;width:100%!important;',
+      '  max-width:100%!important;padding:8mm 10mm!important;}',
+      'img{max-width:100%}',
+      '</style>',
       '</head><body>',
-      el.outerHTML,  // 현재 렌더된 DOM 그대로
-      '<script>',
-      // 폰트·이미지 로딩 완료 후 인쇄 (빈 화면 방지)
-      'if(document.fonts&&document.fonts.ready){',
-      '  document.fonts.ready.then(function(){setTimeout(function(){window.print();},300);});',
-      '}else{window.onload=function(){setTimeout(function(){window.print();},600);};}',
-      '<\/script>',
+      el.outerHTML,
       '</body></html>'
     ].join('');
 
-    const win=window.open('','_blank');
-    if(!win){_toast('⚠️ 팝업을 허용해주세요','error');return;}
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+    // ★ Blob URL로 iframe 인쇄 (새 창 없이 현재 창 뒤 안 나옴)
+    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+
+    // 숨김 iframe 생성
+    const iframe=document.createElement('iframe');
+    iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
+    document.body.appendChild(iframe);
+    iframe.src=url;
+
+    iframe.onload=function(){
+      try{
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }catch(e){
+        // 보안 정책으로 iframe 접근 불가 시 새 창으로 폴백
+        const win=window.open(url,'_blank');
+        if(!win) _toast('⚠️ 팝업을 허용해주세요','error');
+      }
+      setTimeout(()=>{
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(url);
+      },2000);
+    };
   }
 
-  
   async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
 
   /* ════════════════════════════════════
