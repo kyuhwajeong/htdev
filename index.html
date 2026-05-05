@@ -77,7 +77,7 @@
     <div class="ph">
       <div class="phl">
         <!-- ★ 로고 배지 (이미지) -->
-        <div class="logo-badge"><img id="op-logo" src="" alt=""></div>
+        <div class="logo-badge" onclick="App.go('operate')" title="새로고침" style="cursor:pointer"><img id="op-logo" src="" alt=""></div>
         <div style="min-width:0">
           <!-- ★ 타이틀: "수업 진도"로 변경 -->
           <div class="ph-title">
@@ -137,7 +137,7 @@
       <div class="phl">
         <div class="badge" style="width:36px;height:36px;border-radius:10px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff;flex-shrink:0">관리</div>
         <div>
-          <div class="ph-title">반 · 교재 관리</div>
+          <div class="ph-title" onclick="App.go('manage')" title="새로고침" style="cursor:pointer">반 · 교재 관리</div>
           <div class="ph-sub" id="mg-sess" style="display:block;margin-top:2px">로그인 필요</div>
         </div>
       </div>

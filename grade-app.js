@@ -287,7 +287,7 @@ const GradeApp = (() => {
         <div class="phl">
           <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 3px 10px rgba(245,158,11,.4)">📝</div>
           <div style="min-width:0">
-            <div class="ph-title">성적 관리 <span class="admin-badge">🔑 관리자</span></div>
+            <div class="ph-title" onclick="GradeApp.render()" title="새로고침" style="cursor:pointer">성적 관리 <span class="admin-badge">🔑 관리자</span></div>
             <div class="ph-sub" id="gr-sub">반 · 교재를 선택하세요</div>
           </div>
         </div>

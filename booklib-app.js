@@ -131,8 +131,8 @@ const BooklibApp = (() => {
 .bl-mwrap{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 0 120px;}
 .bl-mwrap::-webkit-scrollbar{width:4px;height:4px;}
 .bl-mwrap::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
-.bl-mtbl{border-collapse:collapse;font-size:12px;min-width:max-content;--ch-w:220px;--stu-w:72px;}
-.bl-ch-hdr{position:sticky;top:0;left:0;z-index:5;background:var(--surf);border:1px solid var(--bdr);padding:7px 8px;font-size:10px;font-weight:800;color:var(--tx3);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);white-space:nowrap;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.bl-mtbl{border-collapse:collapse;font-size:12px;width:100%;--ch-w:30%;--stu-w:auto;}
+.bl-ch-hdr{position:sticky;top:0;left:0;z-index:5;width:30%;min-width:140px;background:var(--surf);border:1px solid var(--bdr);padding:7px 8px;font-size:10px;font-weight:800;color:var(--tx3);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);white-space:nowrap;display:flex;align-items:center;justify-content:space-between;gap:6px;}
 .bl-collapse-btn{width:22px;height:22px;border-radius:5px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx3);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font);transition:all .12s;}
 .bl-shdr{position:sticky;top:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:7px 4px;text-align:center;min-width:var(--stu-w);width:var(--stu-w);cursor:pointer;transition:background .12s;user-select:none;-webkit-user-select:none;}
 .bl-shdr:hover{background:var(--a10)!important;}
@@ -143,7 +143,7 @@ const BooklibApp = (() => {
 .bl-shdr-cnt{font-size:10px;margin-top:2px;}
 .bl-shdr-act{font-size:9px;margin-top:2px;color:var(--a);}
 .bl-batch-row{background:var(--surf2);}
-.bl-batch-hdr{position:sticky;left:0;z-index:2;background:var(--surf2);border:1px solid var(--bdr);padding:5px 8px;font-size:9px;font-weight:800;color:var(--tx3);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);}
+.bl-batch-hdr{position:sticky;left:0;background:var(--surf2);position:sticky;left:0;z-index:2;background:var(--surf2);border:1px solid var(--bdr);padding:5px 8px;font-size:9px;font-weight:800;color:var(--tx3);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);}
 .bl-batch-ck{border:1px solid var(--bdr);text-align:center;cursor:pointer;transition:background .12s;width:var(--stu-w);}
 .bl-batch-ck:hover{background:var(--a10);}
 .bl-ch-cell{position:sticky;left:0;z-index:2;background:var(--surf);border:1px solid var(--bdr);min-width:var(--ch-w);width:var(--ch-w);max-width:var(--ch-w);padding:6px 8px;cursor:pointer;transition:background .15s;vertical-align:top;user-select:none;-webkit-user-select:none;}
@@ -239,7 +239,7 @@ const BooklibApp = (() => {
       <div class="phl">
         <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6366f1);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 3px 10px rgba(139,92,246,.4)">📖</div>
         <div style="min-width:0">
-          <div class="ph-title">교재 학습 관리 <span class="admin-badge">🔑 관리자</span></div>
+          <div class="ph-title" onclick="BooklibApp.render()" title="새로고침" style="cursor:pointer">교재 학습 관리 <span class="admin-badge">🔑 관리자</span></div>
           <div class="ph-sub" id="bl-ph-sub">교재 등록 · 챕터 체크</div>
         </div>
       </div>
@@ -250,7 +250,7 @@ const BooklibApp = (() => {
     </div>
     <!-- ★ 교재 등록 FAB 버튼 (교재관리 탭에서만 표시) -->
     <div id="bl-reg-fab" style="position:fixed;right:12px;bottom:90px;z-index:999;display:none;flex-direction:column;align-items:center;gap:4px">
-      <button onclick="BooklibApp._toggleRegArea()" title="교재 등록"
+      <button onclick="BooklibApp._openRegModal()" title="교재 등록"
         style="width:54px;height:54px;border-radius:50%;background:var(--a);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 18px var(--a40);display:flex;align-items:center;justify-content:center;transition:all .15s">＋</button>
       <span style="font-size:9px;font-weight:800;color:var(--a);background:var(--card);padding:1px 6px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">교재 등록</span>
     </div>
@@ -640,8 +640,21 @@ const BooklibApp = (() => {
     await BookLibDB.unarchiveBook(id); _renderLibrary(); _toast(`↩️ "${b.name}" 복원`,'success');
   }
   async function _copyBook(id){
-    const copy=await BookLibDB.copyBook(id);
-    if(copy){ _renderLibrary(); _toast(`📋 "${copy.name}" 복사 완료`,'success'); }
+    const src = BookLibDB.getBookById(id); if(!src) return;
+    const copy = await BookLibDB.copyBook(id);
+    if(copy){
+      // ★ 복사본을 맨 위(sortOrder=0)로 이동
+      const books = BookLibDB.getBooks();
+      const minOrder = Math.min(...books.map(b=>b.sortOrder??0));
+      await BookLibDB.updateBook(copy.id, {
+        name: src.name + '_복사본',
+        sortOrder: minOrder - 1
+      });
+      _renderLibrary();
+      _toast(`📋 "${copy.name}_복사본" 목록 상단에 추가됨`,'success');
+    } else {
+      _toast('⚠️ 복사 실패','error');
+    }
   }
 
   async function deleteBook(id){
@@ -955,7 +968,7 @@ const BooklibApp = (() => {
               <div class="bl-shdr-act">${uc?'📤':''}</div>
             </th>`;}).join('')}
           </tr>
-          <tr class="bl-batch-row">
+          <tr class="bl-batch-row" style="position:sticky;top:0;z-index:4;">
             <td class="bl-batch-hdr">전체 토글 ↓</td>
             ${students.map(s=>`<td class="bl-batch-ck" onclick="BooklibApp._batchToggle('${_st.matrixClassId}','${_st.matrixBookId}','${s.id}')"><span style="font-size:12px;color:var(--tx3)">⇅</span></td>`).join('')}
           </tr>
