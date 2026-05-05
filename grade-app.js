@@ -1248,12 +1248,17 @@ const GradeApp = (() => {
 
   function _setGraphAlign(align) {
     _st.graphAlign = align;
-    // 프리뷰에서 그래프 wrap 정렬 업데이트
-    const wrap = document.getElementById('gr-rpt-preview');
-    if (wrap) {
-      wrap.querySelectorAll('.rpt-graph-wrap').forEach(el => {
+    // ★ 리포트 프리뷰 내 그래프 wrap만 정렬 (엑셀 차트 영향 없음)
+    const preview = document.getElementById('gr-rpt-preview');
+    if (preview) {
+      preview.querySelectorAll('.rpt-graph-wrap').forEach(el => {
         el.style.textAlign = align;
         el.style.display = 'block';
+      });
+      // 캔버스도 정렬에 따라 display:inline-block으로
+      preview.querySelectorAll('.rpt-graph-wrap canvas').forEach(el => {
+        el.style.display = 'inline-block';
+        el.style.maxWidth = '100%';
       });
     }
     // 버튼 스타일 업데이트
@@ -1270,15 +1275,17 @@ const GradeApp = (() => {
   function _setDivider(type, val) {
     if (type === 'color') {
       _st.dividerColor = val;
-      document.querySelectorAll('#gr-rpt-preview .rpt-divider, #gr-rpt-preview hr').forEach(el => {
-        el.style.borderColor = val; el.style.borderTopColor = val;
+      // ★ 표 셀 border 색상 실시간 변경
+      document.querySelectorAll('#gr-rpt-preview .rpt-tbl td, #gr-rpt-preview .rpt-tbl th').forEach(el => {
+        el.style.borderColor = val;
       });
     } else {
       _st.dividerWidth = Number(val);
       const lbl = document.getElementById('gr-div-width-lbl');
       if (lbl) lbl.textContent = val + 'px';
-      document.querySelectorAll('#gr-rpt-preview .rpt-divider, #gr-rpt-preview hr').forEach(el => {
-        el.style.borderTopWidth = val + 'px';
+      // ★ 표 셀 border 굵기 실시간 변경
+      document.querySelectorAll('#gr-rpt-preview .rpt-tbl td, #gr-rpt-preview .rpt-tbl th').forEach(el => {
+        el.style.borderWidth = val + 'px';
       });
     }
   }
@@ -1353,8 +1360,8 @@ const GradeApp = (() => {
       .rpt-info p{margin:3px 0;}
       .rpt-sec-title{font-size:${_st.reportBodySize}px;font-weight:800;color:#4f46e5;margin:10px 0 5px;}
       .rpt-tbl{width:100%;border-collapse:collapse;font-size:${_st.reportBodySize}px;}
-      .rpt-tbl th{background:#f1f5f9;padding:5px 8px;border:1px solid #e2e8f0;font-weight:700;text-align:center;}
-      .rpt-tbl td{padding:5px 8px;border:1px solid #e2e8f0;text-align:center;}
+      .rpt-tbl th{background:#f1f5f9;padding:5px 8px;border:${_st.dividerWidth||1}px solid ${_st.dividerColor||'#e2e8f0'};font-weight:700;text-align:center;}
+      .rpt-tbl td{padding:5px 8px;border:${_st.dividerWidth||1}px solid ${_st.dividerColor||'#e2e8f0'};text-align:center;}
       .rpt-pass{color:#16a34a;font-weight:700;} .rpt-fail{color:#ea580c;font-weight:700;} .rpt-achv{color:#7c3aed;font-weight:800;}
       .rpt-avg td{background:#f8fafc;font-weight:700;}
       .rpt-comment-box{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;min-height:40px;font-size:${_st.reportBodySize}px;white-space:pre-wrap;}
