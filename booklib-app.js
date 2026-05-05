@@ -509,8 +509,7 @@ const BooklibApp = (() => {
 
   function openEditor(bookId){
     _st.editBookId=bookId;
-    // ★ 일반 편집은 항상 챕터 관리 탭으로 (성적설정 버튼은 _openEvalTab으로 별도 처리)
-    if (_editorTab !== 'eval') _editorTab = 'chapters';
+    _editorTab = 'chapters'; // 수정 버튼은 항상 챕터 관리
     /* 편집 시작 시 현재 config 로드 */
     if(typeof GradeDB!=='undefined'){
       _st.editConfig=JSON.parse(JSON.stringify(GradeDB.getReportConfig(bookId)));
@@ -544,19 +543,7 @@ const BooklibApp = (() => {
         📖 ${_e(book.name)}
         <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--a10);color:var(--a);border:1px solid var(--a30)">${_editorTab==='eval'?'평가 설정':'챕터 관리'}</span>
       </div>
-      <!-- ★ 프리미엄 탭 (좌: 챕터 관리 | 우: 평가 설정) -->
-      <div class="bl-premium-tabs">
-        <button class="bl-premium-tab ${_editorTab==='chapters'?'on':''}"
-                onclick="BooklibApp._switchEdTab('chapters')">
-          <span class="bl-ptab-icon">📑</span>
-          <span class="bl-ptab-label">챕터 관리</span>
-        </button>
-        <button class="bl-premium-tab ${_editorTab==='eval'?'on':''}"
-                onclick="BooklibApp._switchEdTab('eval')">
-          <span class="bl-ptab-icon">📝</span>
-          <span class="bl-ptab-label">평가 설정</span>
-        </button>
-      </div>
+
       <div class="bl-editor-body" id="bl-editor-body">
         ${_editorTab==='chapters'?_edChaptersHTML(book,chs,allCls,allStus,isAdmin):_edEvalHTML(cfg,isAdmin)}
       </div>
