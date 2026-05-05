@@ -285,7 +285,8 @@ const BooklibApp = (() => {
           <span class="bl-lbl" style="padding:0">교재 목록</span>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:12px;color:var(--tx3)">${books.filter(b=>!b.archived).length}개</span>
-            ${isAdmin&&books.filter(b=>!b.archived).length>0?`<button id="bl-multi-arc-btn" style="font-size:11px;padding:3px 10px;border-radius:7px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._toggleMultiSelect()">☑ 다중선택</button>`:''}
+            ${isAdmin?`<button onclick="BooklibApp._toggleRegArea()" style="font-size:11px;padding:3px 10px;border-radius:7px;background:var(--a);color:#fff;border:none;cursor:pointer;font-family:var(--font);font-weight:700">＋ 교재 등록</button>`:''}
+           ${isAdmin&&books.filter(b=>!b.archived).length>0?`<button id="bl-multi-arc-btn" style="font-size:11px;padding:3px 10px;border-radius:7px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._toggleMultiSelect()">☑ 다중선택</button>`:''}
           </div>
         </div>
         <div id="bl-multi-bar" style="display:none;padding:6px 4px 10px;gap:6px;align-items:center;flex-wrap:wrap">
