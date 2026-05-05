@@ -210,7 +210,7 @@ const GradeApp = (() => {
 
 /* ══ REPORT ══ */
 .gr-report-panel{padding:14px 14px 80px;}
-.gr-rpt-cfg{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:10px 12px;margin-bottom:8px;box-shadow:var(--sh);overflow-x:auto;}
+.gr-rpt-cfg{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:8px 12px;margin-bottom:4px;box-shadow:var(--sh);overflow-x:auto;}
 .gr-rpt-cfg-title{font-size:11px;font-weight:800;color:var(--tx3);letter-spacing:.5px;margin-bottom:8px;}
 .gr-rpt-layouts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
 .gr-rpt-lbtn{width:40px;height:40px;border-radius:8px;border:2px solid var(--bdr2);background:var(--surf2);font-size:10px;font-weight:800;cursor:pointer;color:var(--tx3);display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:var(--font);}
@@ -961,9 +961,9 @@ const GradeApp = (() => {
     const s = students.find(s=>s.id===_st.studentId)||students[0];
     if(!s){cnt.innerHTML=`<div class="gr-empty"><div class="gr-empty-ico">👆</div>좌측에서 학생을 선택하세요</div>`;return;}
     if(!_st.studentId){_st.studentId=s.id;_renderStudents();}
-    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative;display:flex;flex-direction:column;">
+    cnt.innerHTML=`<div class="gr-report-panel" style="position:relative;display:flex;flex-direction:column;gap:4px;">
       <!-- ★ 설정 패널 토글 버튼 (고정) -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <span style="font-size:11px;font-weight:700;color:var(--tx3)">리포트 설정</span>
         <button id="gr-cfg-toggle" onclick="GradeApp._toggleCfgPanel()"
           style="font-size:11px;padding:3px 10px;border-radius:8px;border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-family:var(--font);font-weight:700">
@@ -974,7 +974,7 @@ const GradeApp = (() => {
         <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start;overflow-x:auto">
           <div>
             <div class="gr-rpt-cfg-title">레이아웃</div>
-            <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
+            <div class="gr-rpt-layouts">${[1,2,3,4,5,6,7].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
           </div>
           <div>
             <div class="gr-rpt-cfg-title">📄 페이지</div>
@@ -1058,7 +1058,95 @@ const GradeApp = (() => {
     const graph=_st.reportGraph&&achW!=null?`<div class="rpt-graph-wrap">${_svgGraph(achW,hasRd?achRd:null)}</div>`:'';
     const comment=`<div style="margin-top:14px"><div class="rpt-sec-title">Teacher's comment</div><div class="rpt-comment-box">${_e(rec?.comment||'')}</div></div>`;
     const L=_st.reportLayout;
-    const bodies={1:[hdr,info,wordTbl,rdTbl,graph,comment],2:[hdr,info,graph,wordTbl,rdTbl,comment],3:[hdr,info,wordTbl,comment,rdTbl,graph],4:[hdr,info,rdTbl,wordTbl,graph,comment],5:[hdr,info,graph,comment,wordTbl,rdTbl]};
+
+    // ★ L2: 카드형 - 각 섹션을 둥근 카드 박스로 (이미지 스타일)
+    const cardWrap = (icon,title,badge,content) =>
+      `<div style="background:#f8f9ff;border:1.5px solid #e0e7ff;border-radius:14px;padding:14px 16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:800;color:#3730a3">${icon} ${title}</span>
+          ${badge?`<span style="font-size:11px;font-weight:700;color:#6366f1;background:#ede9fe;padding:2px 8px;border-radius:8px">${badge}</span>`:''}
+        </div>
+        ${content}
+      </div>`;
+
+    const wordCardContent = rec ? (() => {
+      const wd=rec.word||{};
+      const achW2=wd.totalQ>0?Math.round(wd.pass/wd.totalQ*100):null;
+      return `<div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #e0e7ff">
+          <span style="font-size:11px;color:#6b7280;width:60px">재시험</span>
+          <div style="flex:1;background:#fff;border:1px solid #e0e7ff;border-radius:8px;padding:6px 12px;text-align:center;font-weight:800;font-size:13px;color:#ea580c">${wd.retry??'—'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #e0e7ff">
+          <span style="font-size:11px;color:#6b7280;width:60px">통과</span>
+          <div style="flex:1;background:#fff;border:1px solid #e0e7ff;border-radius:8px;padding:6px 12px;text-align:center;font-weight:800;font-size:13px;color:#059669">${wd.pass??'—'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+          <span style="font-size:11px;color:#6b7280;width:60px">성취율</span>
+          <span style="background:#dcfce7;color:#059669;border-radius:8px;padding:4px 14px;font-weight:800;font-size:13px">${achW2!=null?achW2+'%':'—'}</span>
+        </div>
+      </div>`;
+    })() : '';
+
+    const rdCardContent = hasRd && rec ? (() => {
+      const rd=rec.reading||{};
+      return `<div style="display:flex;flex-direction:column;gap:6px">
+        ${actRevs.map(rv=>{
+          const score=rd.reviews?.[rv.id]??null;
+          const pct=score!=null&&config.reading?.totalQ>0?Math.round(score/config.reading.totalQ*100):null;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #e0e7ff">
+            <span style="font-size:11px;color:#6b7280;width:60px">${_e(rv.name)}</span>
+            <div style="flex:1;background:#fff;border:1px solid #e0e7ff;border-radius:8px;padding:5px 12px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:800;font-size:13px;color:#4f46e5">${score!=null?score:'—'}</span>
+              <span style="font-size:11px;color:#9ca3af">/ ${config.reading?.totalQ??30}</span>
+              <span style="font-size:12px;font-weight:700;color:#7c3aed">${pct!=null?pct+'점':'—'}</span>
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0">
+          <span style="font-size:11px;color:#6b7280;width:60px">성취율</span>
+          <span style="background:#ede9fe;color:#7c3aed;border-radius:8px;padding:4px 14px;font-weight:800;font-size:13px">${achRd!=null?Math.round(achRd)+'%':'—'}</span>
+        </div>
+      </div>`;
+    })() : '';
+
+    const commentCardContent = `<div style="min-height:50px;font-size:${_st.reportBodySize||12}px;white-space:pre-wrap;color:#374151">${_e(rec?.comment||'')}</div>`;
+
+    const wordCard = wordCardContent ? cardWrap('📝','단어',rec?.word?.totalQ?'총 '+rec.word.totalQ+'문제':'',wordCardContent) : '';
+    const rdCard   = rdCardContent   ? cardWrap('📖','리딩',config.reading?.totalQ?'총 '+config.reading.totalQ+'문제':'',rdCardContent) : '';
+    const cmtCard  = cardWrap('💬',"Teacher's Comment",'',commentCardContent);
+
+    // ★ L6: 2컬럼 사이드바 레이아웃 (좌:그래프+정보 / 우:표)
+    const twoColL6 = `<div style="display:grid;grid-template-columns:1fr 1.6fr;gap:16px;margin-top:10px">
+      <div>${graph}${wordCard}</div>
+      <div>${rdCard}${cmtCard}</div>
+    </div>`;
+
+    // ★ L7: 미니 대시보드 레이아웃 (성취율 큰 숫자 + 카드 그리드)
+    const achWBig = rec?.word?.totalQ>0?Math.round((rec?.word?.pass??0)/rec.word.totalQ*100):null;
+    const achRdBig = achRd!=null?Math.round(achRd):null;
+    const dashBanner = `<div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:14px;padding:20px;margin-bottom:14px;color:#fff;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:11px;opacity:.8;margin-bottom:4px">종합 성취율</div>
+        <div style="font-size:36px;font-weight:900">${achWBig!=null?achWBig+'%':'—'}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:2px">단어 · ${achRdBig!=null?achRdBig+'%':'리딩없음'} 리딩</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:28px">🏆</div>
+        <div style="font-size:11px;opacity:.8;margin-top:4px">${_e(s.name)}</div>
+      </div>
+    </div>`;
+    const dashL7 = `${dashBanner}<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">${wordCard}${rdCard}</div>${cmtCard}`;
+
+    const bodies={
+      1:[hdr,info,wordTbl,rdTbl,graph,comment],
+      2:[hdr,info,wordCard,rdCard,cmtCard],
+      3:[hdr,info,wordTbl,comment,rdTbl,graph],
+      4:[hdr,info,wordCard,graph,rdCard,cmtCard],
+      5:[hdr,info,graph,comment,wordTbl,rdTbl],
+      6:[hdr,info,twoColL6],
+      7:[hdr,info,dashL7],
+    };
     return(bodies[L]||bodies[1]).filter(Boolean).join('');
   }
 
@@ -1171,7 +1259,29 @@ const GradeApp = (() => {
     const btn=document.getElementById('gr-cfg-toggle');
     if(!panel) return;
     const isOpen = panel.style.display!=='none';
-    panel.style.display = isOpen?'none':'block';
+    // ★ 애니메이션으로 접기/펼치기
+    if(isOpen){
+      panel.style.maxHeight=panel.scrollHeight+'px';
+      panel.style.overflow='hidden';
+      panel.style.transition='max-height .25s ease, opacity .2s';
+      panel.style.opacity='1';
+      requestAnimationFrame(()=>{
+        panel.style.maxHeight='0';
+        panel.style.opacity='0';
+        setTimeout(()=>{panel.style.display='none';panel.style.maxHeight='';panel.style.overflow='';},260);
+      });
+    } else {
+      panel.style.display='block';
+      panel.style.maxHeight='0';
+      panel.style.overflow='hidden';
+      panel.style.opacity='0';
+      panel.style.transition='max-height .3s ease, opacity .25s';
+      requestAnimationFrame(()=>{
+        panel.style.maxHeight=panel.scrollHeight+200+'px';
+        panel.style.opacity='1';
+        setTimeout(()=>{panel.style.maxHeight='';panel.style.overflow='';},310);
+      });
+    }
     if(btn) btn.textContent = isOpen?'⚙️ 설정 펼치기':'⚙️ 설정 닫기';
   }
 
