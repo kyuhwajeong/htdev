@@ -42,6 +42,7 @@ const GradeApp = (() => {
     fontFamily:      'Noto Sans KR', // 리포트 글자체
     rptBg:           '#ffffff',    // 리포트 배경색
     tableRound:      false,   // 표 모서리 라운드
+    hdrFontSize:     12,      // 헤더 글자 크기
     graphAlign:      'left',
     logoSize:        80,
     touchStartX: 0,
@@ -101,7 +102,7 @@ const GradeApp = (() => {
 .gr-sheet .gs-fix.sel,.gr-sheet .gs-fix:hover{background:var(--a10);}
 
 /* header */
-.gs-th{background:var(--surf2);border:1px solid var(--bdr);padding:5px 6px;font-size:10px;font-weight:800;color:var(--tx3);text-align:center;white-space:nowrap;}
+.gs-th{background:var(--surf2);border:1px solid var(--bdr);padding:5px 6px;font-size:12px;font-weight:800;color:var(--tx2);text-align:center;white-space:nowrap;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;}
 .gs-th.sec-w{background:var(--a10);color:var(--a);font-size:11px;}
 .gs-th.sec-r{background:rgba(139,92,246,.1);color:#8b5cf6;font-size:11px;}
 .gs-th.sec-c{background:rgba(5,150,105,.08);color:var(--green);font-size:11px;}
@@ -133,7 +134,7 @@ const GradeApp = (() => {
 
 /* comment */
 .gs-cm-cell{width:22%;min-width:160px;}
-.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:11px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
+.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
 /* average row */
@@ -223,7 +224,7 @@ const GradeApp = (() => {
 .gr-rpt-fab:active{transform:scale(.93);}
 .gr-rpt-fab-ico{font-size:18px;line-height:1;}
 .gr-rpt-fab-lbl{font-size:9px;font-weight:700;color:var(--tx2);}
-.gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;box-shadow:var(--sh);animation:cardIn .2s ease;margin-top:0;}
+.gr-rpt-preview{background:var(--card);border:1px solid var(--bdr);border-radius:12px;overflow:auto;box-shadow:var(--sh);animation:cardIn .2s ease;margin-top:0;}
 .rpt-wrap{padding:20px 24px;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;font-size:13px;color:#111;background:#fff;}
 .rpt-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
 .rpt-title{font-size:20px;font-weight:900;color:#111;flex:1;}
@@ -309,9 +310,26 @@ const GradeApp = (() => {
           <button class="gr-vbtn ${_st.viewMode==='card'?'on':''}"   onclick="GradeApp._setView('card')">👤 카드</button>
           <button class="gr-vbtn ${_st.viewMode==='report'?'on':''}" onclick="GradeApp._setView('report')">📄 리포트</button>
         </div>
+        <!-- 헤더 글자 크기 히든 설정 (엑셀 모드 전용) -->
+        ${_st.viewMode==='excel' && hasData ? `
+        <div id="gr-hdr-cfg" style="display:none;position:absolute;right:0;top:36px;background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:8px 12px;box-shadow:var(--sh);z-index:30;white-space:nowrap">
+          <div style="font-size:10px;font-weight:800;color:var(--tx3);margin-bottom:6px">헤더 글자 크기</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" min="8" max="16" value="${_st.hdrFontSize||12}" step="1"
+              oninput="GradeApp._setHdrFontSize(this.value)"
+              style="width:80px;accent-color:var(--a)">
+            <span id="gr-hdr-sz-lbl" style="font-size:11px;color:var(--tx2);min-width:26px">${_st.hdrFontSize||12}px</span>
+          </div>
+        </div>
+        <button onclick="const p=document.getElementById('gr-hdr-cfg');p&&(p.style.display=p.style.display==='none'?'block':'none')"
+          title="헤더 글자 크기 설정"
+          style="font-size:11px;padding:3px 8px;border-radius:7px;border:1px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-weight:700">Aa</button>
+        `:``}
         ${hasData ? `<button class="gr-save-all-btn" onclick="GradeApp.saveAll()">
           💾 저장<span class="gr-dirty-count" id="gr-dirty-cnt">${_st.dirty.size?`(${_st.dirty.size})`:''}</span>
         </button>` : ''}
+        <button onclick="GradeApp._exportAllGrades()" style="padding:6px 11px;border-radius:9px;background:rgba(5,150,105,.1);border:1.5px solid rgba(5,150,105,.3);color:#059669;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📥 전체내보내기</button>
+        <label style="padding:6px 11px;border-radius:9px;background:rgba(99,102,241,.1);border:1.5px solid rgba(99,102,241,.3);color:var(--a);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📤 전체불러오기<input type="file" accept=".xlsx" style="display:none" onchange="GradeApp._importAllGrades(this.files[0]);this.value=''"></label>
       </div>
       <div class="gr-main">
         <div class="gr-stu-panel" id="gr-stu-panel"></div>
@@ -1015,7 +1033,7 @@ const GradeApp = (() => {
       </div>
       </div>
       <div class="gr-rpt-preview">
-        <div class="rpt-wrap" id="gr-rpt-preview" style="background:${_st.rptBg||'#ffffff'}" style="font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:100%">${_buildReport(s)}</div>
+        <div class="rpt-wrap" id="gr-rpt-preview" style="background:${_st.rptBg||'#ffffff'};font-size:${_st.reportBodySize}px;width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;max-width:${({A4:794,A5:559,B5:665}[_st.pageSize]||794)}px;margin:0 auto">${_buildReport(s)}</div>
         <!-- 하단 버튼 제거됨: 우측 고정 버튼(gr-rpt-fixed-btns)으로 대체 -->
       </div>
     </div>`;
@@ -1374,6 +1392,14 @@ const GradeApp = (() => {
     if(type==='title'){_st.reportTitleSize=val;const lbl=document.getElementById('gr-rpt-title-sz');if(lbl)lbl.textContent=val+'px';const wrap=document.getElementById('gr-rpt-preview');if(wrap)wrap.querySelectorAll('.rpt-title').forEach(el=>{el.style.fontSize=val+'px';});}
     else{_st.reportBodySize=val;const lbl=document.getElementById('gr-rpt-body-sz');if(lbl)lbl.textContent=val+'px';const wrap=document.getElementById('gr-rpt-preview');if(wrap){wrap.querySelectorAll('p,.rpt-info p,.rpt-tbl td,.rpt-tbl th,.rpt-comment-box').forEach(el=>{el.style.fontSize=val+'px';});wrap.style.fontSize=val+'px';}}
   }
+  function _setHdrFontSize(val){
+    _st.hdrFontSize = Number(val);
+    const lbl = document.getElementById('gr-hdr-sz-lbl');
+    if(lbl) lbl.textContent = val+'px';
+    // 모든 헤더 th에 적용
+    document.querySelectorAll('.gs-th').forEach(th => { th.style.fontSize = val+'px'; });
+  }
+
   function _setLayout(n){_st.reportLayout=n;const s=_getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];if(s){const el=document.getElementById('gr-rpt-preview');if(el)el.innerHTML=_buildReport(s);}document.querySelectorAll('.gr-rpt-lbtn').forEach((b,i)=>b.classList.toggle('on',i+1===n));}
   function _toggleGraph(v){_st.reportGraph=v;_setLayout(_st.reportLayout);}
   async function _copyReport(){const el=document.getElementById('gr-rpt-preview');try{await navigator.clipboard.writeText(el?.innerText||'');_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
@@ -1526,6 +1552,107 @@ img{max-width:100%}`;
     _renderStudents();
   }
 
+  // ★ 전체 성적 xlsx 내보내기 (모든 반/교재)
+  async function _exportAllGrades() {
+    if (typeof window.XLSX === 'undefined') { _toast('⚠️ XLSX 라이브러리 필요'); return; }
+    _toast('⏳ 내보내는 중...', 'info', 2000);
+    const wb = window.XLSX.utils.book_new();
+    const classes = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
+    const books = typeof BookLibDB !== 'undefined' ? BookLibDB.getAllBooks() : [];
+    let sheetCount = 0;
+    for (const cls of classes) {
+      const clsStudents = typeof StudentDB !== 'undefined'
+        ? StudentDB.getFiltered({ classCode: cls.name, status: '재원' }) : [];
+      for (const book of books.filter(b => !b.archived)) {
+        const config = GradeDB.getReportConfig(book.id);
+        const revs = GradeDB.getActiveReviews(book.id);
+        if (!config?.word?.totalQ && !config?.reading?.enabled) continue;
+        const rows = [];
+        // 헤더
+        const hdr = ['반', '이름'];
+        hdr.push('단어_총테스트', '단어_재시험', '단어_통과', '단어_성취율');
+        revs.forEach(rv => { hdr.push(`리딩_${rv.name}_정답수`); hdr.push(`리딩_${rv.name}_점수`); });
+        hdr.push('리딩_성취율', 'Teacher_Comment');
+        rows.push(hdr);
+        for (const stu of clsStudents) {
+          const rec = GradeDB.getLatest(cls.id||cls.name, stu.id, book.id);
+          const w = rec?.word || {};
+          const rd = rec?.reading || {};
+          const achW = w.totalQ > 0 ? Math.round(w.pass / w.totalQ * 100) : null;
+          const rdScores = revs.map(rv => rd.reviews?.[rv.id] ?? '');
+          const rdPcts = revs.map(rv => {
+            const s = rd.reviews?.[rv.id];
+            return (s != null && config.reading?.totalQ > 0) ? Math.round(s / config.reading.totalQ * 100) : '';
+          });
+          const rdAch = GradeDB.calcAchievement(rec, config);
+          const row = [cls.name, stu.name, w.totalQ||'', w.retry||'', w.pass||'', achW != null ? achW+'%' : ''];
+          revs.forEach((rv, i) => { row.push(rdScores[i]); row.push(rdPcts[i] !== '' ? rdPcts[i]+'%' : ''); });
+          row.push(rdAch != null ? Math.round(rdAch)+'%' : '', rec?.comment || '');
+          rows.push(row);
+        }
+        const sheetName = (cls.name + '_' + book.name).slice(0, 31).replace(/[:\/\?\*\[\]]/g, '_');
+        const ws = window.XLSX.utils.aoa_to_sheet(rows);
+        window.XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        sheetCount++;
+      }
+    }
+    if (!sheetCount) { _toast('⚠️ 내보낼 데이터가 없습니다', 'error'); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    window.XLSX.writeFile(wb, `성적_전체_${today}.xlsx`);
+    _toast(`✅ ${sheetCount}개 시트 내보내기 완료`, 'success');
+  }
+
+  // ★ 전체 성적 xlsx 불러오기
+  async function _importAllGrades(file) {
+    if (!file || typeof window.XLSX === 'undefined') { _toast('⚠️ 파일 오류'); return; }
+    _toast('⏳ 불러오는 중...', 'info', 2000);
+    const buf = await file.arrayBuffer();
+    const wb = window.XLSX.read(buf, { type: 'array' });
+    let updated = 0;
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName];
+      const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (rows.length < 2) continue;
+      const hdr = rows[0];
+      const clsIdx = hdr.indexOf('반'), nameIdx = hdr.indexOf('이름');
+      if (clsIdx < 0 || nameIdx < 0) continue;
+      // 헤더에서 컬럼 매핑
+      const wTotalIdx = hdr.indexOf('단어_총테스트');
+      const wRetryIdx = hdr.indexOf('단어_재시험');
+      const wPassIdx  = hdr.indexOf('단어_통과');
+      const cmtIdx    = hdr.indexOf('Teacher_Comment');
+      const classes = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
+      const books = typeof BookLibDB !== 'undefined' ? BookLibDB.getAllBooks() : [];
+      const [clsName, bookName] = sheetName.split('_');
+      const cls = classes.find(c => sheetName.startsWith(c.name+'_'));
+      const book = books.find(b => sheetName.endsWith('_'+b.name) || sheetName.includes(b.name));
+      if (!cls || !book) continue;
+      const config = GradeDB.getReportConfig(book.id);
+      const revs = GradeDB.getActiveReviews(book.id);
+      const students = typeof StudentDB !== 'undefined'
+        ? StudentDB.getFiltered({ classCode: cls.name, status: '재원' }) : [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const stuName = (row[nameIdx]||'').trim();
+        const stu = students.find(s => s.name === stuName || s.name.endsWith(stuName));
+        if (!stu) continue;
+        const rec = { word: {}, reading: { reviews: {} }, comment: '' };
+        if (wTotalIdx >= 0) rec.word.totalQ = Number(row[wTotalIdx]) || 0;
+        if (wRetryIdx >= 0) rec.word.retry  = Number(row[wRetryIdx]) || 0;
+        if (wPassIdx  >= 0) rec.word.pass   = Number(row[wPassIdx])  || 0;
+        revs.forEach(rv => {
+          const ri = hdr.indexOf(`리딩_${rv.name}_정답수`);
+          if (ri >= 0 && row[ri] !== '' && row[ri] != null) rec.reading.reviews[rv.id] = Number(row[ri]) || 0;
+        });
+        if (cmtIdx >= 0 && row[cmtIdx]) rec.comment = String(row[cmtIdx]);
+        await GradeDB.saveRecord(cls.id||cls.name, stu.id, book.id, rec);
+        updated++;
+      }
+    }
+    _toast(`✅ ${updated}명 데이터 불러오기 완료`, 'success');
+    _renderContent();
+  }
+
   async function saveAll() {
     const sids = _getSorted().map(s => s.id);
     if (!sids.length) return;
@@ -1566,7 +1693,11 @@ img{max-width:100%}`;
     }
     _st.bookId=bkId||null; _st.studentId=null; _st.data={}; _st.dirty.clear(); _st.sortCol=null;
     _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub();
-    if (_st.bookId) GradeDB.init(_st.classId, _st.bookId);
+    if (_st.bookId) {
+      GradeDB.init(_st.classId, _st.bookId);
+      // ★ 교재 선택 완료 후 즉각 그래프 표시
+      requestAnimationFrame(() => _updateChart());
+    }
   }
   function _onStu(sid, idx) {
     _st.studentId=sid||null; _st.slideIdx=idx??0;
@@ -1639,7 +1770,7 @@ img{max-width:100%}`;
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel, _setRptBg,
+    _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel, _setRptBg,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
