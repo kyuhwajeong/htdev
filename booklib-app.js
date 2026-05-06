@@ -1626,46 +1626,43 @@ const BooklibApp = (() => {
    * 앞 위치 우선 탐색 → 뒤 위치 폴백 (행 단위 탐색)
    */
   function _findMatchRow(chRows, dbFullName, dupGivens) {
-    const gn      = _givenName(dbFullName);
+    const gn = _givenName(dbFullName); // 예: "손세연" → "세연"
     const useFullName = dupGivens && dupGivens.has(gn);
     const cmpName = useFullName ? dbFullName : gn;
 
-    // ★ 가명 매칭: exceptions에서 해당 학생 alias 조회
-    // givenName(세연), fullName(손세연) 모두 체크
+    // ★ 가명 매칭: exceptions에서 조회 (fullName, givenName 두 가지 모두 체크)
     const _excMap = _csvImportState.exceptions || {};
-    const _excInfo = _excMap[gn] || _excMap[dbFullName];
+    const _excInfo = _excMap[dbFullName] || _excMap[gn];
     const aliasName = (_excInfo && typeof _excInfo==='object' && _excInfo.useAlias && _excInfo.alias)
       ? _excInfo.alias.trim() : null;
 
-    function nameHit(rawCsvName) {
-      const n = rawCsvName.trim();
-      // ★ 가명 매칭: xlsx "소율/Seri" 형식에서 "/" 앞뒤 모두 체크
+    function nameHit(rawCsv) {
+      const n = rawCsv.trim();
       if (aliasName) {
-        // 완전 일치
         if (n === aliasName) return true;
-        // "/" 포함 복합명 (예: "소율/Seri") → 분리 후 각각 비교
-        const parts = n.split('/').map(p => p.trim());
-        if (parts.some(p => p === aliasName)) return true;
+        // "소율/Seri" 형식: "/" 분리 후 각각 비교
+        if (n.split('/').map(p=>p.trim()).some(p => p === aliasName)) return true;
       }
-      if (useFullName) return n === cmpName || n.split('/').some(p=>p===cmpName);
-      return n === cmpName || n.includes(cmpName) || cmpName.includes(n)
-        || n.split('/').some(p => p===cmpName || p.includes(cmpName) || cmpName.includes(p));
+      if (useFullName) return n === cmpName || n.split('/').some(p=>p.trim()===cmpName);
+      return n===cmpName || n.includes(cmpName) || cmpName.includes(n)
+        || n.split('/').some(p => { const t=p.trim(); return t===cmpName||t.includes(cmpName)||cmpName.includes(t); });
     }
 
-    // 1차: 학생명 앞 위치('/')에서 매칭되는 행
-    const frontMatch = chRows.find(r => {
-      const names = _extractNamesFromCsv(r['학생명'] || '');
-      return names.length > 0 && nameHit(names[0]);
+    // 1차: 앞 위치('/') 우선
+    const front = chRows.find(r => {
+      const names = _extractNamesFromCsv(r['학생명']||'');
+      return names.length>0 && nameHit(names[0]);
     });
-    if (frontMatch) return frontMatch;
+    if (front) return front;
 
-    // 2차: 학생명 뒤 위치에서 매칭되는 행 (폴백)
+    // 2차: 뒤 위치 폴백
     return chRows.find(r => {
-      const names = _extractNamesFromCsv(r['학생명'] || '');
-      return names.length > 1 && nameHit(names[1]);
+      const names = _extractNamesFromCsv(r['학생명']||'');
+      return names.length>1 && nameHit(names[1]);
     }) || null;
   }
 
+  
   /* ── 신규학생 예외 조건 ──
    * 미완료 + 게임만 공란 + 암기·리콜·스펠·스피킹·테스트 모두 공란
    */
@@ -1697,14 +1694,17 @@ const BooklibApp = (() => {
     if (!givenName) return [];
     const excs = _csvImportState.exceptions || {};
     for (const [name, val] of Object.entries(excs)) {
-      if (givenName.includes(name) || name.includes(givenName)) {
-        // val이 배열이면 그대로, 객체이면 .items 추출
+      // fullName 또는 givenName 포함 관계로 매칭
+      const nameGiven = name.length>1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
+      if (givenName===name || givenName===nameGiven || name.includes(givenName) || givenName.includes(name)) {
+        // ★ val이 배열이면 그대로, 객체이면 .items 배열 추출
         return Array.isArray(val) ? val : (Array.isArray(val?.items) ? val.items : []);
       }
     }
     return [];
   }
 
+  
   // ★ 면제 항목을 고려한 예외 체크
   // 미완료이고, 모든 공란 항목이 면제 항목이면 → 완료로 처리
   function _checkException(row, exemptItems) {
@@ -1959,26 +1959,22 @@ const BooklibApp = (() => {
     const nameInput = row.querySelector('input[type="text"]');
     const name = (nameInput?.value || row._name || '').trim();
     if (!name) { row.remove(); return; }
-
-    // ★ givenName key 계산 (한글 성 제거)
-    const givenKey = name.length > 1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
-
-    // DB에서 완전 삭제 (fullName, givenName 모두)
+    const gn = name.length>1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
+    // DB에서 완전 삭제 (fullName + givenName 두 key 모두)
     if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.loadClassExempts && BookLibDB.saveClassExempts) {
-      const dbExcs = BookLibDB.loadClassExempts(_st.matrixClassId) || {};
-      delete dbExcs[name];
-      delete dbExcs[givenKey]; // ★ givenName key도 삭제
-      BookLibDB.saveClassExempts(_st.matrixClassId, dbExcs);
+      const db = BookLibDB.loadClassExempts(_st.matrixClassId) || {};
+      delete db[name]; delete db[gn];
+      BookLibDB.saveClassExempts(_st.matrixClassId, db);
     }
-    // _csvImportState.exceptions에서도 완전 삭제
     if (_csvImportState.exceptions) {
       delete _csvImportState.exceptions[name];
-      delete _csvImportState.exceptions[givenKey];
+      delete _csvImportState.exceptions[gn];
     }
     row.remove();
-    _toast('🗑 "' + name + '" 면제 학생 삭제 완료', 'success');
+    _toast('🗑 "'+name+'" 면제 학생 삭제', 'success');
   }
 
+  
   // ★ AutoComplete for 면제 학생 이름
   function _excAutoComplete(rowId, val) {
     const ac = document.getElementById(rowId+'-ac'); if(!ac) return;
@@ -2001,26 +1997,21 @@ const BooklibApp = (() => {
     const result = {};
     const list = document.getElementById('bl-exc-list'); if (!list) return result;
     list.querySelectorAll('[id^="exc-row-"]').forEach(row => {
-      const enableCk = row.querySelector('[id$="-ck"]');
-      const isEnabled = enableCk ? enableCk.checked : (row._enabled !== false);
-      if (!isEnabled) return;
+      const enableCk = row.querySelector('[id$="-ck"]:not([id$="-alias-ck"])');
+      if (enableCk && !enableCk.checked) return; // 비활성 면제 학생 제외
       const nameInput = row.querySelector('input[type="text"]');
       const name = (nameInput?.value || row._name || '').trim();
       if (!name) return;
-      const checked = [...row.querySelectorAll('input[type="checkbox"]:checked')]
-        .filter(c => c.type==='checkbox' && !c.id?.endsWith('-ck') && !c.id?.endsWith('-alias-ck'))
-        .map(c => c.value).filter(Boolean);
-      // ★ alias 정보도 포함 (가명 매칭을 위해)
       const aliasCk  = row.querySelector('[id$="-alias-ck"]');
       const aliasInp = row.querySelector('[id$="-alias-inp"]');
       const useAlias = aliasCk ? aliasCk.checked : !!row._useAlias;
       const alias    = (aliasInp?.value || row._alias || '').trim();
+      const checked  = [...row.querySelectorAll('input[type="checkbox"]:checked')]
+        .filter(c => !c.id?.endsWith('-ck') && !c.id?.endsWith('-alias-ck'))
+        .map(c => c.value).filter(Boolean);
       if (checked.length || (useAlias && alias)) {
-        // ★ key를 givenName으로 정규화 (DB 매칭 정확도 향상)
-        const givenKey = name.length > 1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
-        // fullName key도 추가 (두 가지 모두 등록)
-        result[givenKey] = { items: checked, useAlias, alias: alias || null };
-        if (givenKey !== name) result[name] = { items: checked, useAlias, alias: alias || null };
+        // ★ fullName으로만 저장 (givenName은 _findMatchRow에서 동적 계산)
+        result[name] = { items: checked, useAlias, alias: alias || null };
       }
     });
     return result;
@@ -2039,18 +2030,16 @@ const BooklibApp = (() => {
       const aliasInp = row.querySelector('[id$="-alias-inp"]');
       const useAlias = aliasCk ? aliasCk.checked : !!row._useAlias;
       const alias    = (aliasInp?.value || row._alias || '').trim();
-      const checked = [...row.querySelectorAll('input[type="checkbox"]:checked')]
+      const checked  = [...row.querySelectorAll('input[type="checkbox"]:checked')]
         .filter(c => !c.id?.endsWith('-ck') && !c.id?.endsWith('-alias-ck'))
         .map(c => c.value).filter(Boolean);
-      // ★ givenName/fullName 두 key 모두 저장
-      const givenKey = name.length > 1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
-      const entry = { items: checked, enabled: isEnabled, alias: alias || null, useAlias };
-      result[givenKey] = entry;
-      if (givenKey !== name) result[name] = entry;
+      // ★ fullName 하나의 key만 저장 (이중저장 제거 → 모달 복원 시 중복 행 방지)
+      result[name] = { items: checked, enabled: isEnabled, alias: alias || null, useAlias };
     });
     return result;
   }
 
+  
   
   async function _confirmCsvImport() {
     // ★ 학생별 예외 항목 수집 + DB 저장 (반 기준)
