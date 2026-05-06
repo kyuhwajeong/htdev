@@ -1757,11 +1757,20 @@ const BooklibApp = (() => {
         </div>
       </div>`;
     document.body.appendChild(modal);
-    // ★ 기존 면제 항목 UI 복원
-    const savedExcs = _csvImportState.exceptions || {};
-    Object.entries(savedExcs).forEach(([name, items]) => {
-      _addExcRow(name, items);
-    });
+    // ★ 기존 면제 항목 UI 복원 (DB에서 enabled 정보 포함)
+    if (Object.keys(_dbExcs).length) {
+      // DB에 상세 정보(enabled 포함) 있으면 우선 사용
+      Object.entries(_dbExcs).forEach(([name, v]) => {
+        const items = Array.isArray(v) ? v : (v.items || []);
+        const enabled = typeof v === 'object' ? (v.enabled !== false) : true;
+        _addExcRow(name, items, enabled);
+      });
+    } else {
+      const savedExcs = _csvImportState.exceptions || {};
+      Object.entries(savedExcs).forEach(([name, items]) => {
+        _addExcRow(name, items);
+      });
+    }
 
     /* 임시로 file 참조 보관 */
     _csvImportState._pendingFile = file;
@@ -1797,8 +1806,8 @@ const BooklibApp = (() => {
             oninput="document.getElementById('${rowId}')._name=this.value;BooklibApp._excAutoComplete('${rowId}',this.value)">
           <div id="${rowId}-ac" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--a40);border-radius:8px;z-index:200;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
         </div>
-        <button onclick="document.getElementById('${rowId}').remove()"
-          style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#dc2626;border-radius:7px;padding:4px 8px;cursor:pointer;font-size:13px;flex-shrink:0">✕</button>
+        <button onclick="BooklibApp._deleteExcRow('${rowId}')"
+          style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#dc2626;border-radius:7px;padding:4px 8px;cursor:pointer;font-size:13px;flex-shrink:0">🗑</button>
       </div>
       <div style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.5px;margin-bottom:6px">면제 항목 선택 (체크된 항목은 비어있어도 완료 처리)</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1815,6 +1824,23 @@ const BooklibApp = (() => {
     div._clsStudents = clsStudents;
     list.appendChild(div);
     if(!enabled) div.style.opacity='0.6';
+  }
+
+  // ★ 면제 학생 행 삭제 (UI + DB)
+  function _deleteExcRow(rowId) {
+    const row = document.getElementById(rowId); if(!row) return;
+    const nameInput = row.querySelector('input[type="text"]');
+    const name = (nameInput?.value || row._name || '').trim();
+    // DB에서 삭제
+    if (name && _st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.loadClassExempts && BookLibDB.saveClassExempts) {
+      const dbExcs = BookLibDB.loadClassExempts(_st.matrixClassId) || {};
+      delete dbExcs[name];
+      BookLibDB.saveClassExempts(_st.matrixClassId, dbExcs);
+      // _csvImportState.exceptions에서도 제거
+      if (_csvImportState.exceptions) delete _csvImportState.exceptions[name];
+    }
+    row.remove();
+    _toast(`🗑 "${name}" 면제 학생 삭제`, 'success');
   }
 
   // ★ AutoComplete for 면제 학생 이름
@@ -1938,7 +1964,7 @@ const BooklibApp = (() => {
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
-    _openRegModal, _modalAddBook, _toggleRegArea, _toggleArchivedSection,
+    _openRegModal, _modalAddBook, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
     _multiCopy, _multiDelete, _multiMoveUp, _multiMoveDown, _moveBook,
     _renameBook, _excAutoComplete,
   };
