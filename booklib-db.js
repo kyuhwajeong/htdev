@@ -286,6 +286,16 @@ const BookLibDB = (() => {
     return ()=>{ if(_slsn[ck]){_slsn[ck]();delete _slsn[ck];} };
   }
 
+
+  // ★ 면제 학생 저장/로드 (localStorage, classId 기준)
+  const _EXEMPT_KEY = classId => 'bl_class_exempt_' + classId;
+  function saveClassExempts(classId, exempts) {
+    try { localStorage.setItem(_EXEMPT_KEY(classId), JSON.stringify(exempts)); } catch(e) {}
+  }
+  function loadClassExempts(classId) {
+    try { return JSON.parse(localStorage.getItem(_EXEMPT_KEY(classId)) || '{}'); } catch(e) { return {}; }
+  }
+
   return {
     init, on,
     getBooks, getAllBooks, getArchivedBooks, getBookById,
@@ -298,5 +308,6 @@ const BookLibDB = (() => {
     getStamps, setStamp, removeStamp, listenStamps,
     detectChapterType, getSubtaskOptions, SUBTASKS,
     _parseCheck, _serCheck,
+    saveClassExempts, loadClassExempts,
   };
 })();
