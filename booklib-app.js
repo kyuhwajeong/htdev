@@ -1696,9 +1696,11 @@ const BooklibApp = (() => {
   function _getExemptItems(givenName) {
     if (!givenName) return [];
     const excs = _csvImportState.exceptions || {};
-    // 성 제외 이름으로 매칭 (이름이 포함되면 적용)
-    for (const [name, items] of Object.entries(excs)) {
-      if (givenName.includes(name) || name.includes(givenName)) return items || [];
+    for (const [name, val] of Object.entries(excs)) {
+      if (givenName.includes(name) || name.includes(givenName)) {
+        // val이 배열이면 그대로, 객체이면 .items 추출
+        return Array.isArray(val) ? val : (Array.isArray(val?.items) ? val.items : []);
+      }
     }
     return [];
   }
