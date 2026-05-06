@@ -365,7 +365,7 @@ const BooklibApp = (() => {
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
             ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:`<span class="bl-badge" style="color:var(--tx3)">반 미배정</span>`}
             ${stuNames?`<span class="bl-badge" style="background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#3b82f6">👤 ${_e(stuNames)}</span>`:''}
-            ${hasGrade?`<span class="bl-badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#d97706;cursor:pointer" onclick="event.stopPropagation();BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📝 성적설정</span>`:''}
+            ${!isArchived?`<span class="bl-badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#d97706;cursor:pointer" onclick="event.stopPropagation();BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📝 평가 설정</span>`:''}
             ${isArchived?`<span class="bl-badge" style="color:var(--tx3)">📦 완결 ${b.archivedAt?b.archivedAt.slice(0,10):''}</span>`:''}
           </div>
         </div>
@@ -641,8 +641,23 @@ const BooklibApp = (() => {
     await BookLibDB.archiveBook(id); _renderLibrary(); _toast(`📦 "${b.name}" 완결 처리`,'success');
   }
   async function _unarchiveBook(id){
-    const b=BookLibDB.getBookById(id); if(!b)return;
-    await BookLibDB.unarchiveBook(id); _renderLibrary(); _toast(`↩️ "${b.name}" 복원`,'success');
+    const b=BookLibDB.getBookById(id); if(!b) return;
+    // ★ 동일 이름 교재가 활성 목록에 이미 있는지 확인
+    const dupName = BookLibDB.getBooks().find(bk=>!bk.archived && bk.name===b.name);
+    let finalName = b.name;
+    if(dupName){
+      const ans = confirm('"'+b.name+'" 과 동일한 교재명이 이미 있습니다.\n다른 이름으로 복원하시겠습니까?');
+      if(!ans) return;
+      const newName = window.prompt('복원할 새 교재명을 입력하세요:', b.name+'_복원');
+      if(!newName || !newName.trim()) return;
+      finalName = newName.trim();
+    } else {
+      if(!confirm('"'+b.name+'" 을 교재 목록으로 복원하시겠습니까?')) return;
+    }
+    await BookLibDB.unarchiveBook(id);
+    if(finalName !== b.name) await BookLibDB.updateBook(id, {name: finalName});
+    _renderLibrary();
+    _toast('↩️ "'+finalName+'" 복원됐습니다', 'success');
   }
   async function _copyBook(id){
     const src = BookLibDB.getBookById(id); if(!src) return;
@@ -889,6 +904,15 @@ const BooklibApp = (() => {
   /* 저장 (챕터 + 성적 설정 동시 저장) */
   async function saveEditor(){
     const bookId=_st.editBookId;
+    // ★ 교재명 변경 저장
+    const _nameInp = document.getElementById('ed-book-name-inp');
+    if(_nameInp){
+      const _newName = _nameInp.value.trim();
+      const _curBook = BookLibDB.getBookById(bookId);
+      if(_newName && _curBook && _newName !== _curBook.name){
+        await BookLibDB.updateBook(bookId, {name: _newName});
+      }
+    }
     // 성적 설정 수집
     const wq  = Number(document.getElementById('bl-cfg-wq')?.value||0);
     const rdOn= document.getElementById('bl-cfg-rd-on')?.checked||false;
@@ -1226,7 +1250,39 @@ const BooklibApp = (() => {
       <div style="margin-top:8px"><button class="btn-x" style="width:100%" onclick="BooklibApp.closeReport()">닫기</button></div>`;
     ov.classList.remove('hidden');history.pushState({pg:'booklib',modal:'report'},'');
   }
-  function _printReport(){const book=BookLibDB.getBookById(_st.matrixBookId),cls=_getCls(_st.matrixClassId);let frame=document.getElementById('bl-pf');if(!frame){frame=document.createElement('div');frame.id='bl-pf';document.body.appendChild(frame);}frame.innerHTML=`<h2>📋 ${_e(book?.name||'')} — ${_e(cls?.name||'')}반 미수행 현황</h2><pre>${_e(_st.reportText)}</pre>`;window.print();setTimeout(()=>frame.remove(),1000);}
+  function _printReport(){
+    const book=BookLibDB.getBookById(_st.matrixBookId),cls=_getCls(_st.matrixClassId);
+    // ★ @media print visibility 방식으로 현재 화면 내용 그대로 인쇄
+    const psId='bl-print-style';
+    document.getElementById(psId)?.remove();
+    const ps=document.createElement('style');
+    ps.id=psId;
+    ps.textContent=`
+      @media print {
+        body * { visibility: hidden !important; }
+        #bl-pf, #bl-pf * { visibility: visible !important; }
+        #bl-pf {
+          position: fixed; top: 0; left: 0;
+          width: 100%; padding: 16px;
+          background: #fff; z-index: 99999;
+          font-family: 'Noto Sans KR', sans-serif;
+          font-size: 12px; line-height: 1.8;
+        }
+      }
+    `;
+    document.head.appendChild(ps);
+    // 인쇄 콘텐츠 생성
+    let frame=document.getElementById('bl-pf');
+    if(!frame){frame=document.createElement('div');frame.id='bl-pf';document.body.appendChild(frame);}
+    frame.innerHTML=`
+      <h2 style="font-size:16px;font-weight:800;margin-bottom:8px">
+        📋 ${_e(book?.name||'')} — ${_e(cls?.name||'')}반 미수행 현황
+      </h2>
+      <pre style="white-space:pre-wrap;font-size:12px;line-height:1.8">${_e(_st.reportText)}</pre>
+    `;
+    window.print();
+    setTimeout(()=>{frame.remove();ps.remove();},1000);
+  }
 
   const _getShareText=()=>_st.shareText;
   const _getReportText=()=>_st.reportText;
@@ -1544,8 +1600,14 @@ const BooklibApp = (() => {
     const gn      = _givenName(dbFullName);
     const useFullName = dupGivens && dupGivens.has(gn);
     const cmpName = useFullName ? dbFullName : gn;
+    // ★ 가명 매칭: exceptions에서 해당 학생 alias 조회
+    const _excMap = _csvImportState.exceptions || {};
+    const _excInfo = _excMap[gn] || _excMap[dbFullName];
+    const aliasName = (_excInfo && typeof _excInfo==='object' && _excInfo.useAlias && _excInfo.alias)
+      ? _excInfo.alias.trim() : null;
 
     function nameHit(n) {
+      if (aliasName && n.trim() === aliasName) return true; // ★ 가명 우선 매칭
       if (useFullName) return n === cmpName;
       return n === cmpName || n.includes(cmpName) || cmpName.includes(n);
     }
@@ -1763,7 +1825,9 @@ const BooklibApp = (() => {
       Object.entries(_dbExcs).forEach(([name, v]) => {
         const items = Array.isArray(v) ? v : (v.items || []);
         const enabled = typeof v === 'object' ? (v.enabled !== false) : true;
-        _addExcRow(name, items, enabled);
+        const alias = typeof v === 'object' ? (v.alias||'') : '';
+        const useAlias = typeof v === 'object' ? !!v.useAlias : false;
+        _addExcRow(name, items, enabled, alias, useAlias);
       });
     } else {
       const savedExcs = _csvImportState.exceptions || {};
@@ -1785,7 +1849,7 @@ const BooklibApp = (() => {
   }
 
   // ★ 예외 학생 행 추가
-    function _addExcRow(name='', items=[], enabled=true) {
+    function _addExcRow(name='', items=[], enabled=true, alias='', useAlias=false) {
     const list = document.getElementById('bl-exc-list'); if (!list) return;
     const ALL_ITEMS = ['암기','리콜','스펠','스피킹','게임','테스트'];
     const rowId = 'exc-row-' + Date.now();
@@ -1809,6 +1873,18 @@ const BooklibApp = (() => {
         <button onclick="BooklibApp._deleteExcRow('${rowId}')"
           style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#dc2626;border-radius:7px;padding:4px 8px;cursor:pointer;font-size:13px;flex-shrink:0">🗑</button>
       </div>
+      <!-- ★ 가명 매칭 -->
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--tx3);white-space:nowrap;cursor:pointer">
+          <input type="checkbox" id="${rowId}-alias-ck" style="width:13px;height:13px;accent-color:var(--a);cursor:pointer"
+            onchange="const inp=document.getElementById('${rowId}-alias-inp');inp.style.display=this.checked?'block':'none';document.getElementById('${rowId}')._useAlias=this.checked;">
+          가명
+        </label>
+        <input id="${rowId}-alias-inp" type="text" placeholder="xlsx 파일 내 이름 (예: Seri)" value=""
+          style="display:none;flex:1;padding:4px 8px;border:1px solid var(--a40);border-radius:6px;font-size:12px;background:var(--surf2)"
+          oninput="document.getElementById('${rowId}')._alias=this.value.trim()">
+      </div>
+      </div>
       <div style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.5px;margin-bottom:6px">면제 항목 선택 (체크된 항목은 비어있어도 완료 처리)</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${ALL_ITEMS.map(it=>`
@@ -1822,8 +1898,17 @@ const BooklibApp = (() => {
     div._name = name;
     div._enabled = enabled;
     div._clsStudents = clsStudents;
+    div._alias = alias;
+    div._useAlias = useAlias;
     list.appendChild(div);
     if(!enabled) div.style.opacity='0.6';
+    // ★ 가명 복원
+    if(alias){
+      const aliasCk = document.getElementById(rowId+'-alias-ck');
+      const aliasInp = document.getElementById(rowId+'-alias-inp');
+      if(aliasCk && useAlias){ aliasCk.checked=true; }
+      if(aliasInp){ aliasInp.value=alias; aliasInp.style.display=(useAlias?'block':'none'); }
+    }
   }
 
   // ★ 면제 학생 행 삭제 (UI + DB)
@@ -1891,7 +1976,7 @@ const BooklibApp = (() => {
       const checked = [...row.querySelectorAll('input[type="checkbox"]:checked')]
         .filter(c => c.type==='checkbox' && !c.id?.endsWith('-ck'))
         .map(c => c.value).filter(Boolean);
-      result[name] = { items: checked, enabled: isEnabled };
+      result[name] = { items: checked, enabled: isEnabled, alias: (row._alias||'').trim() || null, useAlias: !!row._useAlias };
     });
     return result;
   }
