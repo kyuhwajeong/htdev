@@ -1233,6 +1233,24 @@ const BooklibApp = (() => {
     sh.innerHTML=`<div class="sh-handle"></div>
       <div class="sh-title">📋 전체 미수행 현황</div>
       <div class="sh-sub">${_e(cls.name)}반 · ${_e(book.name)}</div>
+      <!-- ★ 출력 항목 선택 체크박스 -->
+      <div style="background:var(--surf2);border-radius:10px;padding:10px 14px;margin:6px 0 10px;border:1px solid var(--bdr)">
+        <div style="font-size:11px;font-weight:800;color:var(--tx3);margin-bottom:8px">🖨️ 출력할 항목 선택</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">
+            <input type="checkbox" id="bl-prn-ck1" checked style="width:16px;height:16px;accent-color:var(--a)">
+            1. 반 · 교재 헤더 (출력일 포함)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">
+            <input type="checkbox" id="bl-prn-ck2" checked style="width:16px;height:16px;accent-color:var(--a)">
+            2. 학생별 요약 테이블
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">
+            <input type="checkbox" id="bl-prn-ck3" checked style="width:16px;height:16px;accent-color:var(--a)">
+            3. 상세 미수행 항목 목록
+          </label>
+        </div>
+      </div>
       <div class="bl-share-scroll">
         <div style="margin:10px 0 6px;font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:1px">학생별 요약</div>
         <table style="width:100%;border-collapse:collapse;border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:10px;font-size:13px">
@@ -1252,38 +1270,75 @@ const BooklibApp = (() => {
   }
   function _printReport(){
     const book=BookLibDB.getBookById(_st.matrixBookId),cls=_getCls(_st.matrixClassId);
-    // ★ @media print visibility 방식으로 현재 화면 내용 그대로 인쇄
-    const psId='bl-print-style';
-    document.getElementById(psId)?.remove();
-    const ps=document.createElement('style');
-    ps.id=psId;
-    ps.textContent=`
-      @media print {
-        body * { visibility: hidden !important; }
-        #bl-pf, #bl-pf * { visibility: visible !important; }
-        #bl-pf {
-          position: fixed; top: 0; left: 0;
-          width: 100%; padding: 16px;
-          background: #fff; z-index: 99999;
-          font-family: 'Noto Sans KR', sans-serif;
-          font-size: 12px; line-height: 1.8;
-        }
-      }
-    `;
-    document.head.appendChild(ps);
-    // 인쇄 콘텐츠 생성
-    let frame=document.getElementById('bl-pf');
-    if(!frame){frame=document.createElement('div');frame.id='bl-pf';document.body.appendChild(frame);}
-    frame.innerHTML=`
-      <h2 style="font-size:16px;font-weight:800;margin-bottom:8px">
-        📋 ${_e(book?.name||'')} — ${_e(cls?.name||'')}반 미수행 현황
-      </h2>
-      <pre style="white-space:pre-wrap;font-size:12px;line-height:1.8">${_e(_st.reportText)}</pre>
-    `;
-    window.print();
-    setTimeout(()=>{frame.remove();ps.remove();},1000);
+    if(!book||!cls){_toast('⚠️ 반과 교재를 선택해주세요','error');return;}
+
+    // ★ 체크박스 상태
+    const prn1=document.getElementById('bl-prn-ck1')?.checked!==false;
+    const prn2=document.getElementById('bl-prn-ck2')?.checked!==false;
+    const prn3=document.getElementById('bl-prn-ck3')?.checked!==false;
+    if(!prn1&&!prn2&&!prn3){_toast('⚠️ 출력할 항목을 하나 이상 선택해주세요','error');return;}
+
+    // 현재 CSS 수집
+    const allCss=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+    const today=new Date().toLocaleDateString('ko-KR');
+
+    // 선택 섹션 조합
+    let body='';
+    if(prn1) body+=
+      '<div class="print-header">'+
+      '<h1>📋 '+_e(cls.name||'')+'반 · '+_e(book.name||'')+' — 미수행 현황</h1>'+
+      '<p>출력일: '+today+' · 기준: 최근 스탬프 챕터까지</p>'+
+      '</div>';
+    if(prn2) body+=
+      '<div class="section-title">학생별 요약</div>'+
+      (document.getElementById('bl-rpt-summary-tbl')?.outerHTML||'<p>데이터 없음</p>');
+    if(prn3) body+=
+      '<div class="section-title">상세 미수행 항목</div>'+
+      '<div class="bl-share-box">'+_e(_st.reportText||'')+'</div>';
+
+    const html=
+      '<!DOCTYPE html><html lang="ko"><head>'+
+      '<meta charset="UTF-8">'+
+      '<title>'+_e(cls.name||'')+'반 미수행 현황</title>'+
+      '<style>'+allCss+'</style>'+
+      '<style>'+
+      '@page{size:A4;margin:12mm}'+
+      'html,body{margin:0;padding:0;background:#fff;font-family:"Noto Sans KR",sans-serif;font-size:12px;}'+
+      '.bl-share-box{white-space:pre-wrap;font-size:11px;line-height:1.7;border:1px solid #e2e8f0;padding:8px;border-radius:6px;background:#f8fafc;}'+
+      'table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;}'+
+      'th,td{padding:6px 10px;border:1px solid #cbd5e1;text-align:left;}'+
+      'th{background:#f1f5f9;font-weight:700;font-size:11px;}'+
+      '.print-header{margin-bottom:14px;border-bottom:2px solid #334155;padding-bottom:8px;}'+
+      '.print-header h1{font-size:17px;font-weight:900;color:#1e293b;margin:0 0 4px;}'+
+      '.print-header p{font-size:11px;color:#64748b;margin:0;}'+
+      '.section-title{font-size:11px;font-weight:800;color:#475569;letter-spacing:1px;margin:12px 0 6px;}'+
+      '</style>'+
+      '</head><body>'+
+      '<div style="padding:4px">'+body+'</div>'+
+      '<script>'+
+      'document.fonts.ready.then(function(){setTimeout(function(){window.print();},300);});'+
+      '<\/script>'+
+      '</body></html>';
+
+    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const win=window.open(url,'_blank');
+    if(!win){
+      // 팝업 차단 폴백: 현재 창 visibility 방식
+      const psId='bl-print-style-fb';
+      document.getElementById(psId)?.remove();
+      const ps=document.createElement('style');
+      ps.id=psId;
+      ps.textContent='@page{size:A4;margin:12mm}@media print{body *{visibility:hidden!important}#bl-report-sh,#bl-report-sh *{visibility:visible!important}#bl-report-sh{position:fixed;top:0;left:0;width:100%;overflow:visible!important;max-height:none!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}.bl-share-acts,.sh-handle,.btn-x{display:none!important}}';
+      document.head.appendChild(ps);
+      window.print();
+      setTimeout(()=>ps.remove(),1200);
+    } else {
+      win.onload=function(){URL.revokeObjectURL(url);};
+    }
   }
 
+  
   const _getShareText=()=>_st.shareText;
   const _getReportText=()=>_st.reportText;
   async function _copyText(text){try{await navigator.clipboard.writeText(text);_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
