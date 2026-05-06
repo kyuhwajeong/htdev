@@ -1957,9 +1957,17 @@ const BooklibApp = (() => {
       const name = (nameInput?.value || row._name || '').trim();
       if (!name) return;
       const checked = [...row.querySelectorAll('input[type="checkbox"]:checked')]
-        .filter(c => c.type==='checkbox' && !c.id?.endsWith('-ck'))
+        .filter(c => c.type==='checkbox' && !c.id?.endsWith('-ck') && !c.id?.endsWith('-alias-ck'))
         .map(c => c.value).filter(Boolean);
-      if (checked.length) result[name] = checked;
+      // ★ alias 정보도 포함 (가명 매칭을 위해)
+      const aliasCk  = row.querySelector('[id$="-alias-ck"]');
+      const aliasInp = row.querySelector('[id$="-alias-inp"]');
+      const useAlias = aliasCk ? aliasCk.checked : !!row._useAlias;
+      const alias    = (aliasInp?.value || row._alias || '').trim();
+      // enabled이면 항상 포함 (면제 항목 없어도 가명 때문에)
+      if (checked.length || (useAlias && alias)) {
+        result[name] = { items: checked, useAlias, alias: alias || null };
+      }
     });
     return result;
   }
@@ -1984,6 +1992,7 @@ const BooklibApp = (() => {
   
   async function _confirmCsvImport() {
     // ★ 학생별 예외 항목 수집 + DB 저장 (반 기준)
+    // ★ exceptions에 alias 정보 포함 버전으로 수집
     _csvImportState.exceptions = _collectExceptions();
     _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length > 0;
     const fullExcs = _collectExceptionsForSave();
