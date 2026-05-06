@@ -1600,16 +1600,27 @@ const BooklibApp = (() => {
     const gn      = _givenName(dbFullName);
     const useFullName = dupGivens && dupGivens.has(gn);
     const cmpName = useFullName ? dbFullName : gn;
+
     // ★ 가명 매칭: exceptions에서 해당 학생 alias 조회
+    // givenName(세연), fullName(손세연) 모두 체크
     const _excMap = _csvImportState.exceptions || {};
     const _excInfo = _excMap[gn] || _excMap[dbFullName];
     const aliasName = (_excInfo && typeof _excInfo==='object' && _excInfo.useAlias && _excInfo.alias)
       ? _excInfo.alias.trim() : null;
 
-    function nameHit(n) {
-      if (aliasName && n.trim() === aliasName) return true; // ★ 가명 우선 매칭
-      if (useFullName) return n === cmpName;
-      return n === cmpName || n.includes(cmpName) || cmpName.includes(n);
+    function nameHit(rawCsvName) {
+      const n = rawCsvName.trim();
+      // ★ 가명 매칭: xlsx "소율/Seri" 형식에서 "/" 앞뒤 모두 체크
+      if (aliasName) {
+        // 완전 일치
+        if (n === aliasName) return true;
+        // "/" 포함 복합명 (예: "소율/Seri") → 분리 후 각각 비교
+        const parts = n.split('/').map(p => p.trim());
+        if (parts.some(p => p === aliasName)) return true;
+      }
+      if (useFullName) return n === cmpName || n.split('/').some(p=>p===cmpName);
+      return n === cmpName || n.includes(cmpName) || cmpName.includes(n)
+        || n.split('/').some(p => p===cmpName || p.includes(cmpName) || cmpName.includes(p));
     }
 
     // 1차: 학생명 앞 위치('/')에서 매칭되는 행
@@ -1865,7 +1876,7 @@ const BooklibApp = (() => {
           style="width:16px;height:16px;accent-color:var(--a);cursor:pointer;flex-shrink:0"
           onchange="const d=document.getElementById('${rowId}');d.style.opacity=this.checked?'1':'0.55';d._enabled=this.checked;d.style.borderColor=this.checked?'var(--a40)':'var(--bdr2)'">
         <div style="position:relative;flex:1">
-          <input id="${rowId}-inp" class="f-inp" placeholder="이름(성 제외, 예: 도현)" value="${_e(name)}"
+          <input id="${rowId}-inp" class="f-inp" placeholder="실제 학생 이름 (예: 세연)" value="${_e(name)}"
             style="width:100%;padding:6px 10px;font-size:12px" autocomplete="off"
             oninput="document.getElementById('${rowId}')._name=this.value;BooklibApp._excAutoComplete('${rowId}',this.value)">
           <div id="${rowId}-ac" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--a40);border-radius:8px;z-index:200;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
@@ -1878,9 +1889,9 @@ const BooklibApp = (() => {
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--tx3);white-space:nowrap;cursor:pointer">
           <input type="checkbox" id="${rowId}-alias-ck" style="width:13px;height:13px;accent-color:var(--a);cursor:pointer"
             onchange="const inp=document.getElementById('${rowId}-alias-inp');inp.style.display=this.checked?'block':'none';document.getElementById('${rowId}')._useAlias=this.checked;">
-          가명
+          <span style="color:var(--a);font-weight:700">xlsx 가명</span>
         </label>
-        <input id="${rowId}-alias-inp" type="text" placeholder="xlsx 파일 내 이름 (예: Seri)" value=""
+        <input id="${rowId}-alias-inp" type="text" placeholder="xlsx에서 찾을 가명/영문명 (예: Seri)" value=""
           style="display:none;flex:1;padding:4px 8px;border:1px solid var(--a40);border-radius:6px;font-size:12px;background:var(--surf2)"
           oninput="document.getElementById('${rowId}')._alias=this.value.trim()">
       </div>
@@ -1964,9 +1975,12 @@ const BooklibApp = (() => {
       const aliasInp = row.querySelector('[id$="-alias-inp"]');
       const useAlias = aliasCk ? aliasCk.checked : !!row._useAlias;
       const alias    = (aliasInp?.value || row._alias || '').trim();
-      // enabled이면 항상 포함 (면제 항목 없어도 가명 때문에)
       if (checked.length || (useAlias && alias)) {
-        result[name] = { items: checked, useAlias, alias: alias || null };
+        // ★ key를 givenName으로 정규화 (DB 매칭 정확도 향상)
+        const givenKey = name.length > 1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
+        // fullName key도 추가 (두 가지 모두 등록)
+        result[givenKey] = { items: checked, useAlias, alias: alias || null };
+        if (givenKey !== name) result[name] = { items: checked, useAlias, alias: alias || null };
       }
     });
     return result;

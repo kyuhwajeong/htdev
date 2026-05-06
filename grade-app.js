@@ -1560,45 +1560,68 @@ img{max-width:100%}`;
     const classes = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
     const books = typeof BookLibDB !== 'undefined' ? BookLibDB.getAllBooks() : [];
     let sheetCount = 0;
+
     for (const cls of classes) {
       const clsStudents = typeof StudentDB !== 'undefined'
         ? StudentDB.getFiltered({ classCode: cls.name, status: '재원' }) : [];
+      if (!clsStudents.length) continue;
+
       for (const book of books.filter(b => !b.archived)) {
         const config = GradeDB.getReportConfig(book.id);
-        const revs = GradeDB.getActiveReviews(book.id);
-        if (!config?.word?.totalQ && !config?.reading?.enabled) continue;
-        const rows = [];
-        // 헤더
-        const hdr = ['반', '이름'];
-        hdr.push('단어_총테스트', '단어_재시험', '단어_통과', '단어_성취율');
-        revs.forEach(rv => { hdr.push(`리딩_${rv.name}_정답수`); hdr.push(`리딩_${rv.name}_점수`); });
-        hdr.push('리딩_성취율', 'Teacher_Comment');
-        rows.push(hdr);
+        const revs   = GradeDB.getActiveReviews(book.id);
+        const hasWord = config?.word?.totalQ > 0;
+        const hasRd   = config?.reading?.enabled && revs.length > 0;
+        if (!hasWord && !hasRd) continue;
+
+        // ★ 헤더: 사용자 입력 컬럼만 (연산 결과 제외)
+        const hdr = ['반', '이름', '교재'];
+        if (hasWord) {
+          hdr.push('단어_총문제수');  // 설정값 (참고용, 변경 가능)
+          hdr.push('단어_재시험수');  // ← 입력값
+        }
+        if (hasRd) {
+          hdr.push('리딩_총문제수');  // 설정값 (참고용, 변경 가능)
+          revs.forEach(rv => hdr.push(`리딩_${rv.name}`)); // ← 각 Review 정답수 입력값
+        }
+        hdr.push('Teacher_Comment'); // ← 입력값
+
+        const rows = [hdr];
+
         for (const stu of clsStudents) {
-          const rec = GradeDB.getLatest(cls.id||cls.name, stu.id, book.id);
-          const w = rec?.word || {};
-          const rd = rec?.reading || {};
-          const achW = w.totalQ > 0 ? Math.round(w.pass / w.totalQ * 100) : null;
-          const rdScores = revs.map(rv => rd.reviews?.[rv.id] ?? '');
-          const rdPcts = revs.map(rv => {
-            const s = rd.reviews?.[rv.id];
-            return (s != null && config.reading?.totalQ > 0) ? Math.round(s / config.reading.totalQ * 100) : '';
-          });
-          const rdAch = GradeDB.calcAchievement(rec, config);
-          const row = [cls.name, stu.name, w.totalQ||'', w.retry||'', w.pass||'', achW != null ? achW+'%' : ''];
-          revs.forEach((rv, i) => { row.push(rdScores[i]); row.push(rdPcts[i] !== '' ? rdPcts[i]+'%' : ''); });
-          row.push(rdAch != null ? Math.round(rdAch)+'%' : '', rec?.comment || '');
+          const rec = GradeDB.getLatest(cls.id || cls.name, stu.id, book.id) || {};
+          const w   = rec.word     || {};
+          const rd  = rec.reading  || {};
+
+          const row = [cls.name, stu.name, book.name];
+          if (hasWord) {
+            row.push(config.word.totalQ || ''); // 단어_총문제수
+            row.push(w.retry != null ? w.retry : '');  // 단어_재시험수 (입력값)
+          }
+          if (hasRd) {
+            row.push(config.reading.totalQ || ''); // 리딩_총문제수
+            revs.forEach(rv => {
+              const score = rd.reviews?.[rv.id];
+              row.push(score != null ? score : ''); // 각 Review 정답수 (입력값)
+            });
+          }
+          row.push(rec.comment || '');
           rows.push(row);
         }
-        const sheetName = (cls.name + '_' + book.name).slice(0, 31).replace(/[:\/\?\*\[\]]/g, '_');
+
+        // 시트명: 반_교재 (31자 제한, 특수문자 제거)
+        const sheetName = (cls.name + '_' + book.name)
+          .slice(0, 31).replace(/[:\/\?\*\[\]]/g, '_');
         const ws = window.XLSX.utils.aoa_to_sheet(rows);
+        // 헤더 스타일: 굵게 (xlsx는 기본 스타일 미지원 → 컬럼 너비만 조정)
+        ws['!cols'] = hdr.map((_,i) => ({ wch: i < 3 ? 12 : 14 }));
         window.XLSX.utils.book_append_sheet(wb, ws, sheetName);
         sheetCount++;
       }
     }
+
     if (!sheetCount) { _toast('⚠️ 내보낼 데이터가 없습니다', 'error'); return; }
     const today = new Date().toISOString().slice(0, 10);
-    window.XLSX.writeFile(wb, `성적_전체_${today}.xlsx`);
+    window.XLSX.writeFile(wb, `성적_입력값_${today}.xlsx`);
     _toast(`✅ ${sheetCount}개 시트 내보내기 완료`, 'success');
   }
 
@@ -1607,50 +1630,105 @@ img{max-width:100%}`;
     if (!file || typeof window.XLSX === 'undefined') { _toast('⚠️ 파일 오류'); return; }
     _toast('⏳ 불러오는 중...', 'info', 2000);
     const buf = await file.arrayBuffer();
-    const wb = window.XLSX.read(buf, { type: 'array' });
-    let updated = 0;
+    const wb  = window.XLSX.read(buf, { type: 'array' });
+    const classes = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
+    const books   = typeof BookLibDB !== 'undefined' ? BookLibDB.getAllBooks() : [];
+    let updated = 0, skipped = 0;
+
     for (const sheetName of wb.SheetNames) {
-      const ws = wb.Sheets[sheetName];
+      const ws   = wb.Sheets[sheetName];
       const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
       if (rows.length < 2) continue;
-      const hdr = rows[0];
-      const clsIdx = hdr.indexOf('반'), nameIdx = hdr.indexOf('이름');
+
+      const hdr     = rows[0].map(h => String(h||'').trim());
+      const clsIdx  = hdr.indexOf('반');
+      const nameIdx = hdr.indexOf('이름');
       if (clsIdx < 0 || nameIdx < 0) continue;
-      // 헤더에서 컬럼 매핑
-      const wTotalIdx = hdr.indexOf('단어_총테스트');
-      const wRetryIdx = hdr.indexOf('단어_재시험');
-      const wPassIdx  = hdr.indexOf('단어_통과');
-      const cmtIdx    = hdr.indexOf('Teacher_Comment');
-      const classes = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
-      const books = typeof BookLibDB !== 'undefined' ? BookLibDB.getAllBooks() : [];
-      const [clsName, bookName] = sheetName.split('_');
-      const cls = classes.find(c => sheetName.startsWith(c.name+'_'));
-      const book = books.find(b => sheetName.endsWith('_'+b.name) || sheetName.includes(b.name));
-      if (!cls || !book) continue;
-      const config = GradeDB.getReportConfig(book.id);
-      const revs = GradeDB.getActiveReviews(book.id);
+
+      // 시트명에서 반/교재 매핑
+      const cls  = classes.find(c => sheetName.startsWith(c.name + '_'));
+      const book = books.find(b => {
+        const expected = (cls?.name + '_' + b.name).slice(0, 31).replace(/[:\/\?\*\[\]]/g, '_');
+        return expected === sheetName || sheetName.endsWith('_' + b.name.slice(0, 20));
+      });
+      if (!cls || !book) { skipped++; continue; }
+
+      const config  = GradeDB.getReportConfig(book.id);
+      const revs    = GradeDB.getActiveReviews(book.id);
       const students = typeof StudentDB !== 'undefined'
         ? StudentDB.getFiltered({ classCode: cls.name, status: '재원' }) : [];
+
+      // ★ 컬럼 인덱스 매핑 (새 형식)
+      const wTotalIdx = hdr.indexOf('단어_총문제수');
+      const wRetryIdx = hdr.indexOf('단어_재시험수');
+      const rdTotalIdx = hdr.indexOf('리딩_총문제수');
+      const cmtIdx    = hdr.indexOf('Teacher_Comment');
+      // 각 Review 컬럼 인덱스
+      const revIdxMap = {};
+      revs.forEach(rv => {
+        const i = hdr.indexOf(`리딩_${rv.name}`);
+        if (i >= 0) revIdxMap[rv.id] = i;
+      });
+
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const stuName = (row[nameIdx]||'').trim();
-        const stu = students.find(s => s.name === stuName || s.name.endsWith(stuName));
+        if (!row || !row[nameIdx]) continue;
+        const stuName = String(row[nameIdx]).trim();
+        if (!stuName) continue;
+
+        const stu = students.find(s =>
+          s.name === stuName ||
+          s.name.endsWith(stuName) ||
+          stuName.endsWith(s.name.slice(1)) // givenName 매칭
+        );
         if (!stu) continue;
-        const rec = { word: {}, reading: { reviews: {} }, comment: '' };
-        if (wTotalIdx >= 0) rec.word.totalQ = Number(row[wTotalIdx]) || 0;
-        if (wRetryIdx >= 0) rec.word.retry  = Number(row[wRetryIdx]) || 0;
-        if (wPassIdx  >= 0) rec.word.pass   = Number(row[wPassIdx])  || 0;
+
+        // 기존 레코드 로드 (없으면 새로 생성)
+        const existing = GradeDB.getLatest(cls.id || cls.name, stu.id, book.id) || {};
+        const rec = {
+          word:    { ...existing.word    || {} },
+          reading: { ...(existing.reading || {}), reviews: { ...(existing.reading?.reviews || {}) } },
+          comment: existing.comment || ''
+        };
+
+        // ★ 단어: totalQ는 설정 기준 유지, retry만 읽어서 pass 자동 계산
+        if (wRetryIdx >= 0 && row[wRetryIdx] !== '' && row[wRetryIdx] != null) {
+          const cfgTotalQ = config?.word?.totalQ || (wTotalIdx >= 0 ? Number(row[wTotalIdx]) : 0);
+          const retry     = Number(row[wRetryIdx]) || 0;
+          rec.word.totalQ = cfgTotalQ;
+          rec.word.retry  = retry;
+          rec.word.pass   = Math.max(0, cfgTotalQ - retry); // ★ pass 자동 계산
+        }
+
+        // ★ 리딩: 각 Review 정답수 읽어서 저장 (점수/성취율은 표시 시 자동 계산)
+        let hasRdData = false;
         revs.forEach(rv => {
-          const ri = hdr.indexOf(`리딩_${rv.name}_정답수`);
-          if (ri >= 0 && row[ri] !== '' && row[ri] != null) rec.reading.reviews[rv.id] = Number(row[ri]) || 0;
+          const ri = revIdxMap[rv.id];
+          if (ri >= 0 && row[ri] !== '' && row[ri] != null) {
+            rec.reading.reviews[rv.id] = Number(row[ri]) || 0;
+            hasRdData = true;
+          }
         });
-        if (cmtIdx >= 0 && row[cmtIdx]) rec.comment = String(row[cmtIdx]);
-        await GradeDB.saveRecord(cls.id||cls.name, stu.id, book.id, rec);
+        if (rdTotalIdx >= 0 && row[rdTotalIdx] != null) {
+          rec.reading.totalQ = Number(row[rdTotalIdx]) || config?.reading?.totalQ || 0;
+        }
+
+        // Teacher's Comment
+        if (cmtIdx >= 0 && row[cmtIdx] != null && String(row[cmtIdx]).trim()) {
+          rec.comment = String(row[cmtIdx]).trim();
+        }
+
+        await GradeDB.saveRecord(cls.id || cls.name, stu.id, book.id, rec);
         updated++;
       }
     }
-    _toast(`✅ ${updated}명 데이터 불러오기 완료`, 'success');
+
+    const msg = skipped > 0
+      ? `✅ ${updated}명 불러오기 완료 (${skipped}개 시트 매핑 실패)`
+      : `✅ ${updated}명 데이터 불러오기 완료`;
+    _toast(msg, 'success');
     _renderContent();
+    _updateChart();
   }
 
   async function saveAll() {
