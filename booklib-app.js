@@ -1272,69 +1272,43 @@ const BooklibApp = (() => {
     const book=BookLibDB.getBookById(_st.matrixBookId),cls=_getCls(_st.matrixClassId);
     if(!book||!cls){_toast('⚠️ 반과 교재를 선택해주세요','error');return;}
 
-    // ★ 체크박스 상태
     const prn1=document.getElementById('bl-prn-ck1')?.checked!==false;
     const prn2=document.getElementById('bl-prn-ck2')?.checked!==false;
     const prn3=document.getElementById('bl-prn-ck3')?.checked!==false;
     if(!prn1&&!prn2&&!prn3){_toast('⚠️ 출력할 항목을 하나 이상 선택해주세요','error');return;}
 
-    // 현재 CSS 수집
-    const allCss=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
     const today=new Date().toLocaleDateString('ko-KR');
-
-    // 선택 섹션 조합
     let body='';
-    if(prn1) body+=
-      '<div class="print-header">'+
-      '<h1>📋 '+_e(cls.name||'')+'반 · '+_e(book.name||'')+' — 미수행 현황</h1>'+
-      '<p>출력일: '+today+' · 기준: 최근 스탬프 챕터까지</p>'+
-      '</div>';
-    if(prn2) body+=
-      '<div class="section-title">학생별 요약</div>'+
-      (document.getElementById('bl-rpt-summary-tbl')?.outerHTML||'<p>데이터 없음</p>');
-    if(prn3) body+=
-      '<div class="section-title">상세 미수행 항목</div>'+
-      '<div class="bl-share-box">'+_e(_st.reportText||'')+'</div>';
+    if(prn1) body+='<div class="ph"><h1>📋 '+_e(cls.name)+'반 · '+_e(book.name)+' — 미수행 현황</h1><p>출력일: '+today+'</p></div>';
+    if(prn2) body+='<h2>학생별 요약</h2>'+(document.getElementById('bl-rpt-summary-tbl')?.outerHTML||'');
+    if(prn3) body+='<h2>상세 미수행 항목</h2><pre>'+_e(_st.reportText||'')+'</pre>';
 
-    const html=
-      '<!DOCTYPE html><html lang="ko"><head>'+
-      '<meta charset="UTF-8">'+
-      '<title>'+_e(cls.name||'')+'반 미수행 현황</title>'+
-      '<style>'+allCss+'</style>'+
+    const w=window.open('','_blank','width=900,height=700');
+    if(!w){_toast('⚠️ 팝업이 차단됐습니다. 팝업을 허용해주세요.','error');return;}
+    w.document.open();
+    w.document.write('<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">'+
       '<style>'+
-      '@page{size:A4;margin:12mm}'+
-      'html,body{margin:0;padding:0;background:#fff;font-family:"Noto Sans KR",sans-serif;font-size:12px;}'+
-      '.bl-share-box{white-space:pre-wrap;font-size:11px;line-height:1.7;border:1px solid #e2e8f0;padding:8px;border-radius:6px;background:#f8fafc;}'+
-      'table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;}'+
-      'th,td{padding:6px 10px;border:1px solid #cbd5e1;text-align:left;}'+
-      'th{background:#f1f5f9;font-weight:700;font-size:11px;}'+
-      '.print-header{margin-bottom:14px;border-bottom:2px solid #334155;padding-bottom:8px;}'+
-      '.print-header h1{font-size:17px;font-weight:900;color:#1e293b;margin:0 0 4px;}'+
-      '.print-header p{font-size:11px;color:#64748b;margin:0;}'+
-      '.section-title{font-size:11px;font-weight:800;color:#475569;letter-spacing:1px;margin:12px 0 6px;}'+
-      '</style>'+
-      '</head><body>'+
-      '<div style="padding:4px">'+body+'</div>'+
-      '<script>'+
-      'document.fonts.ready.then(function(){setTimeout(function(){window.print();},300);});'+
-      '<\/script>'+
-      '</body></html>';
-
-    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-    const win=window.open(url,'_blank');
-    if(!win){
-      // 팝업 차단 폴백: 현재 창 visibility 방식
-      const psId='bl-print-style-fb';
-      document.getElementById(psId)?.remove();
-      const ps=document.createElement('style');
-      ps.id=psId;
-      ps.textContent='@page{size:A4;margin:12mm}@media print{body *{visibility:hidden!important}#bl-report-sh,#bl-report-sh *{visibility:visible!important}#bl-report-sh{position:fixed;top:0;left:0;width:100%;overflow:visible!important;max-height:none!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}.bl-share-acts,.sh-handle,.btn-x{display:none!important}}';
-      document.head.appendChild(ps);
-      window.print();
-      setTimeout(()=>ps.remove(),1200);
-    } else {
-      win.onload=function(){URL.revokeObjectURL(url);};
+      '@page{size:A4 portrait;margin:15mm}'+
+      'body{font-family:"Noto Sans KR","맑은 고딕",sans-serif;font-size:12px;color:#111;margin:0;padding:16px;background:#fff}'+
+      '.ph{border-bottom:2px solid #334155;margin-bottom:14px;padding-bottom:8px}'+
+      '.ph h1{font-size:18px;font-weight:900;margin:0 0 4px;color:#1e293b}'+
+      '.ph p{font-size:11px;color:#64748b;margin:0}'+
+      'h2{font-size:13px;font-weight:800;color:#334155;margin:16px 0 6px;letter-spacing:.5px;border-left:3px solid #6366f1;padding-left:8px}'+
+      'table{width:100%;border-collapse:collapse;margin-bottom:12px}'+
+      'th{background:#f1f5f9;font-size:11px;font-weight:700;padding:7px 10px;border:1px solid #cbd5e1;text-align:left}'+
+      'td{padding:7px 10px;border:1px solid #cbd5e1;font-size:12px}'+
+      'tr:nth-child(even) td{background:#f8fafc}'+
+      'pre{white-space:pre-wrap;word-break:break-all;font-family:inherit;font-size:11px;line-height:1.8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin:0}'+
+      '</style></head><body>'+
+      body+
+      '</body></html>');
+    w.document.close();
+    w.focus();
+    // 렌더링 완료 후 인쇄 (이미지/폰트 로딩 대기)
+    w.onload=function(){w.print();};
+    // onload가 이미 완료된 경우 대비
+    if(w.document.readyState==='complete'){
+      setTimeout(function(){w.print();},400);
     }
   }
 
