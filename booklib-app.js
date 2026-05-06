@@ -1907,7 +1907,7 @@ const BooklibApp = (() => {
           style="width:16px;height:16px;accent-color:var(--a);cursor:pointer;flex-shrink:0"
           onchange="const d=document.getElementById('${rowId}');d.style.opacity=this.checked?'1':'0.55';d._enabled=this.checked;d.style.borderColor=this.checked?'var(--a40)':'var(--bdr2)'">
         <div style="position:relative;flex:1">
-          <input id="${rowId}-inp" class="f-inp" placeholder="실제 학생 이름 (예: 세연)" value="${_e(name)}"
+          <input id="${rowId}-inp" type="text" class="f-inp" placeholder="실제 학생 이름 (예: 세연)" value="${_e(name)}"
             style="width:100%;padding:6px 10px;font-size:12px" autocomplete="off"
             oninput="document.getElementById('${rowId}')._name=this.value;BooklibApp._excAutoComplete('${rowId}',this.value)">
           <div id="${rowId}-ac" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--card);border:1px solid var(--a40);border-radius:8px;z-index:200;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
@@ -1956,7 +1956,7 @@ const BooklibApp = (() => {
   // ★ 면제 학생 행 삭제 (UI + DB)
   function _deleteExcRow(rowId) {
     const row = document.getElementById(rowId); if(!row) return;
-    const nameInput = row.querySelector('input[type="text"]');
+    const nameInput = document.getElementById(row.id+'-inp'); // ★ id로 정확히 지정
     const name = (nameInput?.value || row._name || '').trim();
     if (!name) { row.remove(); return; }
     const gn = name.length>1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
@@ -1999,7 +1999,7 @@ const BooklibApp = (() => {
     list.querySelectorAll('[id^="exc-row-"]').forEach(row => {
       const enableCk = row.querySelector('[id$="-ck"]:not([id$="-alias-ck"])');
       if (enableCk && !enableCk.checked) return; // 비활성 면제 학생 제외
-      const nameInput = row.querySelector('input[type="text"]');
+      const nameInput = document.getElementById(row.id+'-inp'); // ★ id로 정확히 지정
       const name = (nameInput?.value || row._name || '').trim();
       if (!name) return;
       const aliasCk  = row.querySelector('[id$="-alias-ck"]');
@@ -2023,11 +2023,11 @@ const BooklibApp = (() => {
     list.querySelectorAll('[id^="exc-row-"]').forEach(row => {
       const enableCk = row.querySelector('[id$="-ck"]:not([id$="-alias-ck"])');
       const isEnabled = enableCk ? enableCk.checked : (row._enabled !== false);
-      const nameInput = row.querySelector('input[type="text"]');
+      const nameInput = document.getElementById(row.id+'-inp'); // ★ id로 정확히 지정
       const name = (nameInput?.value || row._name || '').trim();
       if (!name) return;
       const aliasCk  = row.querySelector('[id$="-alias-ck"]');
-      const aliasInp = row.querySelector('[id$="-alias-inp"]');
+      const aliasInp = document.getElementById(row.id+'-alias-inp');
       const useAlias = aliasCk ? aliasCk.checked : !!row._useAlias;
       const alias    = (aliasInp?.value || row._alias || '').trim();
       const checked  = [...row.querySelectorAll('input[type="checkbox"]:checked')]
