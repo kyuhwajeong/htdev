@@ -1956,16 +1956,25 @@ const BooklibApp = (() => {
     const row = document.getElementById(rowId); if(!row) return;
     const nameInput = row.querySelector('input[type="text"]');
     const name = (nameInput?.value || row._name || '').trim();
-    // DB에서 삭제
-    if (name && _st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.loadClassExempts && BookLibDB.saveClassExempts) {
+    if (!name) { row.remove(); return; }
+
+    // ★ givenName key 계산 (한글 성 제거)
+    const givenKey = name.length > 1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
+
+    // DB에서 완전 삭제 (fullName, givenName 모두)
+    if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.loadClassExempts && BookLibDB.saveClassExempts) {
       const dbExcs = BookLibDB.loadClassExempts(_st.matrixClassId) || {};
       delete dbExcs[name];
+      delete dbExcs[givenKey]; // ★ givenName key도 삭제
       BookLibDB.saveClassExempts(_st.matrixClassId, dbExcs);
-      // _csvImportState.exceptions에서도 제거
-      if (_csvImportState.exceptions) delete _csvImportState.exceptions[name];
+    }
+    // _csvImportState.exceptions에서도 완전 삭제
+    if (_csvImportState.exceptions) {
+      delete _csvImportState.exceptions[name];
+      delete _csvImportState.exceptions[givenKey];
     }
     row.remove();
-    _toast(`🗑 "${name}" 면제 학생 삭제`, 'success');
+    _toast('🗑 "' + name + '" 면제 학생 삭제 완료', 'success');
   }
 
   // ★ AutoComplete for 면제 학생 이름
@@ -2019,15 +2028,23 @@ const BooklibApp = (() => {
     const result = {};
     const list = document.getElementById('bl-exc-list'); if (!list) return result;
     list.querySelectorAll('[id^="exc-row-"]').forEach(row => {
-      const enableCk = row.querySelector('[id$="-ck"]');
+      const enableCk = row.querySelector('[id$="-ck"]:not([id$="-alias-ck"])');
       const isEnabled = enableCk ? enableCk.checked : (row._enabled !== false);
       const nameInput = row.querySelector('input[type="text"]');
       const name = (nameInput?.value || row._name || '').trim();
       if (!name) return;
+      const aliasCk  = row.querySelector('[id$="-alias-ck"]');
+      const aliasInp = row.querySelector('[id$="-alias-inp"]');
+      const useAlias = aliasCk ? aliasCk.checked : !!row._useAlias;
+      const alias    = (aliasInp?.value || row._alias || '').trim();
       const checked = [...row.querySelectorAll('input[type="checkbox"]:checked')]
-        .filter(c => c.type==='checkbox' && !c.id?.endsWith('-ck'))
+        .filter(c => !c.id?.endsWith('-ck') && !c.id?.endsWith('-alias-ck'))
         .map(c => c.value).filter(Boolean);
-      result[name] = { items: checked, enabled: isEnabled, alias: (row._alias||'').trim() || null, useAlias: !!row._useAlias };
+      // ★ givenName/fullName 두 key 모두 저장
+      const givenKey = name.length > 1 && /[가-힣]/.test(name[0]) ? name.slice(1) : name;
+      const entry = { items: checked, enabled: isEnabled, alias: alias || null, useAlias };
+      result[givenKey] = entry;
+      if (givenKey !== name) result[name] = entry;
     });
     return result;
   }
