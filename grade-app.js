@@ -1140,6 +1140,17 @@ const GradeApp = (() => {
     </div>`;
     const dashL7 = `${dashBanner}<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">${wordCard}${rdCard}</div>${cmtCard}`;
 
+    // ★ infoCard 정의
+    const achWInfo2=rec&&rec.word&&rec.word.totalQ>0?Math.round((rec.word.pass||0)/rec.word.totalQ*100):null;
+    const _clsName=(_getCls(_st.classId)||{}).name||'';
+    const _bookName=(book&&book.name)||_st.bookId||'';
+    const infoCard='<div style="background:linear-gradient(135deg,#e8f5e9,#f0f7ff);border-radius:14px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;border:1.5px solid #d1fae5">'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+      +'<div style="font-size:28px;width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center">'+_emoji(s,achWInfo2)+'</div>'
+      +'<div><div style="font-size:15px;font-weight:900;color:#1a3a2a">'+_e(s.name)+(s.nickname?' ('+_e(s.nickname)+')':'')+'</div>'
+      +'<div style="font-size:11px;color:#6b7280;margin-top:1px">'+(_clsName?_clsName+'반 · ':'')+_e(_bookName)+'</div></div></div>'
+      +(achWInfo2!=null?'<div style="text-align:right"><div style="font-size:26px;font-weight:900;color:#059669">'+achWInfo2+'%</div><div style="font-size:10px;color:#6b7280">단어 성취율</div></div>':'')
+      +'</div>';
     const bodies={
       1:[hdr,info,wordTbl,rdTbl,graph,comment],
       3:[hdr,info,wordTbl,comment,rdTbl,graph],
