@@ -1938,5 +1938,8 @@ const BooklibApp = (() => {
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
+    _openRegModal, _modalAddBook, _toggleRegArea, _toggleArchivedSection,
+    _multiCopy, _multiDelete, _multiMoveUp, _multiMoveDown, _moveBook,
+    _renameBook, _excAutoComplete,
   };
 })();
