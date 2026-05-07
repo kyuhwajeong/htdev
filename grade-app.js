@@ -32,17 +32,19 @@ const GradeApp = (() => {
     sortCol:   null,   // null | 'name' | 'wordAch' | 'rdAch'
     sortDesc:  true,
     slideIdx:  0,
-    reportLayout: 1,
-    reportGraph:  true,
+    reportLayout:    Number(localStorage.getItem('gr_layout'))    || 1,
+    reportGraph:     localStorage.getItem('gr_graph')    !== 'false',
     pageSize:        localStorage.getItem('gr_pageSize') || 'A4',
-    reportTitleSize: Number(localStorage.getItem('gr_titleSz')) || 18,
-    reportBodySize:  Number(localStorage.getItem('gr_bodySz'))  || 12,
-    dividerColor:    '#e2e8f0',
-    dividerWidth:    1,
-    fontFamily:      'Noto Sans KR', // 리포트 글자체
-    rptBg:           '#ffffff',    // 리포트 배경색
-    tableRound:      false,   // 표 모서리 라운드
-    hdrFontSize:     12,      // 헤더 글자 크기
+    reportTitleSize: Number(localStorage.getItem('gr_titleSz'))   || 18,
+    reportBodySize:  Number(localStorage.getItem('gr_bodySz'))    || 12,
+    rptBg:           localStorage.getItem('gr_rptBg')    || '#ffffff',
+    fontFamily:      localStorage.getItem('gr_fontFamily')|| 'Noto Sans KR',
+    dividerColor:    localStorage.getItem('gr_divClr')   || '#e2e8f0',
+    dividerWidth:    Number(localStorage.getItem('gr_divW'))      || 1,
+    tableRound:      localStorage.getItem('gr_tblRound') === 'true',
+    graphAlign:      localStorage.getItem('gr_graphAlign')|| 'left',
+    logoSize:        Number(localStorage.getItem('gr_logoSz'))    || 80,
+    hdrFontSize:     Number(localStorage.getItem('gr_hdrFontSz')) || 12,
     graphAlign:      'left',
     logoSize:        80,
     touchStartX: 0,
@@ -284,7 +286,6 @@ const GradeApp = (() => {
   }
 
   function _shell() {
-    const hasData = _st.classId && _st.bookId;
     return `
       <div class="ph">
         <div class="phl">
@@ -310,8 +311,7 @@ const GradeApp = (() => {
           <button class="gr-vbtn ${_st.viewMode==='card'?'on':''}"   data-mode="card"   onclick="GradeApp._setView('card')">👤 카드</button>
           <button class="gr-vbtn ${_st.viewMode==='report'?'on':''}" data-mode="report" onclick="GradeApp._setView('report')">📄 리포트</button>
         </div>
-        <!-- 헤더 글자 크기 히든 설정 (엑셀 모드 전용) -->
-        ${_st.viewMode==='excel' && hasData ? `
+        <!-- 헤더 글자 크기 버튼 — 항상 DOM에 존재, 엑셀+교재선택 시 표시 -->
         <div id="gr-hdr-cfg" style="display:none;position:absolute;right:0;top:36px;background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:8px 12px;box-shadow:var(--sh);z-index:30;white-space:nowrap">
           <div style="font-size:10px;font-weight:800;color:var(--tx3);margin-bottom:6px">헤더 글자 크기</div>
           <div style="display:flex;align-items:center;gap:6px">
@@ -321,13 +321,14 @@ const GradeApp = (() => {
             <span id="gr-hdr-sz-lbl" style="font-size:11px;color:var(--tx2);min-width:26px">${_st.hdrFontSize||12}px</span>
           </div>
         </div>
-        <button onclick="const p=document.getElementById('gr-hdr-cfg');p&&(p.style.display=p.style.display==='none'?'block':'none')"
+        <button id="gr-hdr-font-btn"
+          onclick="const p=document.getElementById('gr-hdr-cfg');p&&(p.style.display=p.style.display==='none'?'block':'none')"
           title="헤더 글자 크기 설정"
-          style="font-size:11px;padding:3px 8px;border-radius:7px;border:1px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-weight:700">Aa</button>
-        `:``}
-        ${hasData ? `<button class="gr-save-all-btn" onclick="GradeApp.saveAll()">
-          💾 저장<span class="gr-dirty-count" id="gr-dirty-cnt">${_st.dirty.size?`(${_st.dirty.size})`:''}</span>
-        </button>` : ''}
+          style="display:none;font-size:11px;padding:3px 8px;border-radius:7px;border:1px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-weight:700">Aa</button>
+        <!-- 저장 버튼 — 항상 DOM에 존재, dirty 발생 시 또는 교재 선택 시 표시 -->
+        <button id="gr-save-btn" class="gr-save-all-btn" onclick="GradeApp.saveAll()" style="display:none">
+          💾 저장<span class="gr-dirty-count" id="gr-dirty-cnt"></span>
+        </button>
         <button onclick="GradeApp._exportAllGrades()" style="padding:6px 11px;border-radius:9px;background:rgba(5,150,105,.1);border:1.5px solid rgba(5,150,105,.3);color:#059669;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📥 전체내보내기</button>
         <label style="padding:6px 11px;border-radius:9px;background:rgba(99,102,241,.1);border:1.5px solid rgba(99,102,241,.3);color:var(--a);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📤 전체불러오기<input type="file" accept=".xlsx" style="display:none" onchange="GradeApp._importAllGrades(this.files[0]);this.value=''"></label>
       </div>
@@ -335,11 +336,11 @@ const GradeApp = (() => {
         <div class="gr-stu-panel" id="gr-stu-panel"></div>
         <div class="gr-content" id="gr-content"></div>
       </div>
-      ${_st.viewMode==='excel' && hasData ? `
-        <div class="gr-chart-wrap" id="gr-chart-wrap">
-          <div class="gr-chart-title">📊 성취율 현황 <span style="font-size:10px;font-weight:400;color:var(--tx3)">· 학생 클릭 시 하이라이트</span></div>
-          <canvas class="gr-chart-canvas" id="gr-chart"></canvas>
-        </div>` : ''}
+      <!-- 차트 영역 — 항상 DOM에 존재, 엑셀+교재선택+성취율 있을 때만 표시 -->
+      <div class="gr-chart-wrap" id="gr-chart-wrap" style="display:none">
+        <div class="gr-chart-title">📊 성취율 현황 <span style="font-size:10px;font-weight:400;color:var(--tx3)">· 학생 클릭 시 하이라이트</span></div>
+        <canvas class="gr-chart-canvas" id="gr-chart"></canvas>
+      </div>
       <!-- 리포트 우측 고정 버튼 (리포트 탭에서만) -->
       <div id="gr-rpt-fixed-btns" style="position:fixed;right:10px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:6px;z-index:999">
         <button class="gr-rpt-fab" id="gr-cfg-fab" onclick="GradeApp._toggleCfgPanel()" title="설정"><span class="gr-rpt-fab-ico">⚙️</span><span class="gr-rpt-fab-lbl" id="gr-cfg-fab-lbl">설정</span></button>
@@ -800,8 +801,19 @@ const GradeApp = (() => {
   }
 
   function _updateChart() {
+    /* 차트 표시 여부 동기화 */
     const sts   = _getSorted();
     const revs  = _st.bookId ? GradeDB.getActiveReviews(_st.bookId) : [];
+    const chartWrap = document.getElementById('gr-chart-wrap');
+    if (chartWrap) {
+      const isExcel = _st.viewMode === 'excel';
+      const hasData = !!(  _st.classId && _st.bookId);
+      const hasScore = sts.some(s => {
+        const r = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        return r?.word?.pass != null && r?.word?.totalQ > 0;
+      });
+      chartWrap.style.display = (isExcel && hasData && hasScore) ? '' : 'none';
+    }
     _renderChart(sts, revs);
   }
 
@@ -987,7 +999,7 @@ const GradeApp = (() => {
         <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start;overflow-x:auto">
           <div>
             <div class="gr-rpt-cfg-title">레이아웃</div>
-            <div class="gr-rpt-layouts">${[1,3,4,5,6,7].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
+            <div class="gr-rpt-layouts">${[1,2,3,4,5,6].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
           </div>
           <div>
             <div class="gr-rpt-cfg-title">📄 페이지</div>
@@ -1217,6 +1229,7 @@ const GradeApp = (() => {
 
   function _setGraphAlign(align) {
     _st.graphAlign = align;
+    localStorage.setItem('gr_graphAlign', align);
     const jc = align==='left'?'flex-start': align==='right'?'flex-end':'center';
     const preview = document.getElementById('gr-rpt-preview');
     if (preview) {
@@ -1234,6 +1247,7 @@ const GradeApp = (() => {
   }
   function _setTableRound(on) {
     _st.tableRound = on;
+    localStorage.setItem('gr_tblRound', on);
     const preview = document.getElementById('gr-rpt-preview');
     if (!preview) return;
     preview.querySelectorAll('.rpt-tbl').forEach(tbl => {
@@ -1268,9 +1282,11 @@ const GradeApp = (() => {
   function _setDivider(type, val) {
     if (type==='color') {
       _st.dividerColor=val;
+      localStorage.setItem('gr_divClr', val);
       document.querySelectorAll('#gr-rpt-preview .rpt-tbl td,#gr-rpt-preview .rpt-tbl th,#gr-rpt-preview .rpt-comment-box').forEach(el=>{el.style.borderColor=val;});
     } else {
       _st.dividerWidth=Number(val);
+      localStorage.setItem('gr_divW', val);
       const lbl=document.getElementById('gr-div-width-lbl');if(lbl)lbl.textContent=val+'px';
       document.querySelectorAll('#gr-rpt-preview .rpt-tbl td,#gr-rpt-preview .rpt-tbl th,#gr-rpt-preview .rpt-comment-box').forEach(el=>{el.style.borderWidth=val+'px';});
       if(_st.tableRound) document.querySelectorAll('#gr-rpt-preview .rpt-tbl').forEach(t=>{t.style.border=`${val}px solid ${_st.dividerColor||'#e2e8f0'}`;});
@@ -1321,6 +1337,7 @@ const GradeApp = (() => {
 
   function _setRptBg(color){
     _st.rptBg=color;
+    localStorage.setItem('gr_rptBg', color);
     const preview=document.getElementById('gr-rpt-preview');
     if(preview) preview.style.background=color;
     // 다크 배경이면 텍스트 색상 반전
@@ -1336,6 +1353,7 @@ const GradeApp = (() => {
 
   function _setFontFamily(val){
     _st.fontFamily=val;
+    localStorage.setItem('gr_fontFamily', val);
     // 리포트 프리뷰에 즉시 적용
     const preview=document.getElementById('gr-rpt-preview');
     if(preview){
@@ -1353,6 +1371,7 @@ const GradeApp = (() => {
 
   function _setLogoSize(val){
     _st.logoSize=Number(val);
+    localStorage.setItem('gr_logoSz', val);
     // 레이블 업데이트
     const lbl=document.getElementById('gr-rpt-logo-sz');
     if(lbl) lbl.textContent=val+'px';
@@ -1406,14 +1425,29 @@ const GradeApp = (() => {
   }
   function _setHdrFontSize(val){
     _st.hdrFontSize = Number(val);
+    localStorage.setItem('gr_hdrFontSz', val);
     const lbl = document.getElementById('gr-hdr-sz-lbl');
     if(lbl) lbl.textContent = val+'px';
     // 모든 헤더 th에 적용
     document.querySelectorAll('.gs-th').forEach(th => { th.style.fontSize = val+'px'; });
   }
 
-  function _setLayout(n){_st.reportLayout=n;const s=_getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];if(s){const el=document.getElementById('gr-rpt-preview');if(el)el.innerHTML=_buildReport(s);}document.querySelectorAll('.gr-rpt-lbtn').forEach((b,i)=>b.classList.toggle('on',i+1===n));}
-  function _toggleGraph(v){_st.reportGraph=v;_setLayout(_st.reportLayout);}
+  function _setLayout(n){
+    _st.reportLayout=n;
+    localStorage.setItem('gr_layout', n);
+    const s=_getStudents().find(s=>s.id===_st.studentId)||_getStudents()[0];
+    if(s){const el=document.getElementById('gr-rpt-preview');if(el)el.innerHTML=_buildReport(s);}
+    /* 버튼 on 클래스: onclick 속성값으로 정확히 매칭 */
+    document.querySelectorAll('.gr-rpt-lbtn').forEach(b=>{
+      const m = b.getAttribute('onclick')?.match(/_setLayout\((\d+)\)/);
+      b.classList.toggle('on', m && Number(m[1])===n);
+    });
+  }
+  function _toggleGraph(v){
+    _st.reportGraph=v;
+    localStorage.setItem('gr_graph', v);
+    _setLayout(_st.reportLayout);
+  }
   async function _copyReport(){const el=document.getElementById('gr-rpt-preview');try{await navigator.clipboard.writeText(el?.innerText||'');_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
   async function _shareReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
@@ -1498,7 +1532,28 @@ img{max-width:100%}`;
     setTimeout(()=>ps.remove(),1000);
   }
 
-  async function _captureReport(){const el=document.getElementById('gr-rpt-preview');if(!el)return;if(typeof html2canvas!=='undefined'){const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='report.png';a.click();_toast('📸 캡처 완료','success');}else _toast('⚠️ html2canvas 라이브러리가 필요합니다');}
+  async function _captureReport(){
+    const el=document.getElementById('gr-rpt-preview');if(!el)return;
+    /* 파일명: 반이름_교재명_학생명_Report_날짜_시간.png */
+    const cls  = _getCls(_st.classId);
+    const book = typeof BookLibDB!=='undefined' ? BookLibDB.getBookById(_st.bookId) : null;
+    const stu  = _getStudents().find(s=>s.id===_st.studentId) || _getStudents()[0];
+    const now  = new Date();
+    const ymd  = now.toISOString().slice(0,10).replace(/-/g,'');
+    const hms  = now.toTimeString().slice(0,8).replace(/:/g,'');
+    const safe = s => (s||'').replace(/[\\/:"*?<>|]/g,'').replace(/\s+/g,'_');
+    const fname= `${safe(cls?.name)}_${safe(book?.name)}_${safe(stu?.name)}_Report_${ymd}_${hms}.png`;
+    if(typeof html2canvas!=='undefined'){
+      const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});
+      const a=document.createElement('a');
+      a.href=c.toDataURL('image/png');
+      a.download=fname;
+      a.click();
+      _toast('📸 캡처 완료','success');
+    } else {
+      _toast('⚠️ html2canvas 라이브러리가 필요합니다');
+    }
+  }
 
   /* ════════════════════════════════════
    * 저장
@@ -1782,7 +1837,7 @@ img{max-width:100%}`;
       else { _st.data={}; _st.dirty.clear(); }
     }
     _st.bookId=bkId||null; _st.studentId=null; _st.data={}; _st.dirty.clear(); _st.sortCol=null;
-    _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub();
+    _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub(); _refreshToolbar();
     if (_st.bookId) {
       GradeDB.init(_st.classId, _st.bookId);
       // ★ 교재 선택 완료 후 즉각 그래프 표시
@@ -1817,11 +1872,47 @@ img{max-width:100%}`;
     const fixedBtns = document.getElementById('gr-rpt-fixed-btns');
     if (fixedBtns) fixedBtns.style.display = mode==='report' ? 'flex' : 'none';
     document.querySelectorAll('.gr-vbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
-    _renderStudents(); _renderContent();
+    _renderStudents(); _renderContent(); _refreshToolbar();
   }
   function _updateRptBtn(){const btn=document.getElementById('gr-rpt-btn');if(btn)btn.style.display=(_st.classId&&_st.bookId)?'':'none';}
   function _updateSub(){const sub=document.getElementById('gr-sub');if(!sub)return;const cls=_st.classId?_getCls(_st.classId):null;const bk=_st.bookId&&typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;sub.textContent=cls&&bk?`${cls.name}반 · ${bk.name}`:cls?`${cls.name}반`:'반 · 교재를 선택하세요';}
-  function _refreshDirtyUI(){const el=document.getElementById('gr-dirty-cnt');if(el)el.textContent=_st.dirty.size?`(${_st.dirty.size})`:'';document.querySelectorAll('.gr-stu-item').forEach(item=>{const m=item.getAttribute('onclick')?.match(/'([^']+)'/);if(m)item.classList.toggle('dirty-item',_st.dirty.has(m[1]));});}
+  function _refreshDirtyUI(){
+    const el=document.getElementById('gr-dirty-cnt');
+    if(el) el.textContent=_st.dirty.size?`(${_st.dirty.size})`:'';
+    /* 저장 버튼: 교재 선택 OR dirty 있을 때 */
+    const saveBtn = document.getElementById('gr-save-btn');
+    if(saveBtn) saveBtn.style.display = (_st.classId&&_st.bookId) ? '' : 'none';
+    document.querySelectorAll('.gr-stu-item').forEach(item=>{
+      const m=item.getAttribute('onclick')?.match(/'([^']+)'/);
+      if(m) item.classList.toggle('dirty-item',_st.dirty.has(m[1]));
+    });
+  }
+
+  /* 저장/Aa버튼/차트 표시·숨김을 viewMode·hasData에 맞게 동기화 */
+  function _refreshToolbar(){
+    const hasData = !!(  _st.classId && _st.bookId);
+    const isExcel = _st.viewMode === 'excel';
+
+    /* 저장 버튼 */
+    const saveBtn = document.getElementById('gr-save-btn');
+    if(saveBtn) saveBtn.style.display = hasData ? '' : 'none';
+
+    /* 헤더 폰트 버튼 — 엑셀 + 교재 선택 시 항상 노출 */
+    const fontBtn = document.getElementById('gr-hdr-font-btn');
+    if(fontBtn) fontBtn.style.display = (isExcel && hasData) ? '' : 'none';
+
+    /* 차트: 엑셀 + 교재 선택 + 성취율 데이터 있을 때 */
+    const chartWrap = document.getElementById('gr-chart-wrap');
+    if(chartWrap){
+      const sts = _getSorted();
+      const hasScore = sts.some(s=>{
+        const r = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        return r?.word?.pass != null && r?.word?.totalQ > 0;
+      });
+      chartWrap.style.display = (isExcel && hasData && hasScore) ? '' : 'none';
+      if(isExcel && hasData && hasScore) requestAnimationFrame(()=>_updateChart());
+    }
+  }
 
   /* ══ 전체 성적표 ══ */
   function openReport() {
