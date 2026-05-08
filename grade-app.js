@@ -1090,27 +1090,8 @@ const GradeApp = (() => {
         <!-- 하단 버튼 제거됨: 우측 고정 버튼(gr-rpt-fixed-btns)으로 대체 -->
       </div>
     </div>`;
-    // ★ 초기 표/코멘트 라인 스타일 즉시 적용
-    requestAnimationFrame(()=>{
-      const pw=document.getElementById('gr-rpt-preview');
-      if(pw){
-        pw.querySelectorAll('.rpt-tbl td,.rpt-tbl th,.rpt-comment-box').forEach(el=>{
-          el.style.borderColor=_st.dividerColor||'#e2e8f0';
-          el.style.borderWidth=(_st.dividerWidth||1)+'px';
-        });
-        pw.querySelectorAll('.rpt-tbl th').forEach(el=>{
-          el.style.background=_st.tblHeaderBg||'#f1f5f9';
-          el.style.color=_st.tblHeaderColor||'#475569';
-        });
-        pw.querySelectorAll('.rpt-tbl td').forEach(el=>{
-          el.style.background=_st.tblCellBg||'#ffffff';
-        });
-        pw.querySelectorAll('.rpt-tbl').forEach(el=>{
-          el.style.borderRadius=_st.tableRound?'10px':'0';
-          el.style.overflow=_st.tableRound?'hidden':'';
-        });
-      }
-    });
+    /* ★ 초기 렌더 후 모든 설정값 일괄 적용 (폰트·색상·정렬 등) */
+    requestAnimationFrame(_applyRptStyles);
   }
 
   function _buildReport(s) {
@@ -1460,13 +1441,12 @@ const GradeApp = (() => {
     if(type==='title'){
       _st.reportTitleSize=val; localStorage.setItem('gr_titleSz',val);
       const lbl=document.getElementById('gr-rpt-title-sz');if(lbl)lbl.textContent=val+'px';
-      const wrap=document.getElementById('gr-rpt-preview');if(wrap)wrap.querySelectorAll('.rpt-title').forEach(el=>{el.style.fontSize=val+'px';});
     } else {
       _st.reportBodySize=val; localStorage.setItem('gr_bodySz',val);
       const lbl=document.getElementById('gr-rpt-body-sz');if(lbl)lbl.textContent=val+'px';
-      const wrap=document.getElementById('gr-rpt-preview');
-      if(wrap){wrap.querySelectorAll('p,.rpt-info p,.rpt-tbl td,.rpt-tbl th,.rpt-comment-box').forEach(el=>{el.style.fontSize=val+'px';});wrap.style.fontSize=val+'px';}
     }
+    /* 모든 레이아웃에 공통 적용 */
+    _applyRptStyles();
   }
   function _setHdrFontSize(val){
     _st.hdrFontSize = Number(val);
@@ -1544,25 +1524,45 @@ const GradeApp = (() => {
   /* ★ 리포트 스타일 일괄 적용 — _buildReport 재빌드 후에도 _st 값 반영 */
   function _applyRptStyles() {
     const pw = document.getElementById('gr-rpt-preview'); if (!pw) return;
-    /* 표 헤더 */
-    pw.querySelectorAll('.rpt-tbl th').forEach(el => {
-      el.style.background = _st.tblHeaderBg   || '#f1f5f9';
-      el.style.color      = _st.tblHeaderColor || '#475569';
-      el.style.borderColor= _st.dividerColor   || '#e2e8f0';
-      el.style.borderWidth= (_st.dividerWidth  || 1) + 'px';
+
+    /* ── 폰트 크기 (모든 레이아웃 공통) ── */
+    const titleSz = (_st.reportTitleSize || 18) + 'px';
+    const bodySz  = (_st.reportBodySize  || 12) + 'px';
+    /* 래퍼 기본 폰트 */
+    pw.style.fontSize = bodySz;
+    /* 제목 */
+    pw.querySelectorAll('.rpt-title').forEach(el => el.style.fontSize = titleSz);
+    /* 본문 전체: 모든 텍스트 요소에 직접 지정해 CSS 클래스 규칙을 override */
+    pw.querySelectorAll(
+      'p, .rpt-info p, .rpt-tbl td, .rpt-tbl th, .rpt-comment-box, ' +
+      /* 카드형 레이아웃 요소 */
+      '[class*="card"] p, [class*="card"] div, [class*="card"] span, ' +
+      '.rpt-card-val, .rpt-card-lbl, .rpt-two-col td, .rpt-two-col th, ' +
+      '.rpt-dash-val, .rpt-dash-lbl, .rpt-sec-title'
+    ).forEach(el => { el.style.fontSize = bodySz; });
+    /* sec title은 약간 크게 유지 (본문+2px) */
+    pw.querySelectorAll('.rpt-sec-title').forEach(el =>
+      el.style.fontSize = ((_st.reportBodySize||12) + 2) + 'px'
+    );
+
+    /* ── 표 헤더·셀 색상 ── */
+    pw.querySelectorAll('.rpt-tbl th, .rpt-two-col th').forEach(el => {
+      el.style.background  = _st.tblHeaderBg    || '#f1f5f9';
+      el.style.color       = _st.tblHeaderColor || '#475569';
+      el.style.borderColor = _st.dividerColor   || '#e2e8f0';
+      el.style.borderWidth = (_st.dividerWidth  || 1) + 'px';
     });
-    /* 표 셀 */
-    pw.querySelectorAll('.rpt-tbl td').forEach(el => {
-      el.style.background = _st.tblCellBg    || '#ffffff';
-      el.style.borderColor= _st.dividerColor  || '#e2e8f0';
-      el.style.borderWidth= (_st.dividerWidth || 1) + 'px';
+    pw.querySelectorAll('.rpt-tbl td, .rpt-two-col td').forEach(el => {
+      el.style.background  = _st.tblCellBg     || '#ffffff';
+      el.style.borderColor = _st.dividerColor  || '#e2e8f0';
+      el.style.borderWidth = (_st.dividerWidth || 1) + 'px';
     });
     /* 코멘트 박스 */
     pw.querySelectorAll('.rpt-comment-box').forEach(el => {
-      el.style.borderColor= _st.dividerColor  || '#e2e8f0';
+      el.style.borderColor = _st.dividerColor || '#e2e8f0';
     });
     /* 표 라운드 */
-    pw.querySelectorAll('.rpt-tbl').forEach(el => {
+    pw.querySelectorAll('.rpt-tbl, .rpt-two-col').forEach(el => {
       el.style.borderRadius = _st.tableRound ? '10px' : '0';
       el.style.overflow     = _st.tableRound ? 'hidden' : '';
     });

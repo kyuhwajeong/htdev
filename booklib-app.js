@@ -686,6 +686,17 @@ const BooklibApp = (() => {
     }).catch(()=>_toast('⚠️ 변경 실패','error'));
   }
 
+  async function _deleteBookAndConfig(id){
+    const b=BookLibDB.getBookById(id); if(!b) return;
+    if(typeof GradeDB!=='undefined'&&GradeDB.saveReportConfig){
+      try{ await GradeDB.saveReportConfig(id,null); }catch(e){}
+    }
+    await BookLibDB.deleteBook(id);
+    BooklibApp.closeEditor();
+    _renderLibrary();
+    _toast('🗑 "'+_e(b.name)+'" 삭제 완료','success');
+  }
+
   async function deleteBook(id){
     const book=BookLibDB.getBookById(id);if(!book)return;
     if(!confirm(`"${book.name}" 교재를 삭제할까요?`))return;
@@ -741,7 +752,12 @@ const BooklibApp = (() => {
       </div>
       <div class="sh-acts">
         <button class="btn-x" onclick="BooklibApp.closeEditor()">취소</button>
-        ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>`:''}
+        ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>
+        ${isAdmin?`<button onclick="if(confirm('이 교재를 삭제하시겠습니까?\\n관련 평가 설정도 삭제됩니다.'))BooklibApp._deleteBookAndConfig('${bookId}')" style="padding:10px 16px;border-radius:10px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">🗑 교재 삭제</button>`:``}
+        <button onclick="if(confirm('이 교재를 삭제하시겠습니까? 관련 평가 설정도 삭제됩니다.'))BooklibApp._deleteBookAndConfig('${bookId}')"
+          style="padding:10px 16px;border-radius:10px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">
+          🗑 교재 삭제
+        </button>`:''} 
       </div>`;
     if(isAdmin&&_editorTab==='chapters')_bindDrop('bl-ch-drop',book.id,_importChFile);
     // 학생 검색 이벤트
@@ -2107,7 +2123,7 @@ const BooklibApp = (() => {
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     _saveExempts, _loadExempts,
-    _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
+    _archiveBook,_unarchiveBook,_copyBook, _openEvalTab, _deleteBookAndConfig,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
     _openRegModal, _modalAddBook, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
     _multiCopy, _multiDelete, _multiMoveUp, _multiMoveDown, _moveBook,
