@@ -1003,7 +1003,7 @@ const GradeApp = (() => {
         <div style="display:grid;grid-template-columns:repeat(3,max-content) 1fr 1fr;gap:8px 16px;align-items:start;overflow-x:auto">
           <div>
             <div class="gr-rpt-cfg-title">레이아웃</div>
-            <div class="gr-rpt-layouts">${[1,2,3,4,5,6].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
+            <div class="gr-rpt-layouts">${[1,2,3,4,5].map(n=>`<button class="gr-rpt-lbtn ${_st.reportLayout===n?'on':''}" onclick="GradeApp._setLayout(${n})">L${n}</button>`).join('')}</div>
           </div>
           <div>
             <div class="gr-rpt-cfg-title">📄 페이지</div>
@@ -1230,12 +1230,11 @@ const GradeApp = (() => {
       +(achWInfo2!=null?'<div style="text-align:right"><div style="font-size:26px;font-weight:900;color:#059669">'+achWInfo2+'%</div><div style="font-size:10px;color:#6b7280">단어 성취율</div></div>':'')
       +'</div>';
     const bodies={
-      1:[hdr,info,wordTbl,rdTbl,graph,comment],
-      3:[hdr,info,wordTbl,comment,rdTbl,graph],
-      4:[hdr,infoCard,wordCard,graph,rdCard,cmtCard],
-      5:[hdr,info,graph,comment,wordTbl,rdTbl],
-      6:[hdr,infoCard,twoColL6],
-      7:[hdr,dashL7],
+      1:[hdr,info,wordTbl,rdTbl,graph,comment],           /* L1: 단어→리딩→그래프→코멘트 */
+      2:[hdr,info,wordTbl,comment,rdTbl,graph],            /* L2(구L3): 단어→코멘트→리딩→그래프 */
+      3:[hdr,info,graph,comment,wordTbl,rdTbl],            /* L3(구L5): 그래프→코멘트→단어→리딩 */
+      4:[hdr,infoCard,wordCard,graph,rdCard,cmtCard],      /* L4: 카드형 */
+      5:[hdr,infoCard,twoColL6],                           /* L5(구L6): 2컬럼 */
     };
     return(bodies[L]||bodies[1]).filter(Boolean).join('');
   }
@@ -1592,45 +1591,128 @@ const GradeApp = (() => {
   }
   async function _copyReport(){const el=document.getElementById('gr-rpt-preview');try{await navigator.clipboard.writeText(el?.innerText||'');_toast('📋 복사됐습니다','success');}catch{_toast('⚠️ 복사 실패');}}
   async function _shareReport(){
-    const el=document.getElementById('gr-rpt-preview');if(!el)return;
-    const s=_getStudents().find(st=>st.id===_st.studentId)||_getStudents()[0];
-    const name=s?s.name:'';
-    const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
-    const styles=[...document.styleSheets].map(ss=>{try{return[...ss.cssRules].map(r=>r.cssText).join('\n');}catch{return '';}}).join('\n');
-    const css=`@charset "UTF-8";
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
-body{margin:0;padding:20px;background:#f8fafc;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;display:flex;justify-content:center;}
-${styles}
-.gr-rpt-fixed-btns,.gr-rpt-cfg,.rpt-acts{display:none!important}
-.rpt-wrap{max-width:${pw};width:100%;margin:0 auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);}
-img{max-width:100%}`;
-    const title=`${name} 학생 성적 리포트`;
-    const html=['<!DOCTYPE html><html lang="ko"><head>',
-      '<meta charset="UTF-8">',
-      '<meta name="viewport" content="width=device-width,initial-scale=1">',
-      `<meta property="og:title" content="${title}">`,
-      `<meta property="og:description" content="해피트리 영어학원 Achievement Report">`,
-      `<title>${title}</title>`,
-      `<style>${css}</style>`,
-      '</head><body>',
-      el.outerHTML,
-      '</body></html>'].join('');
-    try{
-      // Blob URL 생성 후 Web Share API
-      const blob=new Blob([html],{type:'text/html'});
-      const url=URL.createObjectURL(blob);
-      if(navigator.share){
-        await navigator.share({title,url});
-        _toast('📤 공유 완료','success');
-        setTimeout(()=>URL.revokeObjectURL(url),30000);
-      } else {
-        // 새 창에서 리포트 열기
-        const win=window.open('','_blank','width=900,height=700');
-        if(win){win.document.open();win.document.write(html);win.document.close();_toast('📤 새 창에서 리포트를 확인하세요','success');}
-        else _toast('⚠️ 팝업을 허용해주세요','error');
-        URL.revokeObjectURL(url);
+    const el = document.getElementById('gr-rpt-preview'); if (!el) return;
+    const s = _getStudents().find(st=>st.id===_st.studentId) || _getStudents()[0];
+    if (!s) { _toast('⚠️ 학생을 먼저 선택해주세요'); return; }
+
+    const cls  = _getCls(_st.classId);
+    const book = typeof BookLibDB !== 'undefined' ? BookLibDB.getBookById(_st.bookId) : null;
+    const pw   = {A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize] || '210mm';
+    const title= `${s.name}${s.nickname?'('+s.nickname+')':''} 성적 리포트`;
+
+    /* 현재 적용된 inline 스타일까지 포함한 HTML 추출 */
+    const reportHtml = el.outerHTML;
+
+    /* 완전한 standalone HTML 생성 */
+    const standaloneCss = `
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800;900&display=swap');
+      *{box-sizing:border-box;}
+      body{margin:0;padding:24px 16px;background:#f1f5f9;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;display:flex;justify-content:center;min-height:100vh;}
+      .rpt-wrap{max-width:${pw};width:100%;margin:0 auto;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.12);overflow:hidden;}
+      .rpt-title{font-weight:900;}
+      .rpt-header{display:grid;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;}
+      .rpt-divider{border:none;border-top:1px solid #e2e8f0;margin:10px 0;}
+      .rpt-info p{margin:4px 0;}
+      .rpt-sec-title{font-size:14px;font-weight:800;color:#111;margin:14px 0 6px;}
+      .rpt-tbl{width:100%;border-collapse:collapse;margin-bottom:12px;}
+      .rpt-tbl th{padding:7px 10px;text-align:center;font-size:11px;font-weight:800;border:1px solid #e2e8f0;}
+      .rpt-tbl td{border:1px solid #e2e8f0;padding:7px 10px;text-align:center;font-size:13px;}
+      .rpt-pass{color:#16a34a;font-weight:700;}
+      .rpt-fail{color:#ea580c;font-weight:700;}
+      .rpt-achv{color:#8b5cf6;font-weight:800;}
+      .rpt-avg td{font-weight:700;}
+      .rpt-comment-box{border:1.5px solid #e2e8f0;border-radius:8px;padding:12px 14px;min-height:60px;font-size:12px;color:#374151;line-height:1.8;background:#fafafa;}
+      img{max-width:100%;height:auto;}
+      /* 공유 페이지 헤더 */
+      #share-bar{background:#1a3a2a;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;position:sticky;top:0;z-index:99;}
+      #share-bar a{color:#86efac;text-decoration:none;}
+      #share-bar button{padding:5px 14px;border-radius:6px;background:#16a34a;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;}`;
+
+    const shareDate = new Date().toLocaleDateString('ko-KR');
+    const fullHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="해피트리 영어학원 Achievement Report · ${shareDate}">
+<title>${title} — 해피트리 영어학원</title>
+<style>${standaloneCss}</style>
+</head>
+<body>
+<div id="share-bar">
+  <span>🌳 해피트리 영어학원 · ${_e(cls?.name||'')}반 · ${_e(book?.name||'')}</span>
+  <button onclick="window.print()">🖨️ 인쇄</button>
+</div>
+${reportHtml}
+</body>
+</html>`;
+
+    /* ① Firebase 저장 시도 */
+    if (typeof FireDB !== 'undefined' && FireDB.ready()) {
+      try {
+        const shareId  = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        const sharePath= `hakwon10/sharedReports/${shareId}`;
+        await FireDB.set(sharePath, {
+          html:      fullHtml,
+          title,
+          student:   s.name,
+          class:     cls?.name  || '',
+          book:      book?.name || '',
+          createdAt: new Date().toISOString(),
+          expires:   Date.now() + 30 * 24 * 60 * 60 * 1000, /* 30일 */
+        });
+        /* 공유 URL */
+        const base    = location.origin + location.pathname.replace(/\/[^/]*$/, '/');
+        const shareUrl= `${base}?rpt=${shareId}`;
+        /* Web Share API */
+        if (navigator.share && navigator.canShare({ url: shareUrl })) {
+          await navigator.share({ title, url: shareUrl });
+          _toast('📤 공유 완료', 'success');
+        } else {
+          await navigator.clipboard.writeText(shareUrl).catch(()=>{});
+          _showShareModal(shareUrl, fullHtml, title);
+        }
+        return;
+      } catch(e) {
+        console.warn('[ShareReport] Firebase 실패, 로컬 폴백:', e);
       }
-    }catch(e){if(e.name!=='AbortError')_toast('⚠️ 공유 실패: '+e.message,'error');}
+    }
+
+    /* ② 폴백: 새 창으로 열기 */
+    _showShareModal(null, fullHtml, title);
+  }
+
+  function _showShareModal(url, html, title) {
+    /* 기존 모달 제거 */
+    document.getElementById('gr-share-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'gr-share-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 20px 32px;box-shadow:var(--sh2)" onclick="event.stopPropagation()">
+        <div style="width:40px;height:4px;border-radius:2px;background:var(--bdr2);margin:0 auto 16px"></div>
+        <div style="font-size:16px;font-weight:800;color:var(--tx);margin-bottom:4px">📤 리포트 공유</div>
+        ${url ? `
+          <div style="margin:10px 0;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px">
+            <div style="flex:1;font-size:12px;color:var(--a);word-break:break-all" id="gr-share-url">${url}</div>
+            <button style="padding:6px 12px;border-radius:8px;background:var(--a);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0"
+              onclick="navigator.clipboard.writeText('${url}').then(()=>GradeApp._toast('📋 링크 복사됨','success'))">복사</button>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button style="flex:1;padding:12px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer"
+              onclick="window.open('${url}','_blank');document.getElementById('gr-share-modal').remove()">🔗 링크 열기</button>
+            <button style="flex:1;padding:12px;border-radius:10px;background:var(--surf2);color:var(--tx2);border:1px solid var(--bdr);font-size:13px;font-weight:700;cursor:pointer"
+              onclick="${(()=>{const sd={title,url};if(navigator.share&&navigator.canShare?.(sd))navigator.share(sd);})};document.getElementById('gr-share-modal').remove()">📲 카톡/SNS 공유</button>
+          </div>
+        ` : ''}
+        <button style="width:100%;margin-top:10px;padding:12px;border-radius:10px;background:rgba(5,150,105,.1);color:var(--green);border:1px solid rgba(5,150,105,.3);font-size:13px;font-weight:700;cursor:pointer"
+          onclick="const w=window.open('','_blank','width=820,height=700');if(w){w.document.write(${JSON.stringify(html)});w.document.close();}document.getElementById('gr-share-modal').remove()">🌐 새 창으로 보기</button>
+        <button style="width:100%;margin-top:8px;padding:12px;border-radius:10px;background:var(--surf2);color:var(--tx3);border:1px solid var(--bdr);font-size:13px;font-weight:700;cursor:pointer"
+          onclick="document.getElementById('gr-share-modal').remove()">닫기</button>
+      </div>`;
+    modal.addEventListener('click', ()=>modal.remove());
+    document.body.appendChild(modal);
   }
 
   
@@ -2095,7 +2177,7 @@ img{max-width:100%}`;
     saveOne, saveAll, resetOne,
     _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel, _setRptBg,
     _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
-    _copyReport, _shareReport, _printReport, _captureReport,
+    _copyReport, _shareReport, _printReport, _captureReport, _showShareModal,
     openReport, closeReport, _copy, _shr,
   };
 })();
