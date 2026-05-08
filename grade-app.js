@@ -1482,11 +1482,7 @@ const GradeApp = (() => {
   function _setTitleAlign(align) {
     _st.titleAlign = align;
     localStorage.setItem('gr_titleAlign', align);
-    /* 실시간 DOM 반영 */
-    document.querySelectorAll('#gr-rpt-preview .rpt-title').forEach(el => {
-      el.style.textAlign = align;
-    });
-    /* 버튼 상태 업데이트 */
+    _applyRptStyles();
     document.querySelectorAll('[id^="gr-ta-"]').forEach(b => {
       const a = b.id.replace('gr-ta-', '');
       const on = a === align;
@@ -1501,10 +1497,7 @@ const GradeApp = (() => {
     if (type === 'headerBg')    { _st.tblHeaderBg    = val; localStorage.setItem('gr_tblHdrBg',  val); }
     if (type === 'headerColor') { _st.tblHeaderColor = val; localStorage.setItem('gr_tblHdrClr', val); }
     if (type === 'cellBg')      { _st.tblCellBg      = val; localStorage.setItem('gr_tblCellBg', val); }
-    const pw = document.getElementById('gr-rpt-preview'); if (!pw) return;
-    if (type === 'headerBg'   ) pw.querySelectorAll('.rpt-tbl th').forEach(el => el.style.background = val);
-    if (type === 'headerColor') pw.querySelectorAll('.rpt-tbl th').forEach(el => el.style.color = val);
-    if (type === 'cellBg'     ) pw.querySelectorAll('.rpt-tbl td').forEach(el => el.style.background = val);
+    _applyRptStyles();
   }
 
   /* ── 추천 테마 3종 ──
@@ -1546,6 +1539,38 @@ const GradeApp = (() => {
     if (hdrClEl) hdrClEl.value = t.tblHeaderColor;
     const cellEl  = document.querySelector('[oninput*="cellBg"]');
     if (cellEl)  cellEl.value  = t.tblCellBg;
+    requestAnimationFrame(_applyRptStyles);
+  }
+
+  /* ★ 리포트 스타일 일괄 적용 — _buildReport 재빌드 후에도 _st 값 반영 */
+  function _applyRptStyles() {
+    const pw = document.getElementById('gr-rpt-preview'); if (!pw) return;
+    /* 표 헤더 */
+    pw.querySelectorAll('.rpt-tbl th').forEach(el => {
+      el.style.background = _st.tblHeaderBg   || '#f1f5f9';
+      el.style.color      = _st.tblHeaderColor || '#475569';
+      el.style.borderColor= _st.dividerColor   || '#e2e8f0';
+      el.style.borderWidth= (_st.dividerWidth  || 1) + 'px';
+    });
+    /* 표 셀 */
+    pw.querySelectorAll('.rpt-tbl td').forEach(el => {
+      el.style.background = _st.tblCellBg    || '#ffffff';
+      el.style.borderColor= _st.dividerColor  || '#e2e8f0';
+      el.style.borderWidth= (_st.dividerWidth || 1) + 'px';
+    });
+    /* 코멘트 박스 */
+    pw.querySelectorAll('.rpt-comment-box').forEach(el => {
+      el.style.borderColor= _st.dividerColor  || '#e2e8f0';
+    });
+    /* 표 라운드 */
+    pw.querySelectorAll('.rpt-tbl').forEach(el => {
+      el.style.borderRadius = _st.tableRound ? '10px' : '0';
+      el.style.overflow     = _st.tableRound ? 'hidden' : '';
+    });
+    /* 제목 정렬 */
+    pw.querySelectorAll('.rpt-title').forEach(el => {
+      el.style.textAlign = _st.titleAlign || 'center';
+    });
   }
 
   function _setLayout(n){
@@ -1558,6 +1583,7 @@ const GradeApp = (() => {
       const m = b.getAttribute('onclick')?.match(/_setLayout\((\d+)\)/);
       b.classList.toggle('on', m && Number(m[1])===n);
     });
+    requestAnimationFrame(_applyRptStyles);
   }
   function _toggleGraph(v){
     _st.reportGraph=v;
@@ -2068,6 +2094,7 @@ img{max-width:100%}`;
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
     _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel, _setRptBg,
+    _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
     _copyReport, _shareReport, _printReport, _captureReport,
     openReport, closeReport, _copy, _shr,
   };
