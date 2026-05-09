@@ -289,10 +289,20 @@ const BookLibDB = (() => {
 
   // ★ 면제 학생 저장/로드 (localStorage, classId 기준)
   const _EXEMPT_KEY = classId => 'bl_class_exempt_' + classId;
-  function saveClassExempts(classId, exempts) {
+  async function saveClassExempts(classId, exempts) {
     try { localStorage.setItem(_EXEMPT_KEY(classId), JSON.stringify(exempts)); } catch(e) {}
+    try {
+      if(typeof FireDB!=='undefined'&&FireDB.ready())
+        await FireDB.set('hakwon10/exempts/'+classId, exempts);
+    } catch(e) {}
   }
-  function loadClassExempts(classId) {
+  async function loadClassExempts(classId) {
+    try {
+      if(typeof FireDB!=='undefined'&&FireDB.ready()){
+        const data = await FireDB.get('hakwon10/exempts/'+classId);
+        if(data){ localStorage.setItem(_EXEMPT_KEY(classId), JSON.stringify(data)); return data; }
+      }
+    } catch(e) {}
     try { return JSON.parse(localStorage.getItem(_EXEMPT_KEY(classId)) || '{}'); } catch(e) { return {}; }
   }
 
@@ -335,5 +345,6 @@ const BookLibDB = (() => {
     detectChapterType, getSubtaskOptions, SUBTASKS,
     _parseCheck, _serCheck,
     saveClassExempts, loadClassExempts,
+    saveMemo, loadMemo,
   };
 })();

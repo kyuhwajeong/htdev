@@ -1139,6 +1139,7 @@ const BooklibApp = (() => {
         <button class="bl-wbtn" title="글자 크기 줄이기" onclick="BooklibApp._mtblFontSize(-1)">A-</button>
         <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
+         <button class="bl-report-btn" onclick="BooklibApp.openBatchImport()" title="여러 xlsx 파일 일괄 반영" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.4);color:#059669">📂 일괄 반영</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
         <input type="file" id="bl-csv-inp" accept=".xlsx,.xls,.csv" style="display:none"
@@ -2380,7 +2381,262 @@ const BooklibApp = (() => {
     return Array.from(e.dataTransfer?.types || []).includes('Files');
   }
 
-  /* ══ PUBLIC ══ */
+
+  // ★★★ 일괄 xlsx 반영 ★★★
+  // 파일명에서 반 이름과 교재명 추출하여 매칭
+  function _normStr(s){ return String(s||'').replace(/[\s　]+/g,'').toLowerCase(); }
+
+  function _matchFileToTarget(fname){
+    // 파일명 예: "04.[T2] 단어가 된다 2_전체평가표_2026-05-07.xlsx"
+    // 반: T2, 교재: 단어가 된다 2
+    const allCls  = typeof DB!=='undefined'?DB.getActiveClasses():[];
+    const allBks  = BookLibDB.getBooks().filter(b=>!b.archived);
+    const fnNorm  = _normStr(fname);
+
+    // 반 매칭: 반 이름이 파일명에 포함되어 있는지
+    let matchedCls = null;
+    for(const cls of allCls){
+      if(fnNorm.includes(_normStr(cls.name))){
+        // 더 긴 이름이 매칭되면 우선 (예: T2 vs T20 충돌 방지)
+        if(!matchedCls || cls.name.length > matchedCls.name.length)
+          matchedCls = cls;
+      }
+    }
+
+    // 교재 매칭: 교재명(공백제거)이 파일명에 포함
+    let matchedBk = null;
+    for(const bk of allBks){
+      const bkNorm = _normStr(bk.name);
+      if(bkNorm.length>=2 && fnNorm.includes(bkNorm)){
+        if(!matchedBk || bk.name.length > matchedBk.name.length)
+          matchedBk = bk;
+      }
+    }
+
+    // 추가: 교재가 해당 반에 배정됐는지 확인
+    if(matchedCls && matchedBk){
+      const assigned = (matchedBk.classIds||[]).includes(matchedCls.id);
+      return {cls:matchedCls, bk:matchedBk, assigned};
+    }
+    return {cls:matchedCls, bk:matchedBk, assigned:false};
+  }
+
+  function openBatchImport(){
+    document.getElementById('bl-batch-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'bl-batch-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick = e=>{ if(e.target===modal) modal.remove(); };
+
+    const sheet = document.createElement('div');
+    sheet.style.cssText = 'background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18)';
+
+    // 헤더
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
+    hdr.innerHTML = '<div><div style="font-size:16px;font-weight:800">📂 일괄 xlsx 반영</div><div style="font-size:11px;color:var(--tx3);margin-top:2px">여러 파일을 한번에 드래그하여 반영합니다</div></div>';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent='✕'; closeBtn.style.cssText='background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)';
+    closeBtn.onclick=()=>modal.remove();
+    hdr.appendChild(closeBtn);
+    sheet.appendChild(hdr);
+
+    // 드롭존
+    const dropZone = document.createElement('div');
+    dropZone.id = 'bl-batch-dropzone';
+    dropZone.style.cssText = 'border:2px dashed var(--a40);border-radius:12px;padding:24px;text-align:center;cursor:pointer;background:var(--a10);margin-bottom:14px;transition:all .2s';
+    dropZone.innerHTML = '<div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:13px;font-weight:700;color:var(--a)">여러 xlsx 파일을 여기에 드래그하세요</div><div style="font-size:11px;color:var(--tx3);margin-top:4px">또는 클릭하여 파일 선택</div>';
+
+    const fileInput = document.createElement('input');
+    fileInput.type='file'; fileInput.multiple=true; fileInput.accept='.xlsx,.xls';
+    fileInput.style.display='none';
+    fileInput.onchange = e=>_addBatchFiles([...e.target.files]);
+    dropZone.appendChild(fileInput);
+
+    dropZone.onclick = e=>{ if(e.target!==fileInput) fileInput.click(); };
+    dropZone.ondragover = e=>{ e.preventDefault(); dropZone.style.background='var(--a20)'; dropZone.style.borderColor='var(--a)'; };
+    dropZone.ondragleave = ()=>{ dropZone.style.background='var(--a10)'; dropZone.style.borderColor='var(--a40)'; };
+    dropZone.ondrop = e=>{ e.preventDefault(); dropZone.style.background='var(--a10)'; dropZone.style.borderColor='var(--a40)'; _addBatchFiles([...e.dataTransfer.files]); };
+    sheet.appendChild(dropZone);
+
+    // 파일 목록
+    const listWrap = document.createElement('div');
+    listWrap.id = 'bl-batch-list';
+    listWrap.style.cssText = 'overflow-y:auto;flex:1;max-height:320px;display:flex;flex-direction:column;gap:8px';
+    listWrap.innerHTML = '<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">추가된 파일이 없습니다</div>';
+    sheet.appendChild(listWrap);
+
+    // 하단 버튼
+    const acts = document.createElement('div');
+    acts.style.cssText = 'display:flex;gap:8px;margin-top:14px;flex-shrink:0';
+    acts.innerHTML = '<button onclick="document.getElementById(\'bl-batch-modal\')?.remove()" style="flex:1;padding:12px;border-radius:10px;background:var(--surf2);border:1px solid var(--bdr2);color:var(--tx2);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">취소</button>'
+      +'<button id="bl-batch-run-btn" onclick="BooklibApp._runBatchImport()" disabled style="flex:2;padding:12px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);box-shadow:0 3px 10px var(--a40);opacity:.4">📊 반영 시작</button>';
+    sheet.appendChild(acts);
+
+    modal.appendChild(sheet);
+    document.body.appendChild(modal);
+
+    // 내부 파일 목록 관리
+    modal._files = [];
+  }
+
+  function _addBatchFiles(files){
+    const modal = document.getElementById('bl-batch-modal');
+    if(!modal) return;
+    modal._files = modal._files || [];
+    files.filter(f=>/\.(xlsx|xls)$/i.test(f.name)).forEach(f=>{
+      if(!modal._files.find(x=>x.name===f.name)) modal._files.push(f);
+    });
+    _renderBatchList();
+  }
+
+  function _renderBatchList(){
+    const modal  = document.getElementById('bl-batch-modal');
+    const list   = document.getElementById('bl-batch-list');
+    const runBtn = document.getElementById('bl-batch-run-btn');
+    if(!modal||!list) return;
+    const files  = modal._files||[];
+
+    if(!files.length){
+      list.innerHTML = '<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">추가된 파일이 없습니다</div>';
+      if(runBtn){ runBtn.disabled=true; runBtn.style.opacity='.4'; }
+      return;
+    }
+
+    list.innerHTML = '';
+    let hasError = false;
+
+    files.forEach((f,idx)=>{
+      const match = _matchFileToTarget(f.name);
+      const ok  = match.cls && match.bk;
+      const warn= ok && !match.assigned;
+      if(!ok) hasError=true;
+
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:${ok?'var(--surf2)':'rgba(239,68,68,.07)'};border:1px solid ${ok?(warn?'rgba(245,158,11,.4)':'var(--bdr)'):'rgba(239,68,68,.3)'}`;
+
+      const icon = ok?(warn?'⚠️':'✅'):'❌';
+      const clsText  = match.cls?`<span style="background:var(--a10);color:var(--a);padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">${match.cls.name}반</span>`:`<span style="color:#dc2626;font-size:11px">반 미매칭</span>`;
+      const bkText   = match.bk?`<span style="font-size:11px;color:var(--tx2)">${match.bk.name}</span>`:`<span style="color:#dc2626;font-size:11px">교재 미매칭</span>`;
+      const warnText = warn?`<span style="font-size:10px;color:#d97706">⚠ 반에 미배정 교재</span>`:'';
+
+      row.innerHTML = `<span style="font-size:18px;flex-shrink:0">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap">${clsText}${bkText}${warnText}</div>
+        </div>
+        <button onclick="BooklibApp._removeBatchFile(${idx})" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:16px;flex-shrink:0">✕</button>`;
+      list.appendChild(row);
+    });
+
+    if(runBtn){
+      const canRun = files.some(f=>{ const m=_matchFileToTarget(f.name); return m.cls&&m.bk; });
+      runBtn.disabled = !canRun;
+      runBtn.style.opacity = canRun?'1':'.4';
+      runBtn.style.cursor  = canRun?'pointer':'not-allowed';
+    }
+  }
+
+  function _removeBatchFile(idx){
+    const modal = document.getElementById('bl-batch-modal');
+    if(!modal) return;
+    modal._files.splice(idx,1);
+    _renderBatchList();
+  }
+
+  async function _runBatchImport(){
+    const modal  = document.getElementById('bl-batch-modal');
+    const runBtn = document.getElementById('bl-batch-run-btn');
+    if(!modal) return;
+    const files = modal._files||[];
+    if(!files.length) return;
+
+    if(runBtn){ runBtn.disabled=true; runBtn.textContent='⏳ 처리 중...'; }
+
+    const results = [];
+    for(const f of files){
+      const match = _matchFileToTarget(f.name);
+      if(!match.cls||!match.bk){
+        results.push({name:f.name, ok:false, msg:'반/교재 매칭 실패 - 건너뜀'});
+        continue;
+      }
+      try{
+        // 이전 상태 백업 및 임시 설정
+        const prevCls = _st.matrixClassId, prevBk = _st.matrixBookId;
+        _st.matrixClassId = match.cls.id;
+        _st.matrixBookId  = match.bk.id;
+        _checks = BookLibDB.getMatrixChecks(match.cls.id, match.bk.id);
+        _stamps = BookLibDB.getStamps(match.cls.id, match.bk.id);
+
+        // ★ 해당 반+교재의 저장된 예외 설정 로드
+        const exempts = await BookLibDB.loadClassExempts(match.cls.id)||{};
+        const bkExempts = {};
+        Object.entries(exempts).forEach(([k,v])=>{
+          if(!v.bookId || v.bookId===match.bk.id) bkExempts[k]=v;
+        });
+        _csvImportState.exceptions = Object.fromEntries(
+          Object.entries(bkExempts).map(([k,v])=>[k,{items:Array.isArray(v)?v:(v.items||[]),useAlias:v.useAlias||false,alias:v.alias||null}])
+        );
+        _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length>0;
+
+        // xlsx 처리
+        const buf  = await f.arrayBuffer();
+        const wb   = XLSX.read(buf,{type:'array'});
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rawRows = XLSX.utils.sheet_to_json(ws,{defval:''});
+        const rows = rawRows.map(r=>{
+          const n={...r};
+          if(!n['제목']&&n['세트 제목']) n['제목']=n['세트 제목'];
+          if(!n['완료']&&n['완료여부'])  n['완료']=n['완료여부'];
+          return n;
+        });
+
+        await _syncChaptersFromXlsx(rows, match.bk.id);
+        const res = await _processCsv(rows);
+        results.push({name:f.name, ok:true,
+          msg:`✅ ${match.cls.name}반 · ${match.bk.name} — 미수행 ${res.undone}건, 수행 ${res.done}건${res.stampTitle?' | 📍'+res.stampTitle:''}` });
+
+        // 현재 화면 반영 (현재 선택된 반+교재이면 새로고침)
+        _st.matrixClassId = prevCls; _st.matrixBookId = prevBk;
+        if(prevCls===match.cls.id && prevBk===match.bk.id) _refreshBody();
+      } catch(err){
+        results.push({name:f.name, ok:false, msg:'❌ 오류: '+err.message});
+      }
+    }
+
+    // 결과 표시
+    modal.remove();
+    _showBatchResult(results);
+  }
+
+  function _showBatchResult(results){
+    document.getElementById('bl-batch-result')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'bl-batch-result';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+    const ok  = results.filter(r=>r.ok).length;
+    const err = results.filter(r=>!r.ok).length;
+    const rows = results.map(r=>`<div style="padding:10px 12px;border-radius:10px;background:${r.ok?'var(--surf2)':'rgba(239,68,68,.07)'};border:1px solid ${r.ok?'var(--bdr)':'rgba(239,68,68,.3)'};margin-bottom:6px">
+      <div style="font-size:11px;font-weight:700">${r.name}</div>
+      <div style="font-size:11px;margin-top:4px;color:${r.ok?'var(--green)':'#dc2626'}">${r.msg}</div>
+    </div>`).join('');
+    modal.innerHTML=`<div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:16px;font-weight:800">📊 일괄 반영 결과</div>
+          <div style="font-size:12px;color:var(--tx3);margin-top:2px">성공 ${ok}건 / 실패 ${err}건</div>
+        </div>
+        <button onclick="document.getElementById('bl-batch-result').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">${rows}</div>
+      <button onclick="document.getElementById('bl-batch-result').remove()" style="margin-top:14px;width:100%;padding:12px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">확인</button>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  // ★★★ 일괄 반영 끝 ★★★
+
+    /* ══ PUBLIC ══ */
   return{
     init,render,switchTab,
     _addExcRow,
@@ -2395,6 +2651,7 @@ const BooklibApp = (() => {
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
+    openBatchImport, _addBatchFiles, _removeBatchFile, _runBatchImport,
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
