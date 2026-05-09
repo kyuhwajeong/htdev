@@ -57,6 +57,7 @@ const BooklibApp = (() => {
 .bl-book-card.has-ch{background:linear-gradient(135deg,var(--card) 80%,rgba(5,150,105,.06));}
 .bl-book-card:not(.has-ch):not(.archived){background:linear-gradient(135deg,var(--card) 80%,rgba(59,130,246,.05));}
 .bl-book-card.archived{background:var(--surf2);opacity:.75;cursor:default;}
+.bl-stu-dropdown{position:absolute;left:0;right:0;top:100%;z-index:100;background:var(--card);border:1.5px solid var(--a40);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px;}
 .bl-book-card.multi-selecting{cursor:default;}
 .bl-multi-ck{margin-right:2px;}
 .bl-book-card:hover{border-color:var(--a40);}
@@ -333,6 +334,30 @@ const BooklibApp = (() => {
     sheet.appendChild(listEl); modal.appendChild(sheet); document.body.appendChild(modal);
   }
 
+  function _inlineRenameBook(bookId, titleEl){
+    const cur = titleEl.textContent.trim();
+    const inp = document.createElement('input');
+    inp.value = cur;
+    inp.style.cssText = 'width:100%;font-size:14px;font-weight:800;padding:2px 6px;border:2px solid var(--a);border-radius:6px;background:var(--surf2);font-family:var(--font);outline:none';
+    titleEl.replaceWith(inp);
+    inp.focus(); inp.select();
+    const confirm_rename = async () => {
+      const newName = inp.value.trim();
+      if(newName && newName !== cur) {
+        await BookLibDB.updateBook(bookId, {name: newName});
+        _renderLibrary();
+        _toast('✅ 교재명 변경: ' + newName, 'success');
+      } else {
+        _renderLibrary();
+      }
+    };
+    inp.addEventListener('blur', confirm_rename);
+    inp.addEventListener('keydown', e => {
+      if(e.key==='Enter') { inp.blur(); }
+      if(e.key==='Escape') { inp.value=cur; inp.blur(); }
+    });
+  }
+
   function _renderLibrary(){
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
@@ -420,7 +445,7 @@ const BooklibApp = (() => {
         ${isAdmin&&!isArchived?`<input type="checkbox" class="bl-multi-ck" data-bid="${b.id}" onclick="event.stopPropagation();BooklibApp._onMultiCkChange()" style="display:none;width:17px;height:17px;accent-color:var(--a);cursor:pointer;flex-shrink:0">`:''} 
         <div class="bl-book-ico">${isArchived?'📦':'📖'}</div>
         <div class="bl-book-info" style="flex:1;min-width:0">
-          <div class="bl-book-title">${_e(b.name)}</div>
+          <div class="bl-book-title" ondblclick="event.stopPropagation();BooklibApp._inlineRenameBook('${b.id}',this)" title="더블클릭하여 교재명 변경">${_e(b.name)}</div>
           <div class="bl-book-meta">
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
             ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:`<span class="bl-badge" style="color:var(--tx3)">반 미배정</span>`}
@@ -787,7 +812,10 @@ const BooklibApp = (() => {
     const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
     const cfg=_st.editConfig;
     // 학생 목록 (DB.getStudents 지원 시)
-    const allStus=typeof DB!=='undefined'&&typeof DB.getStudents==='function'?DB.getStudents():[];
+    // ★ 전체 반 학생 목록 (StudentDB 우선, 초성 검색 지원)
+    const allStus=typeof StudentDB!=='undefined'
+      ?StudentDB.getAll().filter(s=>s.status!=='퇴원')
+      :(typeof StudentDB!=='undefined'?StudentDB.getFiltered({}):[]); 
 
     sh.innerHTML=`
       <div class="sh-handle"></div>
@@ -919,7 +947,7 @@ const BooklibApp = (() => {
         onmouseover="this.style.background='var(--a10)'" onmouseout="this.style.background=''">
         <span style="font-size:13px;font-weight:700;color:var(--tx)">${_e(s.name)}</span>
         ${clsLabel}
-        <span style="margin-left:auto;font-size:11px;color:var(--a);font-weight:700">+ 배정</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--a);font-weight:700">＋ 배정</span>
       </div>`;
     }).join('');
     res.style.display='block';
@@ -1266,13 +1294,13 @@ const BooklibApp = (() => {
   }
   function _toggleMemo(show){
     let pad=document.getElementById('bl-memo-pad');
+    const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
     if(show){
       if(!pad){
         pad=document.createElement('div'); pad.id='bl-memo-pad';
-        pad.style.cssText='position:fixed;right:16px;bottom:100px;width:280px;border-radius:14px;background:var(--card);border:1.5px solid var(--a40);box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:200;overflow:hidden';
-        const cls=(_getCls(_st.matrixClassId)||{}).name||'';
-        const bkName=(BookLibDB.getBookById(_st.matrixBookId)||{}).name||'';
-        const key='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
+        pad.style.cssText='position:fixed;right:16px;bottom:100px;width:300px;border-radius:14px;background:var(--card);border:1.5px solid var(--a40);box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:200;overflow:hidden';
+        const cls=(_getCls(clsId)||{}).name||'';
+        const bkName=(BookLibDB.getBookById(bkId)||{}).name||'';
         const hdrDiv=document.createElement('div');
         hdrDiv.id='bl-memo-hdr';
         hdrDiv.style.cssText='background:var(--a);color:#fff;padding:8px 12px;font-size:12px;font-weight:800;cursor:move;display:flex;justify-content:space-between;align-items:center';
@@ -1281,13 +1309,35 @@ const BooklibApp = (() => {
         xBtn.textContent='✕'; xBtn.style.cssText='background:none;border:none;color:#fff;cursor:pointer;font-size:14px';
         xBtn.onclick=()=>{const ck=document.getElementById('bl-memo-ck');if(ck)ck.checked=false;pad.style.display='none';};
         hdrDiv.appendChild(xBtn);
+        // 수정 날짜시간 표시
+        const dtDiv=document.createElement('div');
+        dtDiv.id='bl-memo-dt';
+        dtDiv.style.cssText='font-size:10px;color:var(--tx3);padding:4px 12px;border-bottom:1px solid var(--bdr);background:var(--surf2)';
+        dtDiv.textContent='저장된 메모 없음';
         const ta=document.createElement('textarea'); ta.id='bl-memo-txt';
         ta.style.cssText='width:100%;height:160px;padding:10px;border:none;outline:none;resize:vertical;font-size:12px;font-family:var(--font);background:var(--card);color:var(--tx);box-sizing:border-box';
         ta.placeholder='반·교재별 메모를 입력하세요...';
-        ta.oninput=()=>localStorage.setItem(key,ta.value);
-        pad.appendChild(hdrDiv); pad.appendChild(ta);
+        ta.oninput=()=>BooklibApp._saveMemo(ta.value);
+        pad.appendChild(hdrDiv); pad.appendChild(dtDiv); pad.appendChild(ta);
         document.body.appendChild(pad);
-        ta.value=localStorage.getItem(key)||'';
+        // DB에서 메모 로드
+        (async()=>{
+          let data=null;
+          if(typeof BookLibDB!=='undefined'&&BookLibDB.loadMemo){
+            data=await BookLibDB.loadMemo(clsId,bkId);
+          }
+          if(!data){
+            const local=localStorage.getItem('bl_memo_'+clsId+'_'+bkId);
+            if(local) data={text:local,updatedAt:null};
+          }
+          if(data){
+            ta.value=data.text||'';
+            if(data.updatedAt){
+              const d=new Date(data.updatedAt);
+              dtDiv.textContent='수정: '+d.toLocaleString('ko-KR');
+            }
+          }
+        })();
         let ox=0,oy=0,mx=0,my=0;
         hdrDiv.onmousedown=e=>{e.preventDefault();mx=e.clientX;my=e.clientY;
           document.onmousemove=e2=>{ox=mx-e2.clientX;oy=my-e2.clientY;mx=e2.clientX;my=e2.clientY;
@@ -1295,11 +1345,23 @@ const BooklibApp = (() => {
           document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};};
       } else pad.style.display='block';
     } else { if(pad) pad.style.display='none'; }
-    // ★ 반+교재별 체크 상태 저장
-    const _ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
+    const _ckKey='bl_memo_ck_'+clsId+'_'+bkId;
     localStorage.setItem(_ckKey, show?'1':'0');
   }
-  function _saveMemo(val){ localStorage.setItem('bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId,val); }
+  function _saveMemo(val){
+    const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
+    const now=new Date().toISOString();
+    const data={text:val, updatedAt:now};
+    // localStorage 즉시 저장
+    localStorage.setItem('bl_memo_'+clsId+'_'+bkId, val);
+    // DB 비동기 저장
+    if(typeof BookLibDB!=='undefined'&&BookLibDB.saveMemo){
+      BookLibDB.saveMemo(clsId, bkId, data).catch(()=>{});
+    }
+    // 날짜시간 업데이트
+    const dtDiv=document.getElementById('bl-memo-dt');
+    if(dtDiv) dtDiv.textContent='수정: '+new Date(now).toLocaleString('ko-KR');
+  }
   function _restoreMemoState(){
     const ck=document.getElementById('bl-memo-ck');
     if(!ck||!_st.matrixClassId||!_st.matrixBookId) return;
@@ -2257,7 +2319,7 @@ const BooklibApp = (() => {
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
-    _openRegModal, _modalAddBook, _openArchivedPopup, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
+    _openRegModal, _modalAddBook, _openArchivedPopup, _inlineRenameBook, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
     _multiCopy, _multiDelete, _multiMoveUp, _multiMoveDown, _moveBook,
     _renameBook, _excAutoComplete,
   };

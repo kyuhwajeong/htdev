@@ -130,7 +130,9 @@ const App = (() => {
     if(typeof LOGO==='undefined')return;
     ['spl-logo-img','op-logo'].forEach(id=>{const el=document.getElementById(id);if(el)el.src=LOGO.small;});
   }
-  function _hideSplash(){const sp=document.getElementById('splash');sp.classList.add('out');setTimeout(()=>{sp.style.display='none';document.getElementById('app').classList.remove('hidden');go('operate');},480);}
+  function _hideSplash(){const sp=document.getElementById('splash');sp.classList.add('out');setTimeout(()=>{sp.style.display='none';document.getElementById('app').classList.remove('hidden');
+      if(!DB.isLoggedIn()){_showLogin();}else{go(DB.getRole()==='teacher'?'operate':S.page||'operate');}
+    },480);}
   function _setSt(m){const e=_q('spl-st');if(e)e.textContent=m;}
   function _syncDot(s){const d=_q('sync-dot');if(!d)return;d.style.background=s==='on'?'var(--green)':s==='saving'?'var(--orange)':'var(--tx3)';}
 
@@ -468,8 +470,8 @@ const App = (() => {
           Object.keys(BookLibDB.getMatrixChecks(clsId,_matchBk.id)).length>0;
         if(_hasData){
           const ccBtn=document.createElement('button');
-          ccBtn.textContent='📊 클래스카드'; ccBtn.title='학습 현황 보기';
-          ccBtn.style.cssText='font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:var(--a);cursor:pointer;white-space:nowrap;flex-shrink:0';
+          ccBtn.textContent='📊'; ccBtn.title='학습 현황 보기';
+          ccBtn.style.cssText='font-size:11px;padding:4px 10px;border-radius:7px;background:var(--a);color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;font-weight:700;box-shadow:0 2px 6px var(--a40)';
           ccBtn.onclick=()=>App._showClassCard(clsId,_matchBk.id,b.name);
           row.insertBefore(ccBtn,right);
         }

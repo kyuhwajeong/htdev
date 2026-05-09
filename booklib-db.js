@@ -296,6 +296,32 @@ const BookLibDB = (() => {
     try { return JSON.parse(localStorage.getItem(_EXEMPT_KEY(classId)) || '{}'); } catch(e) { return {}; }
   }
 
+  // ★ 메모 DB 저장 (Firebase + localStorage 이중 저장)
+  async function saveMemo(classId, bookId, data){
+    const key=classId+'_'+bookId;
+    const payload={...data, updatedAt:new Date().toISOString()};
+    try{
+      if(typeof FireDB!=='undefined'&&FireDB.ready()){
+        await FireDB.set('memos/'+key, payload);
+      }
+      localStorage.setItem('bl_memo_db_'+key, JSON.stringify(payload));
+    }catch(e){ localStorage.setItem('bl_memo_db_'+key, JSON.stringify(payload)); }
+  }
+  async function loadMemo(classId, bookId){
+    const key=classId+'_'+bookId;
+    try{
+      if(typeof FireDB!=='undefined'&&FireDB.ready()){
+        const data=await FireDB.get('memos/'+key);
+        if(data){ localStorage.setItem('bl_memo_db_'+key, JSON.stringify(data)); return data; }
+      }
+    }catch(e){}
+    const local=localStorage.getItem('bl_memo_db_'+key);
+    return local?JSON.parse(local):null;
+  }
+  async function saveMemoCheck(classId, bookId, checked){
+    await saveMemo(classId, bookId, {checked});
+  }
+
   return {
     init, on,
     getBooks, getAllBooks, getArchivedBooks, getBookById,
