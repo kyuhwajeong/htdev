@@ -104,8 +104,16 @@ const GradeApp = (() => {
 
 /* fixed student col */
 .gr-sheet .gs-fix{position:sticky;left:0;z-index:3;background:var(--surf);border:1px solid var(--bdr);padding:5px 8px;min-width:130px;width:130px;cursor:pointer;}
-.gr-sheet thead .gs-fix{z-index:5;background:var(--surf2);}
+.gr-sheet thead .gs-fix{z-index:6;background:var(--surf2);}
 .gr-sheet .gs-fix.sel,.gr-sheet .gs-fix:hover{background:var(--a10);}
+/* ★ 헤더 3행 모두 sticky 고정 */
+.gr-sheet thead th{position:sticky;z-index:4;background:var(--surf2);}
+.gr-sheet thead tr:first-child th{top:0;}
+.gr-sheet thead tr:nth-child(2) th{top:34px;}
+.gr-sheet thead tr:nth-child(3) th{top:68px;}
+.gr-sheet thead tr:first-child .gs-fix{top:0;z-index:7;}
+.gr-sheet thead tr:nth-child(2) .gs-fix{top:34px;z-index:7;}
+.gr-sheet thead tr:nth-child(3) .gs-fix{top:68px;z-index:7;}
 
 /* header */
 .gs-th{background:var(--surf2);border:1px solid var(--bdr);padding:5px 6px;font-size:12px;font-weight:800;color:var(--tx2);text-align:center;white-space:nowrap;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;}
@@ -843,6 +851,10 @@ const GradeApp = (() => {
           ${students.map((_,i) => `<div class="gr-carousel-dot ${i===idx?'on':''}" onclick="GradeApp._slideTo(${i})"></div>`).join('')}
         </div>
       </div>`;
+    /* ★ 저장된 카드 폰트 크기 즉시 적용 */
+    if (_st.hdrFontSize && _st.hdrFontSize !== 12) {
+      requestAnimationFrame(() => _setHdrFontSize(_st.hdrFontSize));
+    }
   }
 
   function _cardBody(s, active) {
@@ -1451,10 +1463,13 @@ const GradeApp = (() => {
   function _setHdrFontSize(val){
     _st.hdrFontSize = Number(val);
     localStorage.setItem('gr_hdrFontSz', val);
-    const lbl = document.getElementById('gr-hdr-sz-lbl');
-    if(lbl) lbl.textContent = val+'px';
-    // 모든 헤더 th에 적용
-    document.querySelectorAll('.gs-th').forEach(th => { th.style.fontSize = val+'px'; });
+    const lbl = document.getElementById('gr-hdr-sz-lbl'); if(lbl) lbl.textContent = val+'px';
+    /* 엑셀 모드: 헤더 th 적용 */
+    document.querySelectorAll('.gr-sheet thead th').forEach(th => th.style.fontSize = val+'px');
+    /* 카드 모드: 카드 섹션 레이블·제목 적용 */
+    document.querySelectorAll(
+      '.gr-csec-title,.gr-clbl,.gr-csec-badge,.gr-hero-nm,.gr-hero-sub,.gr-hero-lbl'
+    ).forEach(el => el.style.fontSize = val+'px');
   }
 
   /* ── 제목 정렬 ── */
@@ -1600,33 +1615,65 @@ const GradeApp = (() => {
     const pw   = {A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize] || '210mm';
     const title= `${s.name}${s.nickname?'('+s.nickname+')':''} 성적 리포트`;
 
-    /* 현재 적용된 inline 스타일까지 포함한 HTML 추출 */
-    const reportHtml = el.outerHTML;
+    /* ① 현재 적용된 inline 스타일까지 포함한 HTML 추출 후 id 충돌 방지 */
+    const reportHtml = el.outerHTML.replace(/id="gr-rpt-preview"/, 'id="rpt-content"');
+    const pxW = {A4:794, A5:559, B5:665}[_st.pageSize] || 794;
 
-    /* 완전한 standalone HTML 생성 */
+    /* 완전한 standalone HTML */
     const standaloneCss = `
       @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800;900&display=swap');
-      *{box-sizing:border-box;}
-      body{margin:0;padding:24px 16px;background:#f1f5f9;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;display:flex;justify-content:center;min-height:100vh;}
-      .rpt-wrap{max-width:${pw};width:100%;margin:0 auto;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.12);overflow:hidden;}
-      .rpt-title{font-weight:900;}
-      .rpt-header{display:grid;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;}
-      .rpt-divider{border:none;border-top:1px solid #e2e8f0;margin:10px 0;}
+      *{box-sizing:border-box;margin:0;padding:0;}
+      html,body{height:100%;}
+      body{
+        background:#e5e7eb;
+        font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;
+        font-size:${_st.reportBodySize||12}px;
+        min-height:100vh;
+      }
+      #share-bar{
+        background:#1a3a2a;color:#fff;padding:10px 20px;
+        display:flex;align-items:center;justify-content:space-between;
+        font-size:12px;font-weight:700;position:sticky;top:0;z-index:99;
+        width:100%;
+      }
+      #share-bar button{
+        padding:5px 14px;border-radius:6px;background:#16a34a;
+        color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;
+      }
+      #page-center{
+        display:flex;justify-content:center;
+        padding:24px 16px 48px;
+      }
+      /* ★ 리포트 래퍼: 정확한 페이지 너비로 제한 */
+      #rpt-content, .rpt-wrap{
+        width:${pxW}px !important;
+        max-width:100% !important;
+        box-shadow:0 4px 24px rgba(0,0,0,.15);
+        border-radius:8px;
+        overflow:hidden;
+        background:${_st.rptBg||'#ffffff'};
+      }
+      .rpt-header{display:grid;grid-template-columns:${_st.logoSize||80}px 1fr auto;align-items:center;gap:12px;padding:20px 24px 14px;border-bottom:${_st.dividerWidth||1}px solid ${_st.dividerColor||'#e2e8f0'};}
+      .rpt-title{font-size:${_st.reportTitleSize||18}px;font-weight:900;color:#111;text-align:${_st.titleAlign||'center'};}
+      .rpt-info{padding:12px 24px;font-size:${_st.reportBodySize||12}px;}
       .rpt-info p{margin:4px 0;}
-      .rpt-sec-title{font-size:14px;font-weight:800;color:#111;margin:14px 0 6px;}
-      .rpt-tbl{width:100%;border-collapse:collapse;margin-bottom:12px;}
-      .rpt-tbl th{padding:7px 10px;text-align:center;font-size:11px;font-weight:800;border:1px solid #e2e8f0;}
-      .rpt-tbl td{border:1px solid #e2e8f0;padding:7px 10px;text-align:center;font-size:13px;}
+      .rpt-sec-title{font-size:${(_st.reportBodySize||12)+2}px;font-weight:800;color:#111;margin:14px 24px 6px;}
+      .rpt-tbl{width:calc(100% - 48px);border-collapse:collapse;margin:0 24px 16px;font-size:${_st.reportBodySize||12}px;}
+      .rpt-tbl th{background:${_st.tblHeaderBg||'#f1f5f9'};color:${_st.tblHeaderColor||'#475569'};padding:7px 10px;text-align:center;font-size:${_st.reportBodySize||12}px;font-weight:800;border:${_st.dividerWidth||1}px solid ${_st.dividerColor||'#e2e8f0'};}
+      .rpt-tbl td{border:${_st.dividerWidth||1}px solid ${_st.dividerColor||'#e2e8f0'};padding:7px 10px;text-align:center;font-size:${_st.reportBodySize||12}px;background:${_st.tblCellBg||'#ffffff'};}
       .rpt-pass{color:#16a34a;font-weight:700;}
       .rpt-fail{color:#ea580c;font-weight:700;}
       .rpt-achv{color:#8b5cf6;font-weight:800;}
-      .rpt-avg td{font-weight:700;}
-      .rpt-comment-box{border:1.5px solid #e2e8f0;border-radius:8px;padding:12px 14px;min-height:60px;font-size:12px;color:#374151;line-height:1.8;background:#fafafa;}
+      .rpt-avg td{font-weight:700;background:#f8fafc !important;}
+      .rpt-comment-box{border:1.5px solid ${_st.dividerColor||'#e2e8f0'};border-radius:8px;padding:12px 14px;min-height:60px;font-size:${_st.reportBodySize||12}px;color:#374151;line-height:1.8;background:#fafafa;margin:0 24px 20px;}
+      .rpt-graph-wrap{margin:8px 24px 16px;text-align:${_st.graphAlign||'left'};}
+      svg{display:block;}
       img{max-width:100%;height:auto;}
-      /* 공유 페이지 헤더 */
-      #share-bar{background:#1a3a2a;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;position:sticky;top:0;z-index:99;}
-      #share-bar a{color:#86efac;text-decoration:none;}
-      #share-bar button{padding:5px 14px;border-radius:6px;background:#16a34a;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;}`;
+      @media print{
+        #share-bar{display:none;}
+        #page-center{padding:0;}
+        #rpt-content,.rpt-wrap{box-shadow:none;border-radius:0;width:100% !important;}
+      }`;
 
     const shareDate = new Date().toLocaleDateString('ko-KR');
     const fullHtml = `<!DOCTYPE html>
@@ -1644,7 +1691,9 @@ const GradeApp = (() => {
   <span>🌳 해피트리 영어학원 · ${_e(cls?.name||'')}반 · ${_e(book?.name||'')}</span>
   <button onclick="window.print()">🖨️ 인쇄</button>
 </div>
-${reportHtml}
+<div id="page-center">
+  ${reportHtml}
+</div>
 </body>
 </html>`;
 
@@ -2121,9 +2170,9 @@ ${reportHtml}
     const saveBtn = document.getElementById('gr-save-btn');
     if(saveBtn) saveBtn.style.display = hasData ? '' : 'none';
 
-    /* 헤더 폰트 버튼 — 엑셀 + 교재 선택 시 항상 노출 */
+    /* 헤더 폰트 버튼 — 엑셀 + 카드 모드에서 표시 */
     const fontBtn = document.getElementById('gr-hdr-font-btn');
-    if(fontBtn) fontBtn.style.display = (isExcel && hasData) ? '' : 'none';
+    if(fontBtn) fontBtn.style.display = ((isExcel || _st.viewMode==='card') && hasData) ? '' : 'none';
 
     /* 차트: 엑셀 + 교재 선택 + 성취율 데이터 있을 때 */
     const chartWrap = document.getElementById('gr-chart-wrap');
