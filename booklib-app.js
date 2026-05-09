@@ -379,7 +379,7 @@ const BooklibApp = (() => {
 
     return `<div class="bl-book-card ${isArchived?'archived':chN>0?'has-ch':''}" data-bid="${b.id}"
         draggable="${isAdmin&&!isArchived}"
-        onclick="${isAdmin&&!isArchived?`BooklibApp.openEditor('${b.id}','chapters')`:''}">
+        onclick="if(this.dataset.noclick!=='1')BooklibApp.openEditor(this.closest('[data-bid]').dataset.bid,'chapters')" data-admin="${isAdmin&&!isArchived?'1':'0'}" style="${isAdmin&&!isArchived?'cursor:pointer':''}">
       <div class="bl-book-chdr">
         ${isAdmin&&!isArchived?`<div class="bl-drag-handle" onclick="event.stopPropagation()" title="드래그하여 순서 변경">⠿</div>`:''}
         ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px">
@@ -1043,9 +1043,13 @@ const BooklibApp = (() => {
       <div class="bl-mstat">✅ 수행률 <span class="bl-mstat-v">${pct}%</span></div>
       <div class="bl-pct-bar"><div class="bl-pct-fill" id="bl-pct-fill" style="width:${pct}%"></div></div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-        <button class="bl-wbtn" onclick="BooklibApp._chNarrow()">◀</button>
-        <span style="font-size:10px;color:var(--tx3)">${_st.chCollapsed?'접힘':_st.chColWidth+'px'}</span>
-        <button class="bl-wbtn" onclick="BooklibApp._chWider()">▶</button>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:var(--tx3);background:var(--surf2);border:1px solid var(--bdr2);border-radius:7px;padding:3px 8px;user-select:none" onclick="event.stopPropagation()">
+          <input type="checkbox" id="bl-memo-ck" style="accent-color:var(--a)" onchange="BooklibApp._toggleMemo(this.checked)"> 📝 메모
+        </label>
+        <button class="bl-wbtn" title="글자 크기 줄이기" onclick="BooklibApp._mtblFontSize(-1)">A-</button>
+        <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
+
+
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
@@ -1065,7 +1069,7 @@ const BooklibApp = (() => {
             </th>
             ${students.map((s,i)=>{const uc=doneByS[s.id];return`<th class="bl-shdr" draggable="true" data-idx="${i}" data-sid="${s.id}" onclick="BooklibApp.openShare('${s.id}','${_st.matrixClassId}','${_st.matrixBookId}')">
               <div class="bl-shdr-name">${_e(s.name)}${s.nickname?`<span style="font-size:9px;font-weight:600;color:var(--tx3);display:block">(${_e(s.nickname)})</span>`:''}</div>
-              <div class="bl-shdr-cnt" style="color:${uc?'#ea580c':'var(--green)'}" id="shdr-cnt-${s.id}">${uc?uc+'미':'완료✅'}</div>
+              <div class="bl-shdr-cnt" style="color:${uc?'#ea580c':'var(--green)'}" id="shdr-cnt-${s.id}">${uc?uc+' 미수행':'완료✅'}</div>
               <div class="bl-shdr-act">${uc?'📤':''}</div>
             </th>`;}).join('')}
           </tr>
@@ -1216,7 +1220,50 @@ const BooklibApp = (() => {
   }
 
   function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
-  function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
+  // ★ 메모 기능 (반+교재별 DB 저장)
+  function _toggleMemo(show){
+    let pad=document.getElementById('bl-memo-pad');
+    if(show){
+      if(!pad){
+        pad=document.createElement('div');
+        pad.id='bl-memo-pad';
+        pad.style.cssText='position:fixed;right:16px;bottom:100px;width:280px;border-radius:14px;background:var(--card);border:1.5px solid var(--a40);box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:200;overflow:hidden;';
+        pad.innerHTML=`<div style="background:var(--a);color:#fff;padding:8px 12px;font-size:12px;font-weight:800;cursor:move;display:flex;justify-content:space-between;align-items:center" id="bl-memo-hdr">
+          📝 메모 — ${_e((_getCls(_st.matrixClassId)||{}).name||'')}반 · ${_e((BookLibDB.getBookById(_st.matrixBookId)||{}).name||'')}
+          <button onclick="document.getElementById('bl-memo-ck').click()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px">✕</button>
+        </div>
+        <textarea id="bl-memo-txt" style="width:100%;height:160px;padding:10px;border:none;outline:none;resize:vertical;font-size:12px;font-family:var(--font);background:var(--card);color:var(--tx);box-sizing:border-box" placeholder="반·교재별 메모를 입력하세요..." oninput="BooklibApp._saveMemo(this.value)"></textarea>`;
+        document.body.appendChild(pad);
+        // 저장된 메모 불러오기
+        const key='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
+        const saved=localStorage.getItem(key)||'';
+        document.getElementById('bl-memo-txt').value=saved;
+        // 드래그
+        const hdr=document.getElementById('bl-memo-hdr');
+        let ox=0,oy=0,mx=0,my=0;
+        hdr.onmousedown=e=>{e.preventDefault();mx=e.clientX;my=e.clientY;
+          document.onmousemove=e2=>{ox=mx-e2.clientX;oy=my-e2.clientY;mx=e2.clientX;my=e2.clientY;pad.style.top=(pad.offsetTop-oy)+'px';pad.style.left=(pad.offsetLeft-ox)+'px';pad.style.right='auto';pad.style.bottom='auto';};
+          document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};};
+      } else pad.style.display='block';
+    } else {
+      if(pad) pad.style.display='none';
+    }
+  }
+  function _saveMemo(val){
+    const key='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
+    localStorage.setItem(key,val);
+  }
+
+    function _mtblFontSize(delta){
+    const tbl=document.getElementById('bl-mtbl');
+    if(!tbl) return;
+    const cur=parseFloat(getComputedStyle(tbl).fontSize)||12;
+    const newSz=Math.min(16,Math.max(9,cur+delta));
+    tbl.style.fontSize=newSz+'px';
+    tbl.querySelectorAll('th,td').forEach(el=>el.style.fontSize=newSz+'px');
+  }
+
+    function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
 
@@ -1265,7 +1312,7 @@ const BooklibApp = (() => {
     const undone=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]),done=evalChs.filter(ch=>!_checks[`${sid}__${ch.id}`]);
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
     const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.order+1}. ${ch.title}${ts}`;});
-    const text=[`📚 ${book.name} 학습 현황`,`👤 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
+    const text=[`📚 ${book.name} 학습 현황`,`🐾 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
     return{text,undone,done,total:evalChs.length};
   }
 
@@ -1278,7 +1325,7 @@ const BooklibApp = (() => {
     const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];const students=_getOrderedStu(allStu);
     const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${cls.name}반 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
     let hasAny=false;
-    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`👤 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
+    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`🐾 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
     if(!hasAny)lines.push('🎉 모든 학생이 완료했습니다!');
     _st.reportText=lines.join('\n');
     const summaryRows=students.map(s=>{const uc=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;const pct=evalChs.length?Math.round((evalChs.length-uc)/evalChs.length*100):100;return`<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);font-weight:700">${_e(s.name)}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);color:${uc?'#ea580c':'var(--green)'}">${uc?`⬜ ${uc}개`:'✅'}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr)"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:${pct}%;background:${uc?'#f97316':'#10b981'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--tx3)">${pct}%</span></div></td></tr>`;}).join('');
@@ -2094,10 +2141,11 @@ const BooklibApp = (() => {
   
   
   async function _confirmCsvImport() {
-    // ★ 학생별 예외 항목 수집 + DB 저장 (반 기준)
-    // ★ exceptions에 alias 정보 포함 버전으로 수집
-    _csvImportState.exceptions = _collectExceptions();
-    _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length > 0;
+    // ★ 모달에서 실제 선택된 값만 수집 (이전 반 데이터 완전히 덮어씀)
+    const freshExcs = _collectExceptions();
+    _csvImportState.exceptions = freshExcs; // ★ 완전 교체
+    _csvImportState.exceptionOn = Object.keys(freshExcs).length > 0;
+    // DB 저장 (다음 번 같은 반 로드 시 복원용)
     const fullExcs = _collectExceptionsForSave();
     if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.saveClassExempts) {
       BookLibDB.saveClassExempts(_st.matrixClassId, fullExcs);
@@ -2154,7 +2202,7 @@ const BooklibApp = (() => {
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
     _saveSubTasks,_closeSubPopup,
-    _chWider,_chNarrow,_toggleCollapse,
+    _chWider,_chNarrow,_mtblFontSize,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
