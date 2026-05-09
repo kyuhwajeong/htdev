@@ -391,7 +391,7 @@ const BooklibApp = (() => {
     if(isAdmin){
       _bindDrop('bl-book-csv',null,_importBookFile);
       setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);
-      setTimeout(()=>{const list=document.getElementById('bl-book-list');if(!list)return;list.onclick=e=>{if(list.classList.contains('multi-selecting'))return;if(e.target.closest('.bl-book-acts'))return;const card=e.target.closest('[data-bid]');if(!card)return;const bk=BookLibDB.getBookById(card.dataset.bid);if(bk&&!bk.archived)BooklibApp.openEditor(card.dataset.bid,'chapters');};},100);
+      setTimeout(()=>{const list=document.getElementById('bl-active-books');if(!list)return;list.onclick=e=>{if(document.getElementById('bl-active-books')?.classList.contains('multi-selecting'))return;if(e.target.closest('.bl-book-acts'))return;if(e.target.closest('.bl-drag-handle'))return;if(e.target.type==='checkbox')return;const card=e.target.closest('[data-bid]');if(!card)return;const bk=BookLibDB.getBookById(card.dataset.bid);if(bk&&!bk.archived)BooklibApp.openEditor(card.dataset.bid,'chapters');};},100);
       // ★ 교재 드래그앤드롭 순서 변경 이벤트 바인딩
       setTimeout(()=>_bindBookListDrag(), 50);
     }

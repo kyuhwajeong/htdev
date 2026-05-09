@@ -158,7 +158,7 @@ const App = (() => {
   function go(page){
     if(page==='manage'  &&!DB.isLoggedIn()){_showLogin();return;}
     if(page==='students'&&!DB.isAdmin())  {_showLogin();return;}
-    if(page==='booklib' &&!DB.isAdmin())  {_showLogin();return;}
+    if(page==='booklib' &&!DB.isAdmin()&&DB.getRole()!=='teacher')  {_showLogin();return;}
     if(page==='staff'   &&!DB.isAdmin())  {_showLogin();return;}
     if(page==='grade'   &&!DB.isAdmin())  {_showLogin();return;}
     S.page=page;
@@ -228,7 +228,7 @@ const App = (() => {
       if(_q('li-remember').checked){localStorage.setItem(LS_REM,id);localStorage.setItem(LS_REM_PW,pw);}
       else{localStorage.removeItem(LS_REM);localStorage.removeItem(LS_REM_PW);}
       _q('login-gate').classList.add('hidden'); _refreshAuthUI(); go('manage');
-      _toast(`✅ ${acc.username} (${acc.role==='admin'?'관리자':'운용자'}) 로그인`,'success');
+      _toast(`✅ ${acc.username} (${acc.role==='admin'?'관리자':acc.role==='teacher'?'강사':'운용자'}) 로그인`,'success');
     } else {_q('li-err').textContent='⚠️ 아이디 또는 비밀번호가 올바르지 않습니다';_q('li-pw').value='';}
   }
   function logout(){if(!confirm('로그아웃 하시겠습니까?'))return;DB.clearSession();clearTimeout(_autoLogoutTimer);_refreshAuthUI();go('operate');_toast('로그아웃 되었습니다');}
@@ -431,7 +431,24 @@ const App = (() => {
     if(!canEdit)inp.readOnly=true;
     const dt=document.createElement('span'); dt.className='bk-date'; dt.textContent=dateStr;
     right.appendChild(inp); right.appendChild(dt);
-    row.appendChild(tag); row.appendChild(nm); row.appendChild(right);
+    row.appendChild(tag); row.appendChild(nm);
+    // ★ 클래스카드 버튼 (booklib 데이터 존재 시 표시)
+    try{
+      const _allBooks=typeof BookLibDB!=='undefined'?BookLibDB.getBooks():[];
+      const _matchBk=_allBooks.find(bk=>!bk.archived&&(bk.name.includes(b.name)||b.name.includes(bk.name)));
+      if(_matchBk){
+        const _hasData=typeof BookLibDB!=='undefined'&&BookLibDB.getMatrixChecks(clsId,_matchBk.id)&&
+          Object.keys(BookLibDB.getMatrixChecks(clsId,_matchBk.id)).length>0;
+        if(_hasData){
+          const ccBtn=document.createElement('button');
+          ccBtn.textContent='📊 클래스카드'; ccBtn.title='학습 현황 보기';
+          ccBtn.style.cssText='font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:var(--a);cursor:pointer;white-space:nowrap;flex-shrink:0';
+          ccBtn.onclick=()=>App._showClassCard(clsId,_matchBk.id,b.name);
+          row.insertBefore(ccBtn,right);
+        }
+      }
+    }catch(e){}
+    row.appendChild(right);
     if(canEdit){
       let _lv=val;
       inp.addEventListener('input',()=>{inp.classList.toggle('filled',inp.value.trim()!=='');row.classList.add('saving');row.classList.remove('saved');_syncDot('saving');clearTimeout(inp._st);inp._st=setTimeout(()=>{if(inp.value!==_lv){DB.autoSave(clsId,weekKey,dayName,'progress',inp.value.trim(),b.id);_lv=inp.value;if(inp.value)dt.textContent=_fmtDateTime(new Date());}row.classList.remove('saving');row.classList.add('saved');_syncDot(FireDB.ready()?'on':'off');setTimeout(()=>row.classList.remove('saved'),1500);},1500);});
@@ -457,6 +474,47 @@ const App = (() => {
   async function _copyUrl(url){try{await navigator.clipboard.writeText(url);_toast('🔗 링크 복사 완료!','success',3000);}catch{prompt('링크:',url);}}
 
   /* ══ 달력 (운용화면) ══ */
+  function _showClassCard(clsId, bookId, bookName){
+    document.getElementById('bl-classcard-popup')?.remove();
+    const modal=document.createElement('div');
+    modal.id='bl-classcard-popup';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+    // 데이터 수집
+    const checks=typeof BookLibDB!=='undefined'?BookLibDB.getMatrixChecks(clsId,bookId):{};
+    const book=typeof BookLibDB!=='undefined'?BookLibDB.getBookById(bookId):null;
+    const chs=book?.chapters||[];
+    const totalCh=chs.length;
+    const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
+    const cls=allCls.find(c=>c.id===clsId);
+    const stus=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls?.name,status:'재원'}):[];
+    // 학생별 미수행 계산
+    const rows=stus.map(s=>{
+      const undone=chs.filter(ch=>checks[s.id+'__'+ch.id]).length;
+      const done=totalCh-undone;
+      const pct=totalCh>0?Math.round(done/totalCh*100):0;
+      const barW=pct;
+      return'<div style="margin-bottom:8px">'
+        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'
+        +'<span style="font-size:12px;font-weight:700;min-width:60px">'+s.name+'</span>'
+        +'<div style="flex:1;background:var(--surf2);border-radius:20px;height:14px;overflow:hidden;border:1px solid var(--bdr)">'
+        +'<div style="width:'+barW+'%;height:100%;background:var(--a);border-radius:20px;transition:width .3s"></div>'
+        +'</div>'
+        +'<span style="font-size:11px;color:var(--a);font-weight:700;min-width:34px">'+pct+'%</span>'
+        +'<span style="font-size:11px;color:#ea580c;min-width:60px">'+undone+'개 미수행</span>'
+        +'</div></div>';
+    }).join('');
+    modal.innerHTML='<div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:500px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      +'<div><div style="font-size:15px;font-weight:800">📊 클래스카드</div>'
+      +'<div style="font-size:12px;color:var(--tx3)">'+cls?.name+'반 · '+bookName+'</div></div>'
+      +'<button onclick="document.getElementById(&quot;bl-classcard-popup&quot;).remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>'
+      +'</div>'
+      +'<div style="overflow-y:auto;flex:1">'+(rows||'<p style="text-align:center;color:var(--tx3)">데이터가 없습니다</p>')+'</div>'
+      +'</div>';
+    document.body.appendChild(modal);
+  }
+
   function openCal(){S.calY=S.monday.getFullYear();S.calM=S.monday.getMonth();_renderCal();_q('cal-ov').classList.remove('hidden');history.pushState({pg:'cal'},'');}
   function closeCal(e){if(e&&e.target!==_q('cal-ov'))return;_q('cal-ov').classList.add('hidden');}
   function calPrev(){if(S.calM===0){S.calY--;S.calM=11;}else S.calM--;_renderCal();}
@@ -524,6 +582,20 @@ const App = (() => {
     if(!isAdmin&&S.mgTab==='accounts')S.mgTab='theme';
     mgTab(S.mgTab);
   }
+  function _onRoleChange(role, savedClasses=[]){
+    const wrap=document.getElementById('f-teacher-classes');
+    const list=document.getElementById('f-teacher-cls-list');
+    if(!wrap||!list) return;
+    wrap.style.display=role==='teacher'?'block':'none';
+    if(role==='teacher'){
+      const classes=typeof DB!=='undefined'?DB.getActiveClasses():[];
+      list.innerHTML=classes.map(c=>
+        '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;background:var(--card);border-radius:6px;border:1px solid var(--bdr)">'
+        +'<input type="checkbox" value="'+c.id+'"'+(savedClasses.includes(c.id)?' checked':'')+' style="accent-color:var(--a)"> '+c.name+'</label>'
+      ).join('');
+    }
+  }
+
   function _updateToggleBtn(){const btn=_q('toggle-view-btn');if(!btn)return;btn.textContent=S.viewMode==='grid'?'⊞':'☰';btn.title=S.viewMode==='grid'?'그리드 보기':'리스트 보기';}
   function toggleView(){S.viewMode=S.viewMode==='grid'?'list':'grid';_updateToggleBtn();const t=DB.getTheme();t.viewMode=S.viewMode;DB.saveTheme(t);_renderMgCls();}
 
@@ -965,9 +1037,10 @@ const App = (() => {
   }
 
   /* 계정 */
-  function _renderMgAcc(){const wrap=document.getElementById('mg-accounts');if(!wrap)return;wrap.innerHTML='';const isAdmin=DB.isAdmin(),sess=DB.getSession();if(isAdmin){const b=document.createElement('button');b.className='add-cls';b.style.marginBottom='6px';b.innerHTML='<span>＋</span> 계정 추가';b.onclick=()=>openAccModal();wrap.appendChild(b);}const note=document.createElement('div');note.style.cssText='font-size:11px;color:var(--tx2);margin-bottom:8px;line-height:1.65;padding:8px 10px;background:var(--card2);border-radius:var(--rs)';note.innerHTML='<b style="color:var(--tx)">admin</b>: 관리메뉴 전체 + 진도입력<br><b style="color:var(--tx)">operator</b>: 진도 입력만';wrap.appendChild(note);const card=document.createElement('div');card.className='acc-card';DB.getAccounts().forEach(acc=>{const isMe=sess?.id===acc.id,row=document.createElement('div');row.className='acc-row';row.innerHTML=`<div><div class="acc-nm">${_esc(acc.username)}${isMe?'&nbsp;<span style="color:var(--green);font-size:10px">●</span>':''}<span class="role-badge ${acc.role}">${acc.role==='admin'?'관리자':'운용자'}</span></div><div class="acc-role">${acc.role==='admin'?'모든 기능':'진도 입력만'}</div></div><div class="acc-acts">${isAdmin?`<button class="ibtn" onclick="App.openAccModal('${acc.id}')">✏️</button>`:''}${isAdmin&&!isMe?`<button class="ibtn red" onclick="App.delAcc('${acc.id}','${_esc(acc.username)}')">🗑</button>`:''}</div>`;card.appendChild(row);});wrap.appendChild(card);}
+  function _renderMgAcc(){const wrap=document.getElementById('mg-accounts');if(!wrap)return;wrap.innerHTML='';const isAdmin=DB.isAdmin(),sess=DB.getSession();if(isAdmin){const b=document.createElement('button');b.className='add-cls';b.style.marginBottom='6px';b.innerHTML='<span>＋</span> 계정 추가';b.onclick=()=>openAccModal();wrap.appendChild(b);}const note=document.createElement('div');note.style.cssText='font-size:11px;color:var(--tx2);margin-bottom:8px;line-height:1.65;padding:8px 10px;background:var(--card2);border-radius:var(--rs)';note.innerHTML='<b style="color:var(--tx)">admin</b>: 관리메뉴 전체 + 진도입력<br><b style="color:var(--tx)">operator</b>: 진도 입력만';wrap.appendChild(note);const card=document.createElement('div');card.className='acc-card';DB.getAccounts().forEach(acc=>{const isMe=sess?.id===acc.id,row=document.createElement('div');row.className='acc-row';row.innerHTML=`<div><div class="acc-nm">${_esc(acc.username)}${isMe?'&nbsp;<span style="color:var(--green);font-size:10px">●</span>':''}<span class="role-badge ${acc.role}">${acc.role==='admin'?'관리자':acc.role==='teacher'?'강사':'운용자'}</span></div><div class="acc-role">${acc.role==='admin'?'모든 기능':'진도 입력만'}</div></div><div class="acc-acts">${isAdmin?`<button class="ibtn" onclick="App.openAccModal('${acc.id}')">✏️</button>`:''}${isAdmin&&!isMe?`<button class="ibtn red" onclick="App.delAcc('${acc.id}','${_esc(acc.username)}')">🗑</button>`:''}</div>`;card.appendChild(row);});wrap.appendChild(card);}
   function openAccModal(id=null){S.editAccId=id;const acc=id?DB.getAccounts().find(a=>a.id===id):null;_q('macc-t').textContent=id?'계정 수정':'계정 추가';_q('f-aid').value=acc?.username||'';_q('f-aid').readOnly=!!id;_q('f-apw').value='';_q('f-arole').value=acc?.role||'operator';_q('modal-acc').classList.remove('hidden');}
-  async function saveAccount(){const u=_q('f-aid').value.trim(),p=_q('f-apw').value,role=_q('f-arole').value;if(!u){_toast('⚠️ 아이디를 입력해주세요','error');return;}if(!S.editAccId&&!p){_toast('⚠️ 비밀번호를 입력해주세요','error');return;}if(S.editAccId){const d=p?{password:p,role}:{role};await DB.updateAccount(S.editAccId,d);_toast('✅ 계정 수정 완료','success');}else{if(!await DB.addAccount(u,p,role)){_toast('⚠️ 이미 존재하는 아이디','error');return;}_toast('✅ 계정 추가 완료','success');}closeModal('acc');_renderMgAcc();}
+  async function saveAccount(){const u=_q('f-aid').value.trim(),p=_q('f-apw').value,role=_q('f-arole').value;
+    const teacherClasses=role==='teacher'?[...document.querySelectorAll('#f-teacher-cls-list input:checked')].map(c=>c.value):[];if(!u){_toast('⚠️ 아이디를 입력해주세요','error');return;}if(!S.editAccId&&!p){_toast('⚠️ 비밀번호를 입력해주세요','error');return;}if(S.editAccId){const d=p?{password:p,role,teacherClasses}:{role,teacherClasses};await DB.updateAccount(S.editAccId,d);_toast('✅ 계정 수정 완료','success');}else{if(!await DB.addAccount(u,p,role,teacherClasses)){_toast('⚠️ 이미 존재하는 아이디','error');return;}_toast('✅ 계정 추가 완료','success');}closeModal('acc');_renderMgAcc();}
   async function delAcc(id,u){if(DB.getSession()?.id===id){_toast('⚠️ 현재 계정은 삭제 불가','error');return;}if(!confirm(`"${u}" 계정을 삭제하시겠습니까?`))return;await DB.deleteAccount(id);_renderMgAcc();_toast('🗑 삭제 완료');}
 
   /* 테마 */
@@ -1111,6 +1184,7 @@ const App = (() => {
   let _tt;function _toast(msg,type='',dur=2600){const el=_q('toast');if(!el)return;el.textContent=msg;el.className='toast'+(type?` ${type}`:'');el.classList.remove('hidden');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.add('hidden'),dur);}
 
   return {
+    _onRoleChange, _showClassCard,
     init,go,mgTab,toggleView,
     cancelLogin,doLogin,logout,
     prevWeek,nextWeek,
