@@ -279,38 +279,61 @@ const BooklibApp = (() => {
   /* ══ LIBRARY ══ */
   function _openArchivedPopup(){
     document.getElementById('bl-arc-popup')?.remove();
-    const arcBooks = typeof BookLibDB!=='undefined' ? BookLibDB.getAllBooks().filter(b=>b.archived) : [];
-    const isAdmin  = typeof DB!=='undefined' && DB.isAdmin();
-    const modal = document.createElement('div');
+    const arcBooks=typeof BookLibDB!=='undefined'?BookLibDB.getAllBooks().filter(b=>b.archived):[];
+    const isAdm=typeof DB!=='undefined'&&DB.isAdmin();
+    const modal=document.createElement('div');
     modal.id='bl-arc-popup';
-    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;display:flex;align-items:flex-end;justify-content:center';
-    const itemsHtml = arcBooks.length===0
-      ? '<p style="text-align:center;color:var(--tx3);padding:24px">완결된 교재가 없습니다</p>'
-      : arcBooks.map(b=>{
-          const restoreBtn = isAdmin ? `<button
-            style="padding:4px 10px;border-radius:7px;background:rgba(99,102,241,.1);border:1.5px solid rgba(99,102,241,.4);color:var(--a);font-size:11px;font-weight:700;cursor:pointer"
-            onclick="BooklibApp._unarchiveBook('${b.id}')">↩️ 복원</button>` : '';
-          const delBtn = isAdmin ? `<button
-            style="padding:4px 10px;border-radius:7px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:11px;font-weight:700;cursor:pointer"
-            onclick="if(confirm('삭제하시겠습니까?'))BooklibApp.deleteBook('${b.id}')">🗑</button>` : '';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr)">
-            <div style="flex:1">
-              <div style="font-size:13px;font-weight:700">${_e(b.name)}</div>
-              <div style="font-size:11px;color:var(--tx3)">${b.archivedAt?b.archivedAt.slice(0,10):''}</div>
-            </div>${restoreBtn}${delBtn}</div>`;
-        }).join('');
-    modal.innerHTML = `<div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 -4px 20px rgba(0,0,0,.15)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <span style="font-size:15px;font-weight:800">📦 완결 교재 목록 (${arcBooks.length}개)</span>
-        <button onclick="document.getElementById('bl-arc-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--tx3)">✕</button>
-      </div>
-      <div style="overflow-y:auto;display:flex;flex-direction:column;gap:8px">${itemsHtml}</div>
-    </div>`;
-    modal.onclick = e=>{ if(e.target===modal) modal.remove(); };
-    document.body.appendChild(modal);
+    Object.assign(modal.style,{position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',zIndex:'400',display:'flex',alignItems:'flex-end',justifyContent:'center'});
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+    const sheet=document.createElement('div');
+    Object.assign(sheet.style,{background:'var(--card)',borderRadius:'20px 20px 0 0',padding:'20px',width:'100%',maxWidth:'480px',maxHeight:'72vh',display:'flex',flexDirection:'column',boxShadow:'0 -4px 24px rgba(0,0,0,.18)'});
+    const hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px';
+    const titleEl=document.createElement('span'); titleEl.style.cssText='font-size:15px;font-weight:800';
+    titleEl.textContent='📦 완결 교재 목록 ('+arcBooks.length+'개)';
+    const closeBtn=document.createElement('button'); closeBtn.textContent='✕';
+    closeBtn.style.cssText='background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)';
+    closeBtn.onclick=()=>modal.remove();
+    hdr.appendChild(titleEl); hdr.appendChild(closeBtn); sheet.appendChild(hdr);
+    if(isAdm&&arcBooks.length>0){
+      const bulk=document.createElement('div'); bulk.style.cssText='display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap';
+      const mkB=(txt,cb,red)=>{const b=document.createElement('button');b.textContent=txt;b.style.cssText='font-size:11px;padding:4px 10px;border-radius:7px;cursor:pointer;'+(red?'background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-weight:700':'background:var(--surf2);border:1px solid var(--bdr2)');b.onclick=cb;return b;};
+      bulk.appendChild(mkB('전체선택',()=>modal.querySelectorAll('.arc-ck').forEach(c=>c.checked=true)));
+      bulk.appendChild(mkB('전체해제',()=>modal.querySelectorAll('.arc-ck').forEach(c=>c.checked=false)));
+      bulk.appendChild(mkB('🗑 선택삭제',async()=>{
+        const cks=[...modal.querySelectorAll('.arc-ck:checked')];
+        if(!cks.length){_toast('삭제할 교재를 선택하세요','error');return;}
+        if(!confirm(cks.length+'개를 삭제하시겠습니까?'))return;
+        for(const ck of cks){await BookLibDB.deleteBook(ck.dataset.bid);ck.closest('.arc-row')?.remove();}
+        titleEl.textContent='📦 완결 교재 목록 ('+modal.querySelectorAll('.arc-row').length+'개)';
+        _renderLibrary();
+      },true));
+      sheet.appendChild(bulk);
+    }
+    const listEl=document.createElement('div'); listEl.style.cssText='overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px';
+    if(!arcBooks.length){listEl.innerHTML='<p style="text-align:center;color:var(--tx3);padding:24px">완결된 교재가 없습니다</p>';}
+    else{arcBooks.forEach(b=>{
+      const row=document.createElement('div'); row.className='arc-row';
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr)';
+      if(isAdm){const ck=document.createElement('input');ck.type='checkbox';ck.className='arc-ck';ck.dataset.bid=b.id;ck.style.cssText='width:16px;height:16px;accent-color:var(--a);flex-shrink:0';row.appendChild(ck);}
+      const info=document.createElement('div'); info.style.cssText='flex:1;min-width:0';
+      info.innerHTML='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_e(b.name)+'</div><div style="font-size:11px;color:var(--tx3)">'+(b.archivedAt?b.archivedAt.slice(0,10):'')+'</div>';
+      row.appendChild(info);
+      if(isAdm){
+        const rBtn=document.createElement('button'); rBtn.textContent='↩️ 복원';
+        rBtn.style.cssText='padding:4px 10px;border-radius:7px;background:rgba(99,102,241,.1);border:1.5px solid rgba(99,102,241,.4);color:var(--a);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap';
+        rBtn.onclick=()=>BooklibApp._unarchiveBook(b.id);
+        const dBtn=document.createElement('button'); dBtn.textContent='🗑';
+        dBtn.style.cssText='padding:4px 10px;border-radius:7px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:11px;font-weight:700;cursor:pointer';
+        dBtn.onclick=async()=>{if(!confirm('"'+b.name+'" 을 삭제하시겠습니까?'))return;await BookLibDB.deleteBook(b.id);row.remove();titleEl.textContent='📦 완결 교재 목록 ('+modal.querySelectorAll('.arc-row').length+'개)';_renderLibrary();};
+        row.appendChild(rBtn); row.appendChild(dBtn);
+      }
+      listEl.appendChild(row);
+    });}
+    sheet.appendChild(listEl); modal.appendChild(sheet); document.body.appendChild(modal);
   }
 
-    function _renderLibrary(){
+  function _renderLibrary(){
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
     const sub=document.getElementById('bl-ph-sub');if(sub)sub.textContent=`교재 ${books.length}개`;
@@ -368,6 +391,7 @@ const BooklibApp = (() => {
     if(isAdmin){
       _bindDrop('bl-book-csv',null,_importBookFile);
       setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);
+      setTimeout(()=>{const list=document.getElementById('bl-book-list');if(!list)return;list.onclick=e=>{if(list.classList.contains('multi-selecting'))return;if(e.target.closest('.bl-book-acts'))return;const card=e.target.closest('[data-bid]');if(!card)return;const bk=BookLibDB.getBookById(card.dataset.bid);if(bk&&!bk.archived)BooklibApp.openEditor(card.dataset.bid,'chapters');};},100);
       // ★ 교재 드래그앤드롭 순서 변경 이벤트 바인딩
       setTimeout(()=>_bindBookListDrag(), 50);
     }
@@ -404,7 +428,7 @@ const BooklibApp = (() => {
           </div>
         </div>
         ${isAdmin?`<div class="bl-book-acts" onclick="event.stopPropagation()">
-          ${!isArchived?`<button class="ibtn" onclick="BooklibApp.openEditor('${b.id}','chapters')" title="수정">✏️</button>`:''}
+          ${!isArchived?`<button class="ibtn" onclick="BooklibApp._openEvalTab('${b.id}')" title="평가">📊</button>`:''}
           ${!isArchived?`<button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>`:''}
           ${isArchived?`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`:''}
           <button class="ibtn red" onclick="BooklibApp.deleteBook('${b.id}')" title="삭제">🗑</button>
@@ -973,7 +997,7 @@ const BooklibApp = (() => {
   function _renderMatrixTab(){
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
-    const clsBks=_st.matrixClassId?BookLibDB.getBooksForClass(_st.matrixClassId):BookLibDB.getBooks();
+    const clsBks=(_st.matrixClassId?BookLibDB.getBooksForClass(_st.matrixClassId):BookLibDB.getBooks()).filter(b=>!b.archived);
     cnt.innerHTML=`<div class="bl-msel-bar">
       <div class="bl-msel-item"><span class="bl-msel-lbl">📋 반</span>
         <select id="bl-csel" onchange="BooklibApp._onClsChange(this.value)">
@@ -1026,9 +1050,9 @@ const BooklibApp = (() => {
       <div class="bl-mstat">✅ 수행률 <span class="bl-mstat-v">${pct}%</span></div>
       <div class="bl-pct-bar"><div class="bl-pct-fill" id="bl-pct-fill" style="width:${pct}%"></div></div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-        <button class="bl-wbtn" onclick="BooklibApp._chNarrow()">◀</button>
-        <span style="font-size:10px;color:var(--tx3)">${_st.chCollapsed?'접힘':_st.chColWidth+'px'}</span>
-        <button class="bl-wbtn" onclick="BooklibApp._chWider()">▶</button>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:var(--tx3);background:var(--surf2);border:1px solid var(--bdr2);border-radius:7px;padding:3px 8px;user-select:none"><input type="checkbox" id="bl-memo-ck" style="accent-color:var(--a)" onchange="BooklibApp._toggleMemo(this.checked)"> 📝 메모</label>
+        <button class="bl-wbtn" title="글자 크기 줄이기" onclick="BooklibApp._mtblFontSize(-1)">A-</button>
+        <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
@@ -1048,7 +1072,7 @@ const BooklibApp = (() => {
             </th>
             ${students.map((s,i)=>{const uc=doneByS[s.id];return`<th class="bl-shdr" draggable="true" data-idx="${i}" data-sid="${s.id}" onclick="BooklibApp.openShare('${s.id}','${_st.matrixClassId}','${_st.matrixBookId}')">
               <div class="bl-shdr-name">${_e(s.name)}${s.nickname?`<span style="font-size:9px;font-weight:600;color:var(--tx3);display:block">(${_e(s.nickname)})</span>`:''}</div>
-              <div class="bl-shdr-cnt" style="color:${uc?'#ea580c':'var(--green)'}" id="shdr-cnt-${s.id}">${uc?uc+'미':'완료✅'}</div>
+              <div class="bl-shdr-cnt" style="color:${uc?'#ea580c':'var(--green)'}" id="shdr-cnt-${s.id}">${uc?uc+' 미수행':'완료✅'}</div>
               <div class="bl-shdr-act">${uc?'📤':''}</div>
             </th>`;}).join('')}
           </tr>
@@ -1194,21 +1218,53 @@ const BooklibApp = (() => {
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     const uc=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]).length;
     const cntEl=document.getElementById(`shdr-cnt-${sid}`),actEl=th.querySelector('.bl-shdr-act');
-    if(cntEl){cntEl.textContent=uc?uc+'미':'완료✅';cntEl.style.color=uc?'#ea580c':'var(--green)';}
+    if(cntEl){cntEl.textContent=uc?uc+' 미수행':'완료✅';cntEl.style.color=uc?'#ea580c':'var(--green)';}
     if(actEl)actEl.textContent=uc?'📤':'';
   }
 
   function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _mtblFontSize(delta){
-    const tbl=document.getElementById('bl-mtbl');if(!tbl)return;
+    const tbl=document.getElementById('bl-mtbl'); if(!tbl) return;
     const cur=parseFloat(tbl.style.fontSize)||12;
-    const newSz=Math.min(18,Math.max(9,cur+delta));
-    tbl.style.fontSize=newSz+'px';
-    // 헤더, 본문, 챕터명 모두 적용
-    document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-batch-hdr,.bl-batch-ck').forEach(el=>el.style.fontSize=newSz+'px');
+    const ns=Math.min(18,Math.max(9,cur+delta));
+    tbl.style.fontSize=ns+'px';
+    document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr').forEach(el=>{el.style.fontSize=ns+'px';});
   }
+  function _toggleMemo(show){
+    let pad=document.getElementById('bl-memo-pad');
+    if(show){
+      if(!pad){
+        pad=document.createElement('div'); pad.id='bl-memo-pad';
+        pad.style.cssText='position:fixed;right:16px;bottom:100px;width:280px;border-radius:14px;background:var(--card);border:1.5px solid var(--a40);box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:200;overflow:hidden';
+        const cls=(_getCls(_st.matrixClassId)||{}).name||'';
+        const bkName=(BookLibDB.getBookById(_st.matrixBookId)||{}).name||'';
+        const key='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
+        const hdrDiv=document.createElement('div');
+        hdrDiv.id='bl-memo-hdr';
+        hdrDiv.style.cssText='background:var(--a);color:#fff;padding:8px 12px;font-size:12px;font-weight:800;cursor:move;display:flex;justify-content:space-between;align-items:center';
+        hdrDiv.innerHTML='<span>📝 메모 — '+_e(cls)+'반 · '+_e(bkName)+'</span>';
+        const xBtn=document.createElement('button');
+        xBtn.textContent='✕'; xBtn.style.cssText='background:none;border:none;color:#fff;cursor:pointer;font-size:14px';
+        xBtn.onclick=()=>{const ck=document.getElementById('bl-memo-ck');if(ck)ck.checked=false;pad.style.display='none';};
+        hdrDiv.appendChild(xBtn);
+        const ta=document.createElement('textarea'); ta.id='bl-memo-txt';
+        ta.style.cssText='width:100%;height:160px;padding:10px;border:none;outline:none;resize:vertical;font-size:12px;font-family:var(--font);background:var(--card);color:var(--tx);box-sizing:border-box';
+        ta.placeholder='반·교재별 메모를 입력하세요...';
+        ta.oninput=()=>localStorage.setItem(key,ta.value);
+        pad.appendChild(hdrDiv); pad.appendChild(ta);
+        document.body.appendChild(pad);
+        ta.value=localStorage.getItem(key)||'';
+        let ox=0,oy=0,mx=0,my=0;
+        hdrDiv.onmousedown=e=>{e.preventDefault();mx=e.clientX;my=e.clientY;
+          document.onmousemove=e2=>{ox=mx-e2.clientX;oy=my-e2.clientY;mx=e2.clientX;my=e2.clientY;
+            pad.style.top=(pad.offsetTop-oy)+'px';pad.style.left=(pad.offsetLeft-ox)+'px';pad.style.right='auto';pad.style.bottom='auto';};
+          document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};};
+      } else pad.style.display='block';
+    } else { if(pad) pad.style.display='none'; }
+  }
+  function _saveMemo(val){ localStorage.setItem('bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId,val); }
 
-  function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
+    function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
 
@@ -1256,8 +1312,8 @@ const BooklibApp = (() => {
     const chs=book.chapters||[];const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     const undone=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]),done=evalChs.filter(ch=>!_checks[`${sid}__${ch.id}`]);
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
-    const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.title}`;});
-    const text=[`📚 ${book.name} 학습 현황`,`🐶 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
+    const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.order+1}. ${ch.title}${ts}`;});
+    const text=[`📚 ${book.name} 학습 현황`,`👤 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
     return{text,undone,done,total:evalChs.length};
   }
 
@@ -1270,7 +1326,7 @@ const BooklibApp = (() => {
     const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];const students=_getOrderedStu(allStu);
     const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${cls.name}반 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
     let hasAny=false;
-    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`🐶 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.title}`);});lines.push('');}});
+    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`👤 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
     if(!hasAny)lines.push('🎉 모든 학생이 완료했습니다!');
     _st.reportText=lines.join('\n');
     const summaryRows=students.map(s=>{const uc=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;const pct=evalChs.length?Math.round((evalChs.length-uc)/evalChs.length*100):100;return`<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);font-weight:700">${_e(s.name)}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);color:${uc?'#ea580c':'var(--green)'}">${uc?`⬜ ${uc}개`:'✅'}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr)"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:${pct}%;background:${uc?'#f97316':'#10b981'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--tx3)">${pct}%</span></div></td></tr>`;}).join('');
@@ -1845,26 +1901,6 @@ const BooklibApp = (() => {
 
   /* ── CSV 임포트 확인 모달 ── */
   function openCsvImportModal(file) {
-    // ★ 파일명 유효성 검증
-    const _valCls  = _getCls(_st.matrixClassId);
-    const _valBook = BookLibDB.getBookById(_st.matrixBookId);
-    if (_valCls && _valBook && file?.name) {
-      const fname = file.name;
-      const clsMatch  = fname.includes(_valCls.name);
-      const bookWords = _valBook.name.split(/\s+/).filter(w=>w.length>1);
-      const bookMatch = bookWords.some(w=>fname.includes(w));
-      if (!clsMatch || !bookMatch) {
-        const mismatch = [];
-        if (!clsMatch)  mismatch.push(`· 반: 선택된 반 [${_valCls.name}] 이 파일명에 없습니다`);
-        if (!bookMatch) mismatch.push(`· 교재: 선택된 교재 [${_valBook.name}] 이 파일명에 없습니다`);
-        const ok = confirm(
-          `⚠️ 파일이 선택한 반/교재와 다를 수 있습니다.\n\n`
-          + mismatch.join('\n')
-          + `\n\n파일: ${fname}\n\n그래도 반영하시겠습니까?`
-        );
-        if (!ok) return;
-      }
-    }
     if (!_st.matrixClassId || !_st.matrixBookId) {
       _toast('⚠️ 반과 교재를 먼저 선택해주세요'); return;
     }
@@ -2166,7 +2202,7 @@ const BooklibApp = (() => {
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
     _saveSubTasks,_closeSubPopup,
-    _chWider,_chNarrow,_mtblFontSize,_toggleCollapse,
+    _chWider,_chNarrow,_mtblFontSize,_toggleMemo,_saveMemo,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
