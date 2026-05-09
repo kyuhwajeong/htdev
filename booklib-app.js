@@ -1364,7 +1364,14 @@ const BooklibApp = (() => {
         hdrDiv.innerHTML='<span>📝 메모 — '+_e(cls)+'반 · '+_e(bkName)+'</span>';
         const xBtn=document.createElement('button');
         xBtn.textContent='✕'; xBtn.style.cssText='background:none;border:none;color:#fff;cursor:pointer;font-size:14px';
-        xBtn.onclick=()=>{const ck=document.getElementById('bl-memo-ck');if(ck)ck.checked=false;pad.style.display='none';};
+        xBtn.onclick=()=>{
+          const ck=document.getElementById('bl-memo-ck');
+          if(ck) ck.checked=false;
+          // ★ 체크 해제 → Firebase 저장
+          const txt=document.getElementById('bl-memo-txt')?.value||'';
+          BooklibApp._saveMemo(txt,false);
+          pad.style.display='none';
+        };
         hdrDiv.appendChild(xBtn);
         // 수정 날짜시간 표시
         const dtDiv=document.createElement('div');
@@ -1402,16 +1409,28 @@ const BooklibApp = (() => {
           document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};};
       } else pad.style.display='block';
     } else { if(pad) pad.style.display='none'; }
-    const _ckKey='bl_memo_ck_'+clsId+'_'+bkId;
-    localStorage.setItem(_ckKey, show?'1':'0');
-    // ★ 체크 상태 + 텍스트 Firebase 저장
+    // ★ 체크 ON/OFF 상태를 Firebase에 저장 (텍스트는 입력 시 저장)
     const _memoTxt=document.getElementById('bl-memo-txt')?.value||'';
     if(typeof BookLibDB!=='undefined'&&BookLibDB.saveMemo){
-      BookLibDB.saveMemo(clsId, bkId, {
-        text: _memoTxt,
-        checked: show,
-        updatedAt: new Date().toISOString()
-      }).catch(()=>{});
+      // 메모창 닫을 때만 (show=false) checked 저장 → 열기 시에는 덮어쓰지 않음
+      if(!show){
+        BookLibDB.saveMemo(clsId, bkId, {
+          text: _memoTxt,
+          checked: false,
+          updatedAt: new Date().toISOString()
+        }).catch(()=>{});
+      }
+      // show=true 시에는 checked:true를 별도로 저장 (텍스트 덮어쓰기 방지)
+      if(show && !document.getElementById('bl-memo-pad')?._dataLoaded){
+        BookLibDB.loadMemo(clsId,bkId).then(data=>{
+          const curTxt=data?.text||'';
+          BookLibDB.saveMemo(clsId, bkId, {
+            text: curTxt,
+            checked: true,
+            updatedAt: new Date().toISOString()
+          }).catch(()=>{});
+        }).catch(()=>{});
+      }
     }
   }
   function _saveMemo(val){
@@ -1436,22 +1455,40 @@ const BooklibApp = (() => {
     const ck=document.getElementById('bl-memo-ck');
     if(!ck||!_st.matrixClassId||!_st.matrixBookId) return;
     const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
-    const ckKey='bl_memo_ck_'+clsId+'_'+bkId;
-    // ★ Firebase에서 메모 데이터(체크 상태 포함) 로드
-    let wasCk = localStorage.getItem(ckKey)==='1'; // localStorage 폴백
+
+    // ★ Firebase에서 직접 로드 (localStorage 캐시와 무관)
+    let data=null;
     try{
       if(typeof BookLibDB!=='undefined'&&BookLibDB.loadMemo){
-        const data = await BookLibDB.loadMemo(clsId, bkId);
-        if(data && data.checked !== undefined){
-          wasCk = data.checked===true || data.checked==='1';
-          // localStorage도 동기화
-          localStorage.setItem(ckKey, wasCk?'1':'0');
-        }
+        data=await BookLibDB.loadMemo(clsId,bkId);
       }
     }catch(e){}
+
+    const wasCk = data?(data.checked===true||data.checked==='1'):false;
     ck.checked = wasCk;
-    if(wasCk) _toggleMemo(true);
-    else { const pad=document.getElementById('bl-memo-pad'); if(pad) pad.style.display='none'; }
+
+    if(wasCk){
+      // 메모창 생성 (없을 경우만)
+      let pad=document.getElementById('bl-memo-pad');
+      if(pad) pad.remove(); // 이전 교재 메모창 제거
+      _toggleMemo(true);   // 메모창 열기
+      // 메모창 생성 후 데이터 직접 주입 (Firebase 재로드 없이)
+      requestAnimationFrame(()=>{
+        const ta=document.getElementById('bl-memo-txt');
+        const dtDiv=document.getElementById('bl-memo-dt');
+        if(ta&&data){
+          ta.value=data.text||'';
+          if(dtDiv&&data.updatedAt){
+            dtDiv.textContent='수정: '+new Date(data.updatedAt).toLocaleString('ko-KR');
+          } else if(dtDiv){
+            dtDiv.textContent=data.text?'저장된 메모 있음':'저장된 메모 없음';
+          }
+        }
+      });
+    } else {
+      const pad=document.getElementById('bl-memo-pad');
+      if(pad) pad.style.display='none';
+    }
   }
 
     function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
