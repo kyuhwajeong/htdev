@@ -548,7 +548,7 @@ const DB = (() => {
     monthKey, prevMonthKey, nextMonthKey, toWeekKey,
     getSession, setSession, clearSession, isLoggedIn, isAdmin, canOperate, login, _forceAdminLogin,
     getAccounts, addAccount, updateAccount, deleteAccount,
-  isManager, isOperator, isTeacher, getRole,
+  isManager, isOperator, isTeacher, getRole, getTeacherClasses,
     getClasses, getActiveClasses, getClassesForMonth, getClassById, classExists,
     addClass, addClassNew, terminateClass, updateClass, deleteClass,
     getMonthBooks, addToPool, moveBook, copyBooksToClass, renameBook, deleteBook, clearZone,
