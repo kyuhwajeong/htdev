@@ -146,7 +146,8 @@ const DB = (() => {
   const isManager    = () => isAdmin();  // admin + manager
   const isOperator   = () => ['admin','manager','operator'].includes(lg(LS.session)?.role||'');
   const isTeacher    = () => lg(LS.session)?.role === 'teacher';
-  const getRole      = () => lg(LS.session)?.role || '';
+  const getRole           = () => lg(LS.session)?.role || '';
+  const getTeacherClasses = () => lg(LS.session)?.teacherClasses || [];
   const canOperate   = () => !!lg(LS.session);
   function login(username, pw) {
     const acc = C.accounts.find(a=>a.username===username && a.password===pw);

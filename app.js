@@ -157,6 +157,7 @@ const App = (() => {
   /* ══ PAGE NAV ══ */
   function go(page){
     if(page==='manage'  &&!DB.isLoggedIn()){_showLogin('manage');return;}
+    if(page==='manage'  &&DB.getRole()==='teacher'){go('operate');return;}
     if(page==='students'&&!DB.isAdmin())  {_showLogin();return;}
     if(page==='booklib' &&!DB.isAdmin()&&DB.getRole()!=='teacher')  {_showLogin();return;}
     if(page==='staff'   &&!DB.isAdmin())  {_showLogin();return;}
@@ -201,7 +202,7 @@ const App = (() => {
     _q('nav-students-btn')?.classList.toggle('hidden',!isAdmin);
      // ★ 관리 탭: 항상 표시 (클릭 시 로그인 팝업으로 보호)
      const _navMgBtn=document.getElementById('nav-manage-btn');
-     if(_navMgBtn) _navMgBtn.style.display='';
+     if(_navMgBtn) _navMgBtn.style.display=DB.getRole()==='teacher'?'none':'';
     _q('nav-booklib-btn') ?.classList.toggle('hidden',!isAdmin);
     _q('nav-staff-btn')   ?.classList.toggle('hidden',!isAdmin);
     _q('nav-grade-btn')   ?.classList.toggle('hidden',!isAdmin);
@@ -231,7 +232,9 @@ const App = (() => {
     if(acc){
       if(_q('li-remember').checked){localStorage.setItem(LS_REM,id);localStorage.setItem(LS_REM_PW,pw);}
       else{localStorage.removeItem(LS_REM);localStorage.removeItem(LS_REM_PW);}
-      _q('login-gate').classList.add('hidden'); _refreshAuthUI(); go(S._loginRedirect||'manage'); S._loginRedirect='';
+      _q('login-gate').classList.add('hidden'); _refreshAuthUI(); const _isT=DB.getRole()==='teacher';
+        go(_isT?'operate':(S._loginRedirect||'manage'));
+        S._loginRedirect='';
       _toast(`✅ ${acc.username} (${acc.role==='admin'?'관리자':acc.role==='teacher'?'강사':'운용자'}) 로그인`,'success');
     } else {_q('li-err').textContent='⚠️ 아이디 또는 비밀번호가 올바르지 않습니다';_q('li-pw').value='';}
   }
@@ -315,6 +318,11 @@ const App = (() => {
     let classes=DB.getClassesForMonth(curMk);
     // 해당 월에 없으면 현재 활성 반
     if(!classes.length) classes=DB.getActiveClasses();
+    // ★ 강사: 담당 반만 표시
+    if(DB.getRole()==='teacher'){
+      const tcIds=DB.getTeacherClasses();
+      if(tcIds.length) classes=classes.filter(c=>tcIds.includes(c.id));
+    }
     if(!classes.length){
       wrap.innerHTML='<span style="font-size:11px;color:var(--tx3);white-space:nowrap">관리 메뉴에서 반을 추가하세요</span>';
       return;
@@ -1042,7 +1050,8 @@ const App = (() => {
 
   /* 계정 */
   function _renderMgAcc(){const wrap=document.getElementById('mg-accounts');if(!wrap)return;wrap.innerHTML='';const isAdmin=DB.isAdmin(),sess=DB.getSession();if(isAdmin){const b=document.createElement('button');b.className='add-cls';b.style.marginBottom='6px';b.innerHTML='<span>＋</span> 계정 추가';b.onclick=()=>openAccModal();wrap.appendChild(b);}const note=document.createElement('div');note.style.cssText='font-size:11px;color:var(--tx2);margin-bottom:8px;line-height:1.65;padding:8px 10px;background:var(--card2);border-radius:var(--rs)';note.innerHTML='<b style="color:var(--tx)">admin</b>: 관리메뉴 전체 + 진도입력<br><b style="color:var(--tx)">operator</b>: 진도 입력만';wrap.appendChild(note);const card=document.createElement('div');card.className='acc-card';DB.getAccounts().forEach(acc=>{const isMe=sess?.id===acc.id,row=document.createElement('div');row.className='acc-row';row.innerHTML=`<div><div class="acc-nm">${_esc(acc.username)}${isMe?'&nbsp;<span style="color:var(--green);font-size:10px">●</span>':''}<span class="role-badge ${acc.role}">${acc.role==='admin'?'관리자':acc.role==='teacher'?'강사':'운용자'}</span></div><div class="acc-role">${acc.role==='admin'?'모든 기능':'진도 입력만'}</div></div><div class="acc-acts">${isAdmin?`<button class="ibtn" onclick="App.openAccModal('${acc.id}')">✏️</button>`:''}${isAdmin&&!isMe?`<button class="ibtn red" onclick="App.delAcc('${acc.id}','${_esc(acc.username)}')">🗑</button>`:''}</div>`;card.appendChild(row);});wrap.appendChild(card);}
-  function openAccModal(id=null){S.editAccId=id;const acc=id?DB.getAccounts().find(a=>a.id===id):null;_q('macc-t').textContent=id?'계정 수정':'계정 추가';_q('f-aid').value=acc?.username||'';_q('f-aid').readOnly=!!id;_q('f-apw').value='';_q('f-arole').value=acc?.role||'operator';_q('modal-acc').classList.remove('hidden');}
+  function openAccModal(id=null){S.editAccId=id;const acc=id?DB.getAccounts().find(a=>a.id===id):null;_q('macc-t').textContent=id?'계정 수정':'계정 추가';_q('f-aid').value=acc?.username||'';_q('f-aid').readOnly=!!id;_q('f-apw').value='';_q('f-arole').value=acc?.role||'operator';
+    App._onRoleChange(acc?.role||'operator', acc?.teacherClasses||[]);_q('modal-acc').classList.remove('hidden');}
   async function saveAccount(){const u=_q('f-aid').value.trim(),p=_q('f-apw').value,role=_q('f-arole').value;
     const teacherClasses=role==='teacher'?[...document.querySelectorAll('#f-teacher-cls-list input:checked')].map(c=>c.value):[];if(!u){_toast('⚠️ 아이디를 입력해주세요','error');return;}if(!S.editAccId&&!p){_toast('⚠️ 비밀번호를 입력해주세요','error');return;}if(S.editAccId){const d=p?{password:p,role,teacherClasses}:{role,teacherClasses};await DB.updateAccount(S.editAccId,d);_toast('✅ 계정 수정 완료','success');}else{if(!await DB.addAccount(u,p,role,teacherClasses)){_toast('⚠️ 이미 존재하는 아이디','error');return;}_toast('✅ 계정 추가 완료','success');}closeModal('acc');_renderMgAcc();}
   async function delAcc(id,u){if(DB.getSession()?.id===id){_toast('⚠️ 현재 계정은 삭제 불가','error');return;}if(!confirm(`"${u}" 계정을 삭제하시겠습니까?`))return;await DB.deleteAccount(id);_renderMgAcc();_toast('🗑 삭제 완료');}
