@@ -156,7 +156,7 @@ const App = (() => {
 
   /* ══ PAGE NAV ══ */
   function go(page){
-    if(page==='manage'  &&!DB.isLoggedIn()){_showLogin();return;}
+    if(page==='manage'  &&!DB.isLoggedIn()){_showLogin('manage');return;}
     if(page==='students'&&!DB.isAdmin())  {_showLogin();return;}
     if(page==='booklib' &&!DB.isAdmin()&&DB.getRole()!=='teacher')  {_showLogin();return;}
     if(page==='staff'   &&!DB.isAdmin())  {_showLogin();return;}
@@ -199,6 +199,9 @@ const App = (() => {
     _q('mg-logout-btn')?.classList.toggle('hidden',!loggedIn);
     // ★ admin 전용 탭 표시/숨김
     _q('nav-students-btn')?.classList.toggle('hidden',!isAdmin);
+     // ★ 관리 탭: 항상 표시 (클릭 시 로그인 팝업으로 보호)
+     const _navMgBtn=document.getElementById('nav-manage-btn');
+     if(_navMgBtn) _navMgBtn.style.display='';
     _q('nav-booklib-btn') ?.classList.toggle('hidden',!isAdmin);
     _q('nav-staff-btn')   ?.classList.toggle('hidden',!isAdmin);
     _q('nav-grade-btn')   ?.classList.toggle('hidden',!isAdmin);
@@ -206,7 +209,8 @@ const App = (() => {
   }
 
   /* ══ LOGIN ══ */
-  function _showLogin(){
+  function _showLogin(redirect=''){
+    S._loginRedirect=redirect||'';
     const si=localStorage.getItem(LS_REM)||'', sp=localStorage.getItem(LS_REM_PW)||'';
     _q('li-id').value=si; _q('li-pw').value=sp; _q('li-err').textContent='';
     _q('li-remember').checked=!!si;
@@ -227,7 +231,7 @@ const App = (() => {
     if(acc){
       if(_q('li-remember').checked){localStorage.setItem(LS_REM,id);localStorage.setItem(LS_REM_PW,pw);}
       else{localStorage.removeItem(LS_REM);localStorage.removeItem(LS_REM_PW);}
-      _q('login-gate').classList.add('hidden'); _refreshAuthUI(); go('manage');
+      _q('login-gate').classList.add('hidden'); _refreshAuthUI(); go(S._loginRedirect||'manage'); S._loginRedirect='';
       _toast(`✅ ${acc.username} (${acc.role==='admin'?'관리자':acc.role==='teacher'?'강사':'운용자'}) 로그인`,'success');
     } else {_q('li-err').textContent='⚠️ 아이디 또는 비밀번호가 올바르지 않습니다';_q('li-pw').value='';}
   }

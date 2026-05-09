@@ -53,7 +53,9 @@
     <button class="bni on" data-pg="operate" onclick="App.go('operate')">
       <span class="ico">📅</span>진도
     </button>
-    <!-- 관리 탭: 상단으로 이동됨 -->
+    <button class="bni" id="nav-manage-btn" data-pg="manage" onclick="App.go('manage')">
+      <span class="ico">⚙️</span>관리
+    </button>
     <!-- ★ admin 전용 탭 (초기 hidden, _refreshAuthUI에서 토글) -->
     <button class="bni hidden" id="nav-students-btn" data-pg="students" onclick="App.go('students')">
       <span class="ico">👨‍🎓</span>학생
