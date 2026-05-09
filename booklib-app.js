@@ -1256,7 +1256,7 @@ const BooklibApp = (() => {
     const chs=book.chapters||[];const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     const undone=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]),done=evalChs.filter(ch=>!_checks[`${sid}__${ch.id}`]);
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
-    const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.order+1}. ${ch.title}${ts}`;});
+    const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.title}`;});
     const text=[`📚 ${book.name} 학습 현황`,`🐶 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
     return{text,undone,done,total:evalChs.length};
   }
@@ -1270,7 +1270,7 @@ const BooklibApp = (() => {
     const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];const students=_getOrderedStu(allStu);
     const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${cls.name}반 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
     let hasAny=false;
-    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`🐶 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
+    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`🐶 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.title}`);});lines.push('');}});
     if(!hasAny)lines.push('🎉 모든 학생이 완료했습니다!');
     _st.reportText=lines.join('\n');
     const summaryRows=students.map(s=>{const uc=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;const pct=evalChs.length?Math.round((evalChs.length-uc)/evalChs.length*100):100;return`<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);font-weight:700">${_e(s.name)}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);color:${uc?'#ea580c':'var(--green)'}">${uc?`⬜ ${uc}개`:'✅'}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr)"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:${pct}%;background:${uc?'#f97316':'#10b981'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--tx3)">${pct}%</span></div></td></tr>`;}).join('');
@@ -1845,6 +1845,26 @@ const BooklibApp = (() => {
 
   /* ── CSV 임포트 확인 모달 ── */
   function openCsvImportModal(file) {
+    // ★ 파일명 유효성 검증
+    const _valCls  = _getCls(_st.matrixClassId);
+    const _valBook = BookLibDB.getBookById(_st.matrixBookId);
+    if (_valCls && _valBook && file?.name) {
+      const fname = file.name;
+      const clsMatch  = fname.includes(_valCls.name);
+      const bookWords = _valBook.name.split(/\s+/).filter(w=>w.length>1);
+      const bookMatch = bookWords.some(w=>fname.includes(w));
+      if (!clsMatch || !bookMatch) {
+        const mismatch = [];
+        if (!clsMatch)  mismatch.push(`· 반: 선택된 반 [${_valCls.name}] 이 파일명에 없습니다`);
+        if (!bookMatch) mismatch.push(`· 교재: 선택된 교재 [${_valBook.name}] 이 파일명에 없습니다`);
+        const ok = confirm(
+          `⚠️ 파일이 선택한 반/교재와 다를 수 있습니다.\n\n`
+          + mismatch.join('\n')
+          + `\n\n파일: ${fname}\n\n그래도 반영하시겠습니까?`
+        );
+        if (!ok) return;
+      }
+    }
     if (!_st.matrixClassId || !_st.matrixBookId) {
       _toast('⚠️ 반과 교재를 먼저 선택해주세요'); return;
     }
