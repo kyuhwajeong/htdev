@@ -318,10 +318,21 @@ const App = (() => {
     let classes=DB.getClassesForMonth(curMk);
     // 해당 월에 없으면 현재 활성 반
     if(!classes.length) classes=DB.getActiveClasses();
-    // ★ 강사: 담당 반만 표시
+    // ★ 강사: 담당 반만 표시 (id 또는 name으로 매칭)
     if(DB.getRole()==='teacher'){
       const tcIds=DB.getTeacherClasses();
-      if(tcIds.length) classes=classes.filter(c=>tcIds.includes(c.id));
+      if(tcIds.length){
+        // 저장된 teacherClasses는 id 배열 또는 name 배열일 수 있음
+        const allCls=DB.getActiveClasses();
+        const tcNames=tcIds.map(id=>{
+          const cls=allCls.find(c=>c.id===id);
+          return cls?cls.name:id; // id로 못 찾으면 name으로 간주
+        });
+        classes=classes.filter(c=>tcIds.includes(c.id)||tcNames.includes(c.name));
+      } else {
+        // 담당 반이 없으면 아무것도 표시 안 함 (빈 화면 = 미설정)
+        classes=[];
+      }
     }
     if(!classes.length){
       wrap.innerHTML='<span style="font-size:11px;color:var(--tx3);white-space:nowrap">관리 메뉴에서 반을 추가하세요</span>';
@@ -447,7 +458,11 @@ const App = (() => {
     // ★ 클래스카드 버튼 (booklib 데이터 존재 시 표시)
     try{
       const _allBooks=typeof BookLibDB!=='undefined'?BookLibDB.getBooks():[];
-      const _matchBk=_allBooks.find(bk=>!bk.archived&&(bk.name.includes(b.name)||b.name.includes(bk.name)));
+      const _normName=s=>s.replace(/\s/g,'').toLowerCase();
+      const _matchBk=_allBooks.find(bk=>!bk.archived&&(
+        _normName(bk.name).includes(_normName(b.name))||
+        _normName(b.name).includes(_normName(bk.name))
+      ));
       if(_matchBk){
         const _hasData=typeof BookLibDB!=='undefined'&&BookLibDB.getMatrixChecks(clsId,_matchBk.id)&&
           Object.keys(BookLibDB.getMatrixChecks(clsId,_matchBk.id)).length>0;
