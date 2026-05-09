@@ -167,9 +167,11 @@ const DB = (() => {
     if(FireDB.ready()) await FireDB.set(`${FireDB.P.accounts}/${acc.id}`,acc);
     return acc;
   }
-  async function addAccount(username,pw,role='teacher') {
+  async function addAccount(username,pw,role='operator',teacherClasses=[]) {
     if (C.accounts.find(a=>a.username===username)) return null;
-    return _addAcc(username,pw,role);
+    const acc=_addAcc(username,pw,role);
+    if(acc&&teacherClasses.length){acc.teacherClasses=teacherClasses;ls(LS.accounts,C.accounts);}
+    return acc;
   }
   async function updateAccount(id,data) {
     const idx=C.accounts.findIndex(a=>a.id===id); if(idx===-1)return null;
