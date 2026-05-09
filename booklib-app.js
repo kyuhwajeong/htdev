@@ -250,6 +250,7 @@ const BooklibApp = (() => {
     </div>
     <!-- ★ 교재 등록 FAB 버튼 (교재관리 탭에서만 표시) -->
     <div id="bl-reg-fab" style="position:fixed;right:12px;bottom:90px;z-index:999;display:none;flex-direction:column;align-items:center;gap:4px">
+      <button onclick="BooklibApp._openArchivedPopup()" title="완결 교재 목록" style="width:44px;height:44px;border-radius:50%;background:var(--surf2);color:var(--tx3);border:1.5px solid var(--bdr2);font-size:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)">📦</button>
       <button onclick="BooklibApp._openRegModal()" title="교재 등록"
         style="width:54px;height:54px;border-radius:50%;background:var(--a);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 18px var(--a40);display:flex;align-items:center;justify-content:center;transition:all .15s">＋</button>
       <span style="font-size:9px;font-weight:800;color:var(--a);background:var(--card);padding:1px 6px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">교재 등록</span>
@@ -276,27 +277,40 @@ const BooklibApp = (() => {
   }
 
   /* ══ LIBRARY ══ */
-  function _switchLibTab(tab){
-    const panelActive = document.getElementById('bl-panel-active');
-    const panelArc    = document.getElementById('bl-panel-arc');
-    if(!panelActive||!panelArc) return;
-    const btnActive   = document.getElementById('bl-tab-active');
-    const btnArc      = document.getElementById('bl-tab-arc');
-    if (!panelActive) return;
-    const isActive = tab==='active';
-    panelActive.style.display = isActive ? 'block' : 'none';
-    panelArc.style.display    = isActive ? 'none'  : 'block';
-    if (btnActive) {
-      btnActive.style.color       = isActive ? 'var(--a)' : 'var(--tx3)';
-      btnActive.style.borderBottom= isActive ? '2px solid var(--a)' : '2px solid transparent';
-    }
-    if (btnArc) {
-      btnArc.style.color       = isActive ? 'var(--tx3)' : 'var(--a)';
-      btnArc.style.borderBottom= isActive ? '2px solid transparent' : '2px solid var(--a)';
-    }
+  function _openArchivedPopup(){
+    document.getElementById('bl-arc-popup')?.remove();
+    const arcBooks = typeof BookLibDB!=='undefined' ? BookLibDB.getAllBooks().filter(b=>b.archived) : [];
+    const isAdmin  = typeof DB!=='undefined' && DB.isAdmin();
+    const modal = document.createElement('div');
+    modal.id='bl-arc-popup';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;display:flex;align-items:flex-end;justify-content:center';
+    const itemsHtml = arcBooks.length===0
+      ? '<p style="text-align:center;color:var(--tx3);padding:24px">완결된 교재가 없습니다</p>'
+      : arcBooks.map(b=>{
+          const restoreBtn = isAdmin ? `<button
+            style="padding:4px 10px;border-radius:7px;background:rgba(99,102,241,.1);border:1.5px solid rgba(99,102,241,.4);color:var(--a);font-size:11px;font-weight:700;cursor:pointer"
+            onclick="BooklibApp._unarchiveBook('${b.id}')">↩️ 복원</button>` : '';
+          const delBtn = isAdmin ? `<button
+            style="padding:4px 10px;border-radius:7px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:11px;font-weight:700;cursor:pointer"
+            onclick="if(confirm('삭제하시겠습니까?'))BooklibApp.deleteBook('${b.id}')">🗑</button>` : '';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr)">
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:700">${_e(b.name)}</div>
+              <div style="font-size:11px;color:var(--tx3)">${b.archivedAt?b.archivedAt.slice(0,10):''}</div>
+            </div>${restoreBtn}${delBtn}</div>`;
+        }).join('');
+    modal.innerHTML = `<div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 -4px 20px rgba(0,0,0,.15)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <span style="font-size:15px;font-weight:800">📦 완결 교재 목록 (${arcBooks.length}개)</span>
+        <button onclick="document.getElementById('bl-arc-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--tx3)">✕</button>
+      </div>
+      <div style="overflow-y:auto;display:flex;flex-direction:column;gap:8px">${itemsHtml}</div>
+    </div>`;
+    modal.onclick = e=>{ if(e.target===modal) modal.remove(); };
+    document.body.appendChild(modal);
   }
 
-  function _renderLibrary(){
+    function _renderLibrary(){
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
     const sub=document.getElementById('bl-ph-sub');if(sub)sub.textContent=`교재 ${books.length}개`;
@@ -315,18 +329,6 @@ const BooklibApp = (() => {
         </div>`:``}
         <!-- 교재 목록 타이틀 + 다중선택 버튼 -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px">
-          <!-- ★ 탭: 교재 목록 / 완결 교재 -->
-          <div style="display:flex;border-bottom:2px solid var(--bdr);margin-bottom:10px">
-            <button id="bl-tab-active" onclick="event.stopPropagation();BooklibApp._switchLibTab('active')"
-              style="padding:6px 14px;font-size:12px;font-weight:800;cursor:pointer;border:none;background:none;font-family:var(--font);color:var(--a);border-bottom:2px solid var(--a);margin-bottom:-2px">
-              📖 교재 목록 <span id="bl-cnt-active" style="font-size:11px;background:var(--a20);color:var(--a);border-radius:10px;padding:1px 6px"></span>
-            </button>
-            <button id="bl-tab-arc" onclick="event.stopPropagation();BooklibApp._switchLibTab('arc')"
-              style="padding:6px 14px;font-size:12px;font-weight:800;cursor:pointer;border:none;background:none;font-family:var(--font);color:var(--tx3);border-bottom:2px solid transparent;margin-bottom:-2px">
-              📦 완결 <span id="bl-cnt-arc" style="font-size:11px;background:var(--surf2);color:var(--tx3);border-radius:10px;padding:1px 6px"></span>
-            </button>
-          </div>
-          <div id="bl-panel-active">
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:12px;font-weight:800;color:var(--tx2)">교재 목록</span>
             <span style="font-size:11px;color:var(--tx3);background:var(--surf2);padding:1px 7px;border-radius:10px">${books.filter(b=>!b.archived).length}개</span>
@@ -348,17 +350,19 @@ const BooklibApp = (() => {
       <div id="bl-active-books" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 120px">
         ${books.length===0?`<div class="bl-empty"><div style="font-size:48px;margin-bottom:10px">📚</div>등록된 교재가 없습니다</div>`:`
         ${books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999)).map(b=>_bookCardHTML(b,isAdmin)).join('')}
+        ${books.some(b=>b.archived)?`
+        <div style="margin-top:20px">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-top:2px solid var(--bdr);cursor:pointer"
+               onclick="BooklibApp._toggleArchivedSection(this)">
+            <span style="font-size:13px;font-weight:800;color:var(--tx2)">📦 완결된 교재</span>
+            <span style="font-size:11px;color:var(--tx3);background:var(--surf2);padding:1px 7px;border-radius:10px">${books.filter(b=>b.archived).length}개</span>
+            <span id="bl-arc-arrow" style="margin-left:auto;font-size:12px;color:var(--tx3)">▼</span>
+          </div>
+          <div id="bl-arc-list" style="display:flex;flex-direction:column;gap:6px;opacity:.8">
+            ${books.filter(b=>b.archived).map(b=>_bookCardHTML(b,isAdmin)).join('')}
+          </div>
+        </div>`:``}
         `}
-      </div>
-      </div>
-      <!-- 완결 교재 패널 -->
-      <div id="bl-panel-arc" style="display:none">
-        ${books.filter(b=>b.archived).length===0
-          ? `<div style="text-align:center;padding:40px;color:var(--tx3);font-size:13px">완결된 교재가 없습니다</div>`
-          : `<div style="display:flex;flex-direction:column;gap:8px">
-              ${books.filter(b=>b.archived).map(b=>_bookCardHTML(b,isAdmin)).join('')}
-             </div>`
-        }
       </div>
     </div>`;
     if(isAdmin){
@@ -369,52 +373,46 @@ const BooklibApp = (() => {
     }
   }
 
-  function _bookCardHTML(b, isAdmin){
-    const chN = (b.chapters||[]).length;
-    const allCls = typeof DB!=='undefined' ? DB.getActiveClasses() : [];
-    const clsNames = (b.classIds||[]).map(id=>allCls.find(c=>c.id===id)?.name||id).join(', ');
-    const isArchived = !!b.archived;
-    const chLabel = chN>0 ? `📑 ${chN}챕터` : `[일반]`;
-    const chLabelStyle = chN>0 ? '' : 'color:#9333ea;background:rgba(147,51,234,.1);border-color:rgba(147,51,234,.3)';
-
-    return `<div class="bl-book-card ${isArchived?'archived':chN>0?'has-ch':''}" data-bid="${b.id}"
-        draggable="${isAdmin&&!isArchived}"
-        onclick="if(this.dataset.noclick!=='1')BooklibApp.openEditor(this.closest('[data-bid]').dataset.bid,'chapters')" data-admin="${isAdmin&&!isArchived?'1':'0'}" style="${isAdmin&&!isArchived?'cursor:pointer':''}">
+  function _bookCardHTML(b,isAdmin){
+    const chN=(b.chapters||[]).length;
+    const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
+    const clsNames=(b.classIds||[]).map(id=>allCls.find(c=>c.id===id)?.name||id).join(', ');
+    const cfg=b.reportConfig;
+    const hasGrade=cfg?.word?.totalQ>0||cfg?.reading?.enabled;
+    const isArchived=!!b.archived;
+    // ★ 챕터 없으면 [일반], 있으면 [N챕터]
+    const chLabel=chN>0?`📑 ${chN}챕터`:`[일반]`;
+    const chLabelStyle=chN>0?'':'color:#9333ea;background:rgba(147,51,234,.1);border-color:rgba(147,51,234,.3)';
+    // ★ 학생 직접 배정 이름들
+    const allStus=typeof DB!=='undefined'?DB.getClasses().flatMap(c=>
+      (typeof DB.getStudents==='function'?DB.getStudents().filter(s=>s.cls===c.name):[])):[];
+    const stuNames=(b.studentIds||[]).map(id=>allStus.find(s=>s.id===id)?.name||'').filter(Boolean).join(', ');
+    return`<div class="bl-book-card ${isArchived?'archived':chN>0?'has-ch':''}" data-bid="${b.id}" draggable="${isAdmin&&!isArchived}">
       <div class="bl-book-chdr">
-        ${isAdmin&&!isArchived?`<div class="bl-drag-handle" onclick="event.stopPropagation()" title="드래그하여 순서 변경">⠿</div>`:''}
-        ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px">
-          <button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',-1)" title="위로">▲</button>
-          <button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',1)" title="아래로">▼</button>
-        </div>`:''}
-        ${isAdmin&&!isArchived?`<input type="checkbox" class="bl-multi-ck" data-bid="${b.id}"
-          style="display:none;width:17px;height:17px;accent-color:var(--a);cursor:pointer;flex-shrink:0"
-          onclick="event.stopPropagation();BooklibApp._onMultiCkChange()">`:''} 
+        ${isAdmin&&!isArchived?`<div class="bl-drag-handle" title="드래그하여 순서 변경">⠿</div>`:''}
+        ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px"><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',-1)" title="위로">▲</button><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',1)" title="아래로">▼</button></div>`:''}
+        ${isAdmin&&!isArchived?`<input type="checkbox" class="bl-multi-ck" data-bid="${b.id}" style="display:none;width:17px;height:17px;accent-color:var(--a);cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();BooklibApp._onMultiCkChange()">`:''}
         <div class="bl-book-ico">${isArchived?'📦':'📖'}</div>
-        <div class="bl-book-info" style="flex:1;min-width:0">
+        <div class="bl-book-info">
           <div class="bl-book-title">${_e(b.name)}</div>
           <div class="bl-book-meta">
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
             ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:`<span class="bl-badge" style="color:var(--tx3)">반 미배정</span>`}
+            ${stuNames?`<span class="bl-badge" style="background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#3b82f6">👤 ${_e(stuNames)}</span>`:''}
+            ${!isArchived?`<span class="bl-badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#d97706;cursor:pointer" onclick="event.stopPropagation();BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📝 평가 설정</span>`:''}
             ${isArchived?`<span class="bl-badge" style="color:var(--tx3)">📦 완결 ${b.archivedAt?b.archivedAt.slice(0,10):''}</span>`:''}
           </div>
         </div>
         ${isAdmin?`<div class="bl-book-acts" onclick="event.stopPropagation()">
-          ${!isArchived?`
-            <button onclick="BooklibApp._openEvalTab('${b.id}')" title="평가 설정"
-              style="width:30px;height:30px;border-radius:8px;border:1.5px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#d97706;cursor:pointer;font-size:15px">📝</button>
-            <button onclick="BooklibApp._archiveBook('${b.id}')" title="완결 처리"
-              style="width:30px;height:30px;border-radius:8px;border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-size:15px">🔒</button>
-            <button onclick="BooklibApp._copyBook('${b.id}')" title="복사"
-              style="width:30px;height:30px;border-radius:8px;border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3);cursor:pointer;font-size:15px">📋</button>
-          `:`
-            <button onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원"
-              style="width:30px;height:30px;border-radius:8px;border:1.5px solid rgba(99,102,241,.4);background:rgba(99,102,241,.1);color:var(--a);cursor:pointer;font-size:15px">↩️</button>
-          `}
+          ${!isArchived?`<button class="ibtn" onclick="BooklibApp.openEditor('${b.id}','chapters')" title="수정">✏️</button>`:''}
+          ${!isArchived?`<button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>`:''}
+          ${isArchived?`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`:''}
+          <button class="ibtn red" onclick="BooklibApp.deleteBook('${b.id}')" title="삭제">🗑</button>
         </div>`:''}
       </div>
       ${chN>0&&!isArchived?`<div class="bl-ch-preview">${(b.chapters||[]).slice(0,5).map(c=>`<span class="bl-ch-tag">${_e(c.title)}</span>`).join('')}${chN>5?`<span style="color:var(--a);font-weight:700;font-size:11px">+${chN-5}</span>`:''}</div>`:''}
-    </div>`;
-  }
+    </div>`;}
+
 
   // ★ 교재 목록 드래그 순서 변경
   function _bindBookListDrag(){
@@ -693,6 +691,7 @@ const BooklibApp = (() => {
     await BookLibDB.unarchiveBook(id);
     if(finalName !== b.name) await BookLibDB.updateBook(id, {name: finalName});
     _renderLibrary();
+    document.getElementById('bl-arc-popup')?.remove();
     _toast('↩️ "'+finalName+'" 복원됐습니다', 'success');
   }
   async function _copyBook(id){
@@ -720,17 +719,6 @@ const BooklibApp = (() => {
       _renderLibrary();
       _toast(`✅ 교재명 변경: ${newName.trim()}`, 'success');
     }).catch(()=>_toast('⚠️ 변경 실패','error'));
-  }
-
-  async function _deleteBookAndConfig(id){
-    const b=BookLibDB.getBookById(id); if(!b) return;
-    if(typeof GradeDB!=='undefined'&&GradeDB.saveReportConfig){
-      try{ await GradeDB.saveReportConfig(id,null); }catch(e){}
-    }
-    await BookLibDB.deleteBook(id);
-    BooklibApp.closeEditor();
-    _renderLibrary();
-    _toast('🗑 "'+_e(b.name)+'" 삭제 완료','success');
   }
 
   async function deleteBook(id){
@@ -788,12 +776,7 @@ const BooklibApp = (() => {
       </div>
       <div class="sh-acts">
         <button class="btn-x" onclick="BooklibApp.closeEditor()">취소</button>
-        ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>
-        ${isAdmin?`<button onclick="if(confirm('이 교재를 삭제하시겠습니까?\\n관련 평가 설정도 삭제됩니다.'))BooklibApp._deleteBookAndConfig('${bookId}')" style="padding:10px 16px;border-radius:10px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">🗑 교재 삭제</button>`:``}
-        <button onclick="if(confirm('이 교재를 삭제하시겠습니까? 관련 평가 설정도 삭제됩니다.'))BooklibApp._deleteBookAndConfig('${bookId}')"
-          style="padding:10px 16px;border-radius:10px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#dc2626;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">
-          🗑 교재 삭제
-        </button>`:''} 
+        ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>`:''}
       </div>`;
     if(isAdmin&&_editorTab==='chapters')_bindDrop('bl-ch-drop',book.id,_importChFile);
     // 학생 검색 이벤트
@@ -1043,13 +1026,9 @@ const BooklibApp = (() => {
       <div class="bl-mstat">✅ 수행률 <span class="bl-mstat-v">${pct}%</span></div>
       <div class="bl-pct-bar"><div class="bl-pct-fill" id="bl-pct-fill" style="width:${pct}%"></div></div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;font-weight:700;color:var(--tx3);background:var(--surf2);border:1px solid var(--bdr2);border-radius:7px;padding:3px 8px;user-select:none" onclick="event.stopPropagation()">
-          <input type="checkbox" id="bl-memo-ck" style="accent-color:var(--a)" onchange="BooklibApp._toggleMemo(this.checked)"> 📝 메모
-        </label>
-        <button class="bl-wbtn" title="글자 크기 줄이기" onclick="BooklibApp._mtblFontSize(-1)">A-</button>
-        <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
-
-
+        <button class="bl-wbtn" onclick="BooklibApp._chNarrow()">◀</button>
+        <span style="font-size:10px;color:var(--tx3)">${_st.chCollapsed?'접힘':_st.chColWidth+'px'}</span>
+        <button class="bl-wbtn" onclick="BooklibApp._chWider()">▶</button>
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
@@ -1069,7 +1048,7 @@ const BooklibApp = (() => {
             </th>
             ${students.map((s,i)=>{const uc=doneByS[s.id];return`<th class="bl-shdr" draggable="true" data-idx="${i}" data-sid="${s.id}" onclick="BooklibApp.openShare('${s.id}','${_st.matrixClassId}','${_st.matrixBookId}')">
               <div class="bl-shdr-name">${_e(s.name)}${s.nickname?`<span style="font-size:9px;font-weight:600;color:var(--tx3);display:block">(${_e(s.nickname)})</span>`:''}</div>
-              <div class="bl-shdr-cnt" style="color:${uc?'#ea580c':'var(--green)'}" id="shdr-cnt-${s.id}">${uc?uc+' 미수행':'완료✅'}</div>
+              <div class="bl-shdr-cnt" style="color:${uc?'#ea580c':'var(--green)'}" id="shdr-cnt-${s.id}">${uc?uc+'미':'완료✅'}</div>
               <div class="bl-shdr-act">${uc?'📤':''}</div>
             </th>`;}).join('')}
           </tr>
@@ -1220,50 +1199,16 @@ const BooklibApp = (() => {
   }
 
   function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
-  // ★ 메모 기능 (반+교재별 DB 저장)
-  function _toggleMemo(show){
-    let pad=document.getElementById('bl-memo-pad');
-    if(show){
-      if(!pad){
-        pad=document.createElement('div');
-        pad.id='bl-memo-pad';
-        pad.style.cssText='position:fixed;right:16px;bottom:100px;width:280px;border-radius:14px;background:var(--card);border:1.5px solid var(--a40);box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:200;overflow:hidden;';
-        pad.innerHTML=`<div style="background:var(--a);color:#fff;padding:8px 12px;font-size:12px;font-weight:800;cursor:move;display:flex;justify-content:space-between;align-items:center" id="bl-memo-hdr">
-          📝 메모 — ${_e((_getCls(_st.matrixClassId)||{}).name||'')}반 · ${_e((BookLibDB.getBookById(_st.matrixBookId)||{}).name||'')}
-          <button onclick="document.getElementById('bl-memo-ck').click()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px">✕</button>
-        </div>
-        <textarea id="bl-memo-txt" style="width:100%;height:160px;padding:10px;border:none;outline:none;resize:vertical;font-size:12px;font-family:var(--font);background:var(--card);color:var(--tx);box-sizing:border-box" placeholder="반·교재별 메모를 입력하세요..." oninput="BooklibApp._saveMemo(this.value)"></textarea>`;
-        document.body.appendChild(pad);
-        // 저장된 메모 불러오기
-        const key='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
-        const saved=localStorage.getItem(key)||'';
-        document.getElementById('bl-memo-txt').value=saved;
-        // 드래그
-        const hdr=document.getElementById('bl-memo-hdr');
-        let ox=0,oy=0,mx=0,my=0;
-        hdr.onmousedown=e=>{e.preventDefault();mx=e.clientX;my=e.clientY;
-          document.onmousemove=e2=>{ox=mx-e2.clientX;oy=my-e2.clientY;mx=e2.clientX;my=e2.clientY;pad.style.top=(pad.offsetTop-oy)+'px';pad.style.left=(pad.offsetLeft-ox)+'px';pad.style.right='auto';pad.style.bottom='auto';};
-          document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};};
-      } else pad.style.display='block';
-    } else {
-      if(pad) pad.style.display='none';
-    }
-  }
-  function _saveMemo(val){
-    const key='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
-    localStorage.setItem(key,val);
-  }
-
-    function _mtblFontSize(delta){
-    const tbl=document.getElementById('bl-mtbl');
-    if(!tbl) return;
-    const cur=parseFloat(getComputedStyle(tbl).fontSize)||12;
-    const newSz=Math.min(16,Math.max(9,cur+delta));
+  function _mtblFontSize(delta){
+    const tbl=document.getElementById('bl-mtbl');if(!tbl)return;
+    const cur=parseFloat(tbl.style.fontSize)||12;
+    const newSz=Math.min(18,Math.max(9,cur+delta));
     tbl.style.fontSize=newSz+'px';
-    tbl.querySelectorAll('th,td').forEach(el=>el.style.fontSize=newSz+'px');
+    // 헤더, 본문, 챕터명 모두 적용
+    document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-batch-hdr,.bl-batch-ck').forEach(el=>el.style.fontSize=newSz+'px');
   }
 
-    function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
+  function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
 
@@ -1312,7 +1257,7 @@ const BooklibApp = (() => {
     const undone=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]),done=evalChs.filter(ch=>!_checks[`${sid}__${ch.id}`]);
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
     const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.order+1}. ${ch.title}${ts}`;});
-    const text=[`📚 ${book.name} 학습 현황`,`🐾 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
+    const text=[`📚 ${book.name} 학습 현황`,`🐶 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
     return{text,undone,done,total:evalChs.length};
   }
 
@@ -1325,7 +1270,7 @@ const BooklibApp = (() => {
     const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];const students=_getOrderedStu(allStu);
     const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${cls.name}반 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
     let hasAny=false;
-    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`🐾 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
+    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`🐶 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
     if(!hasAny)lines.push('🎉 모든 학생이 완료했습니다!');
     _st.reportText=lines.join('\n');
     const summaryRows=students.map(s=>{const uc=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;const pct=evalChs.length?Math.round((evalChs.length-uc)/evalChs.length*100):100;return`<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);font-weight:700">${_e(s.name)}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);color:${uc?'#ea580c':'var(--green)'}">${uc?`⬜ ${uc}개`:'✅'}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr)"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:${pct}%;background:${uc?'#f97316':'#10b981'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--tx3)">${pct}%</span></div></td></tr>`;}).join('');
@@ -2141,11 +2086,10 @@ const BooklibApp = (() => {
   
   
   async function _confirmCsvImport() {
-    // ★ 모달에서 실제 선택된 값만 수집 (이전 반 데이터 완전히 덮어씀)
-    const freshExcs = _collectExceptions();
-    _csvImportState.exceptions = freshExcs; // ★ 완전 교체
-    _csvImportState.exceptionOn = Object.keys(freshExcs).length > 0;
-    // DB 저장 (다음 번 같은 반 로드 시 복원용)
+    // ★ 학생별 예외 항목 수집 + DB 저장 (반 기준)
+    // ★ exceptions에 alias 정보 포함 버전으로 수집
+    _csvImportState.exceptions = _collectExceptions();
+    _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length > 0;
     const fullExcs = _collectExceptionsForSave();
     if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.saveClassExempts) {
       BookLibDB.saveClassExempts(_st.matrixClassId, fullExcs);
@@ -2207,9 +2151,9 @@ const BooklibApp = (() => {
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     _saveExempts, _loadExempts,
-    _archiveBook,_unarchiveBook,_copyBook, _openEvalTab, _deleteBookAndConfig,
+    _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
-    _openRegModal, _modalAddBook, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
+    _openRegModal, _modalAddBook, _openArchivedPopup, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
     _multiCopy, _multiDelete, _multiMoveUp, _multiMoveDown, _moveBook,
     _renameBook, _excAutoComplete,
   };
