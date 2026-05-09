@@ -456,7 +456,7 @@ const BooklibApp = (() => {
     if(isAdmin){
       _bindDrop('bl-book-csv',null,_importBookFile);
       setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);
-      setTimeout(()=>{const list=document.getElementById('bl-active-books');if(!list)return;list.onclick=e=>{if(document.getElementById('bl-active-books')?.classList.contains('multi-selecting'))return;if(e.target.closest('.bl-book-acts'))return;if(e.target.closest('.bl-drag-handle'))return;if(e.target.type==='checkbox')return;const card=e.target.closest('[data-bid]');if(!card)return;const bk=BookLibDB.getBookById(card.dataset.bid);if(bk&&!bk.archived)BooklibApp.openEditor(card.dataset.bid,'chapters');};},100);
+      setTimeout(()=>{const list=document.getElementById('bl-active-books');if(!list)return;list.onclick=e=>{if(document.getElementById('bl-active-books')?.classList.contains('multi-selecting'))return;if(e.target.closest('.bl-book-acts'))return;if(e.target.closest('.bl-drag-handle'))return;if(e.target.type==='checkbox')return;const card=e.target.closest('[data-bid]');if(!card)return;const bk=BookLibDB.getBookById(card.dataset.bid);if(bk&&!bk.archived&&typeof BooklibApp!=='undefined')BooklibApp.openEditor(card.dataset.bid,'chapters');};},100);
       // ★ 교재 드래그앤드롭 순서 변경 이벤트 바인딩
       setTimeout(()=>_bindBookListDrag(), 50);
     }
@@ -494,10 +494,10 @@ const BooklibApp = (() => {
         </div>
         ${isAdmin?`<div class="bl-book-acts" onclick="event.stopPropagation()" style="display:flex;gap:4px;align-items:center;flex-shrink:0">
           ${!isArchived?`
-            <button class="ibtn" onclick="BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📊</button>
-            <button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>
-            <button class="ibtn" onclick="BooklibApp._archiveBook('${b.id}')" title="완결 처리">🔒</button>
-          `:`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`}
+            <button class="ibtn" onclick="event.stopPropagation();BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📊</button>
+            <button class="ibtn" onclick="event.stopPropagation();BooklibApp._copyBook('${b.id}')" title="복사">📋</button>
+            <button class="ibtn" onclick="event.stopPropagation();BooklibApp._archiveBook('${b.id}')" title="완결 처리">🔒</button>
+          `:`<button class="ibtn" onclick="event.stopPropagation();BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`}
         </div>`:''} 
       </div>
       ${chN>0&&!isArchived?`<div class="bl-ch-preview">${(b.chapters||[]).slice(0,5).map(c=>`<span class="bl-ch-tag">${_e(c.title)}</span>`).join('')}${chN>5?`<span style="color:var(--a);font-weight:700;font-size:11px">+${chN-5}</span>`:''}</div>`:''}
@@ -1387,21 +1387,27 @@ const BooklibApp = (() => {
     } else { if(pad) pad.style.display='none'; }
     const _ckKey='bl_memo_ck_'+clsId+'_'+bkId;
     localStorage.setItem(_ckKey, show?'1':'0');
-    // ★ 체크 상태도 Firebase에 저장
+    // ★ 체크 상태 + 텍스트 Firebase 저장
+    const _memoTxt=document.getElementById('bl-memo-txt')?.value||'';
     if(typeof BookLibDB!=='undefined'&&BookLibDB.saveMemo){
       BookLibDB.saveMemo(clsId, bkId, {
-        text: document.getElementById('bl-memo-txt')?.value||'',
-        checked: show
+        text: _memoTxt,
+        checked: show,
+        updatedAt: new Date().toISOString()
       }).catch(()=>{});
     }
   }
   function _saveMemo(val){
     const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
+    if(!clsId||!bkId) return;
     const now=new Date().toISOString();
-    const data={text:val, updatedAt:now};
+    const ck=document.getElementById('bl-memo-ck');
+    const checked=ck?ck.checked:false;
+    const data={text:val, checked:checked, updatedAt:now};
     // localStorage 즉시 저장
     localStorage.setItem('bl_memo_'+clsId+'_'+bkId, val);
-    // DB 비동기 저장
+    localStorage.setItem('bl_memo_ck_'+clsId+'_'+bkId, checked?'1':'0');
+    // ★ DB 비동기 저장 (text + checked + updatedAt)
     if(typeof BookLibDB!=='undefined'&&BookLibDB.saveMemo){
       BookLibDB.saveMemo(clsId, bkId, data).catch(()=>{});
     }

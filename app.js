@@ -467,9 +467,8 @@ const App = (() => {
         _normName(b.name).includes(_normName(bk.name))   // 역포함
       ));
       if(_matchBk){
-        const _hasData=typeof BookLibDB!=='undefined'&&BookLibDB.getMatrixChecks(clsId,_matchBk.id)&&
-          Object.keys(BookLibDB.getMatrixChecks(clsId,_matchBk.id)).length>0;
-        if(_hasData){
+        // ★ 매칭되면 항상 표시
+        {
           const ccBtn=document.createElement('button');
           ccBtn.textContent='📊'; ccBtn.title='학습 현황 보기';
           ccBtn.style.cssText='font-size:11px;padding:4px 10px;border-radius:7px;background:var(--a);color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;font-weight:700;box-shadow:0 2px 6px var(--a40)';
