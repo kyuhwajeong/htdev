@@ -460,10 +460,11 @@ const App = (() => {
     // ★ 클래스카드 버튼 (booklib 데이터 존재 시 표시)
     try{
       const _allBooks=typeof BookLibDB!=='undefined'?BookLibDB.getBooks():[];
-      const _normName=s=>s.replace(/\s/g,'').toLowerCase();
+      const _normName=s=>s.replace(/[\s　]+/g,'').toLowerCase();
       const _matchBk=_allBooks.find(bk=>!bk.archived&&(
-        _normName(bk.name).includes(_normName(b.name))||
-        _normName(b.name).includes(_normName(bk.name))
+        _normName(bk.name)===_normName(b.name)||           // 완전 일치
+        _normName(bk.name).includes(_normName(b.name))||  // 포함
+        _normName(b.name).includes(_normName(bk.name))   // 역포함
       ));
       if(_matchBk){
         const _hasData=typeof BookLibDB!=='undefined'&&BookLibDB.getMatrixChecks(clsId,_matchBk.id)&&

@@ -480,7 +480,7 @@ const BooklibApp = (() => {
       draggable="${isAdmin&&!isArchived}"
       data-admin="${isAdmin&&!isArchived?'1':'0'}">
       <div class="bl-book-chdr">
-        ${isAdmin&&!isArchived?`<div class="bl-drag-handle" onclick="event.stopPropagation()" title="드래그하여 순서 변경">⠿</div>`:''}
+
         ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px"><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',-1)" title="위로">▲</button><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',1)" title="아래로">▼</button></div>`:''}
         ${isAdmin&&!isArchived?`<input type="checkbox" class="bl-multi-ck" data-bid="${b.id}" onclick="event.stopPropagation();BooklibApp._onMultiCkChange()" style="display:none;width:17px;height:17px;accent-color:var(--a);cursor:pointer;flex-shrink:0">`:''} 
         <div class="bl-book-ico">${isArchived?'📦':'📖'}</div>
@@ -1387,6 +1387,13 @@ const BooklibApp = (() => {
     } else { if(pad) pad.style.display='none'; }
     const _ckKey='bl_memo_ck_'+clsId+'_'+bkId;
     localStorage.setItem(_ckKey, show?'1':'0');
+    // ★ 체크 상태도 Firebase에 저장
+    if(typeof BookLibDB!=='undefined'&&BookLibDB.saveMemo){
+      BookLibDB.saveMemo(clsId, bkId, {
+        text: document.getElementById('bl-memo-txt')?.value||'',
+        checked: show
+      }).catch(()=>{});
+    }
   }
   function _saveMemo(val){
     const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
@@ -1402,14 +1409,24 @@ const BooklibApp = (() => {
     const dtDiv=document.getElementById('bl-memo-dt');
     if(dtDiv) dtDiv.textContent='수정: '+new Date(now).toLocaleString('ko-KR');
   }
-  function _restoreMemoState(){
+  async function _restoreMemoState(){
     const ck=document.getElementById('bl-memo-ck');
     if(!ck||!_st.matrixClassId||!_st.matrixBookId) return;
-    const ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
-    const wasCk=localStorage.getItem(ckKey)==='1';
-    // ★ 체크박스를 해당 교재의 저장된 상태로 설정
-    ck.checked=wasCk;
-    // ★ 체크된 교재면 메모창 자동 표시, 아니면 닫음
+    const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
+    const ckKey='bl_memo_ck_'+clsId+'_'+bkId;
+    // ★ Firebase에서 메모 데이터(체크 상태 포함) 로드
+    let wasCk = localStorage.getItem(ckKey)==='1'; // localStorage 폴백
+    try{
+      if(typeof BookLibDB!=='undefined'&&BookLibDB.loadMemo){
+        const data = await BookLibDB.loadMemo(clsId, bkId);
+        if(data && data.checked !== undefined){
+          wasCk = data.checked===true || data.checked==='1';
+          // localStorage도 동기화
+          localStorage.setItem(ckKey, wasCk?'1':'0');
+        }
+      }
+    }catch(e){}
+    ck.checked = wasCk;
     if(wasCk) _toggleMemo(true);
     else { const pad=document.getElementById('bl-memo-pad'); if(pad) pad.style.display='none'; }
   }
