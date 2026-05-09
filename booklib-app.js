@@ -413,7 +413,7 @@ const BooklibApp = (() => {
     const stuNames=(b.studentIds||[]).map(id=>allStus.find(s=>s.id===id)?.name||'').filter(Boolean).join(', ');
     return`<div class="bl-book-card ${isArchived?'archived':chN>0?'has-ch':''}" data-bid="${b.id}"
       draggable="${isAdmin&&!isArchived}"
-      onclick="${isAdmin&&!isArchived?`BooklibApp.openEditor('${b.id}','chapters')`:''}">
+      data-admin="${isAdmin&&!isArchived?'1':'0'}">
       <div class="bl-book-chdr">
         ${isAdmin&&!isArchived?`<div class="bl-drag-handle" onclick="event.stopPropagation()" title="드래그하여 순서 변경">⠿</div>`:''}
         ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px"><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',-1)" title="위로">▲</button><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',1)" title="아래로">▼</button></div>`:''}
@@ -1139,6 +1139,24 @@ const BooklibApp = (() => {
     const scrollLeft=tbl?tbl.scrollLeft:0;
     mb.innerHTML=_matrixHTML();
     _setupDrag();_bindCsvDrop();
+    // ★ 폰트 크기 복원 (localStorage에 저장된 값)
+    requestAnimationFrame(()=>{
+      const _fs=parseFloat(localStorage.getItem('bl_mtbl_fontsize'));
+      if(_fs&&_fs!==12){
+        const _tbl=document.getElementById('bl-mtbl');
+        if(_tbl) _tbl.style.fontSize=_fs+'px';
+        document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr,.bl-ch-t,.bl-ch-n').forEach(el=>el.style.fontSize=_fs+'px');
+      }
+      // ★ 메모 체크 상태 복원 (교재별 독립)
+      const _ck=document.getElementById('bl-memo-ck');
+      if(_ck&&_st.matrixClassId&&_st.matrixBookId){
+        const _ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
+        const _wasCk=localStorage.getItem(_ckKey)==='1';
+        _ck.checked=_wasCk;
+        if(_wasCk) BooklibApp._toggleMemo&&BooklibApp._toggleMemo(true);
+        else{ const _p=document.getElementById('bl-memo-pad'); if(_p) _p.style.display='none'; }
+      }
+    });
     // ★ 교체 후 동일 위치 복원 (rAF 2회로 렌더링 완료 후 복원)
     const newTbl=mb.querySelector('.bl-mtbl-wrap');
     if(newTbl){
