@@ -456,7 +456,23 @@ const BooklibApp = (() => {
     if(isAdmin){
       _bindDrop('bl-book-csv',null,_importBookFile);
       setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);
-      setTimeout(()=>{const list=document.getElementById('bl-active-books');if(!list)return;list.onclick=e=>{if(document.getElementById('bl-active-books')?.classList.contains('multi-selecting'))return;if(e.target.closest('.bl-book-acts'))return;if(e.target.closest('.bl-drag-handle'))return;if(e.target.type==='checkbox')return;const card=e.target.closest('[data-bid]');if(!card)return;const bk=BookLibDB.getBookById(card.dataset.bid);if(bk&&!bk.archived&&typeof BooklibApp!=='undefined')BooklibApp.openEditor(card.dataset.bid,'chapters');};},100);
+      setTimeout(()=>{
+        const list=document.getElementById('bl-active-books');
+        if(!list) return;
+        // ★ click과 touchend 모두 처리 (draggable 제거 후 click으로 충분)
+        const handler=e=>{
+          if(list.classList.contains('multi-selecting')) return;
+          if(e.target.closest('.bl-book-acts')) return;
+          if(e.target.type==='checkbox') return;
+          if(e.target.tagName==='BUTTON') return;
+          if(e.target.closest('.bl-book-title[contenteditable]')) return;
+          const card=e.target.closest('[data-bid]');
+          if(!card) return;
+          if(card.dataset.admin!=='1') return;
+          BooklibApp.openEditor(card.dataset.bid,'chapters');
+        };
+        list.addEventListener('click', handler);
+      },100);
       // ★ 교재 드래그앤드롭 순서 변경 이벤트 바인딩
       setTimeout(()=>_bindBookListDrag(), 50);
     }
@@ -477,7 +493,6 @@ const BooklibApp = (() => {
       (typeof DB.getStudents==='function'?DB.getStudents().filter(s=>s.cls===c.name):[])):[];
     const stuNames=(b.studentIds||[]).map(id=>allStus.find(s=>s.id===id)?.name||'').filter(Boolean).join(', ');
     return`<div class="bl-book-card ${isArchived?'archived':chN>0?'has-ch':''}" data-bid="${b.id}"
-      draggable="${isAdmin&&!isArchived}"
       data-admin="${isAdmin&&!isArchived?'1':'0'}">
       <div class="bl-book-chdr">
 
@@ -504,7 +519,8 @@ const BooklibApp = (() => {
     </div>`;}
 
 
-  // ★ 교재 목록 드래그 순서 변경
+  function _bindBookListDrag(){ /* draggable 제거됨 */ }
+
   function _bindBookListDrag(){
     const container=document.getElementById('bl-active-books'); if(!container) return;
     let dragId=null;
