@@ -334,6 +334,46 @@ const BooklibApp = (() => {
     sheet.appendChild(listEl); modal.appendChild(sheet); document.body.appendChild(modal);
   }
 
+  function _inlineRenameInPopup(bookId, spanEl){
+    // 챕터 팝업 상단 교재명 인라인 편집
+    const cur = spanEl.textContent.trim();
+    const inp = document.createElement('input');
+    inp.value = cur;
+    inp.style.cssText = 'font-size:16px;font-weight:800;padding:2px 6px;border:2px solid var(--a);border-radius:6px;background:var(--surf2);font-family:var(--font);outline:none;max-width:200px';
+    spanEl.replaceWith(inp);
+    inp.focus(); inp.select();
+    const done = async () => {
+      const newName = inp.value.trim();
+      if(newName && newName !== cur){
+        await BookLibDB.updateBook(bookId, {name: newName});
+        _renderLibrary();
+        _toast('✅ 교재명 변경: ' + newName, 'success');
+        // 팝업 제목 업데이트
+        const newSpan = document.createElement('span');
+        newSpan.id = 'bl-ed-book-name-lbl';
+        newSpan.title = '더블클릭하여 교재명 변경';
+        newSpan.style.cssText = 'cursor:pointer;border-bottom:2px dashed var(--a40);padding-bottom:1px';
+        newSpan.textContent = newName;
+        newSpan.ondblclick = ()=>BooklibApp._inlineRenameInPopup(bookId, newSpan);
+        inp.replaceWith(newSpan);
+      } else {
+        // 원복
+        const newSpan = document.createElement('span');
+        newSpan.id = 'bl-ed-book-name-lbl';
+        newSpan.title = '더블클릭하여 교재명 변경';
+        newSpan.style.cssText = 'cursor:pointer;border-bottom:2px dashed var(--a40);padding-bottom:1px';
+        newSpan.textContent = cur;
+        newSpan.ondblclick = ()=>BooklibApp._inlineRenameInPopup(bookId, newSpan);
+        inp.replaceWith(newSpan);
+      }
+    };
+    inp.addEventListener('blur', done);
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter') inp.blur();
+      if(e.key==='Escape'){ inp.value=cur; inp.blur(); }
+    });
+  }
+
   function _inlineRenameBook(bookId, titleEl){
     const cur = titleEl.textContent.trim();
     const inp = document.createElement('input');
@@ -820,7 +860,7 @@ const BooklibApp = (() => {
     sh.innerHTML=`
       <div class="sh-handle"></div>
       <div class="sh-title" style="display:flex;align-items:center;gap:8px">
-        📖 ${_e(book.name)}
+        📖 <span id="bl-ed-book-name-lbl" ondblclick="BooklibApp._inlineRenameInPopup('${bookId}',this)" title="더블클릭하여 교재명 변경" style="cursor:pointer;border-bottom:2px dashed var(--a40);padding-bottom:1px">${_e(book.name)}</span>
         <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--a10);color:var(--a);border:1px solid var(--a30)">${_editorTab==='eval'?'평가 설정':'챕터 관리'}</span>
       </div>
 
@@ -2319,7 +2359,7 @@ const BooklibApp = (() => {
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,
-    _openRegModal, _modalAddBook, _openArchivedPopup, _inlineRenameBook, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
+    _openRegModal, _modalAddBook, _openArchivedPopup, _inlineRenameBook, _inlineRenameInPopup, _toggleRegArea, _toggleArchivedSection, _deleteExcRow,
     _multiCopy, _multiDelete, _multiMoveUp, _multiMoveDown, _moveBook,
     _renameBook, _excAutoComplete,
   };

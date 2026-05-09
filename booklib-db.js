@@ -302,7 +302,7 @@ const BookLibDB = (() => {
     const payload={...data, updatedAt:new Date().toISOString()};
     try{
       if(typeof FireDB!=='undefined'&&FireDB.ready()){
-        await FireDB.set('memos/'+key, payload);
+        await FireDB.set('hakwon10/memos/'+key, payload);
       }
       localStorage.setItem('bl_memo_db_'+key, JSON.stringify(payload));
     }catch(e){ localStorage.setItem('bl_memo_db_'+key, JSON.stringify(payload)); }
@@ -311,7 +311,7 @@ const BookLibDB = (() => {
     const key=classId+'_'+bookId;
     try{
       if(typeof FireDB!=='undefined'&&FireDB.ready()){
-        const data=await FireDB.get('memos/'+key);
+        const data=await FireDB.get('hakwon10/memos/'+key);
         if(data){ localStorage.setItem('bl_memo_db_'+key, JSON.stringify(data)); return data; }
       }
     }catch(e){}
