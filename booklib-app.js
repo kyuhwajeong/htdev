@@ -1114,8 +1114,15 @@ const BooklibApp = (() => {
     </div>`;
   }
 
-  function _onClsChange(clsId){_stopListeners();_st.matrixClassId=clsId||null;_st.matrixBookId=null;_checks={};_stamps={};_renderMatrixTab();}
+  function _onClsChange(clsId){
+    // ★ 반 변경 시 메모장 제거 + 체크 해제
+    document.getElementById('bl-memo-pad')?.remove();
+    const _mck2=document.getElementById('bl-memo-ck'); if(_mck2) _mck2.checked=false;
+    _stopListeners();_st.matrixClassId=clsId||null;_st.matrixBookId=null;_checks={};_stamps={};_renderMatrixTab();}
   function _onBkChange(bkId){
+    // ★ 교재 변경 시 이전 메모장 제거 + 체크 해제
+    document.getElementById('bl-memo-pad')?.remove();
+    const _mck=document.getElementById('bl-memo-ck'); if(_mck) _mck.checked=false;
     _stopListeners();_st.matrixBookId=bkId||null;_checks={};_stamps={};
     if(_st.matrixClassId&&_st.matrixBookId){
       _checks=BookLibDB.getMatrixChecks(_st.matrixClassId,_st.matrixBookId);
@@ -1228,7 +1235,7 @@ const BooklibApp = (() => {
     const cur=parseFloat(tbl.style.fontSize)||12;
     const ns=Math.min(18,Math.max(9,cur+delta));
     tbl.style.fontSize=ns+'px';
-    document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr').forEach(el=>{el.style.fontSize=ns+'px';});
+    document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr,.bl-ch-t,.bl-ch-n').forEach(el=>{el.style.fontSize=ns+'px';});
   }
   function _toggleMemo(show){
     let pad=document.getElementById('bl-memo-pad');
@@ -1261,8 +1268,21 @@ const BooklibApp = (() => {
           document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};};
       } else pad.style.display='block';
     } else { if(pad) pad.style.display='none'; }
+    // ★ 반+교재별 체크 상태 저장
+    const _ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
+    localStorage.setItem(_ckKey, show?'1':'0');
   }
   function _saveMemo(val){ localStorage.setItem('bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId,val); }
+  function _restoreMemoState(){
+    // 반+교재 변경 후 해당 메모 체크 상태 복원
+    const ck=document.getElementById('bl-memo-ck');
+    if(!ck) return;
+    const memoKey='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
+    const ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
+    const wasCk=localStorage.getItem(ckKey)==='1';
+    ck.checked=wasCk;
+    if(wasCk) _toggleMemo(true); // 이전에 체크됐던 교재면 자동 표시
+  }
 
     function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
@@ -1312,7 +1332,7 @@ const BooklibApp = (() => {
     const chs=book.chapters||[];const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     const undone=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]),done=evalChs.filter(ch=>!_checks[`${sid}__${ch.id}`]);
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
-    const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.order+1}. ${ch.title}${ts}`;});
+    const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.title}`;});
     const text=[`📚 ${book.name} 학습 현황`,`👤 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
     return{text,undone,done,total:evalChs.length};
   }
@@ -1326,7 +1346,7 @@ const BooklibApp = (() => {
     const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];const students=_getOrderedStu(allStu);
     const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${cls.name}반 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
     let hasAny=false;
-    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`👤 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.order+1}. ${ch.title}${ts}`);});lines.push('');}});
+    students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;lines.push(`👤 ${s.name}  (${undone.length}/${evalChs.length})`);undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.title}`);});lines.push('');}});
     if(!hasAny)lines.push('🎉 모든 학생이 완료했습니다!');
     _st.reportText=lines.join('\n');
     const summaryRows=students.map(s=>{const uc=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;const pct=evalChs.length?Math.round((evalChs.length-uc)/evalChs.length*100):100;return`<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);font-weight:700">${_e(s.name)}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);color:${uc?'#ea580c':'var(--green)'}">${uc?`⬜ ${uc}개`:'✅'}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr)"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:${pct}%;background:${uc?'#f97316':'#10b981'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--tx3)">${pct}%</span></div></td></tr>`;}).join('');
@@ -2202,7 +2222,7 @@ const BooklibApp = (() => {
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
     _saveSubTasks,_closeSubPopup,
-    _chWider,_chNarrow,_mtblFontSize,_toggleMemo,_saveMemo,_toggleCollapse,
+    _chWider,_chNarrow,_mtblFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
