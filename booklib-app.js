@@ -876,7 +876,7 @@ const BooklibApp = (() => {
     sh.innerHTML=`
       <div class="sh-handle"></div>
       <div class="sh-title" style="display:flex;align-items:center;gap:8px">
-        📖 <span id="bl-ed-book-name-lbl" ondblclick="BooklibApp._inlineRenameInPopup('${bookId}',this)" title="더블클릭하여 교재명 변경" style="cursor:pointer;border-bottom:2px dashed var(--a40);padding-bottom:1px">${_e(book.name)}</span>
+        📖 <span id="bl-ed-book-name-lbl" ondblclick="BooklibApp._inlineRenameInPopup('${book.id}',this)" title="더블클릭하여 교재명 변경" style="cursor:pointer;border-bottom:2px dashed var(--a40);padding-bottom:1px">${_e(book.name)}</span>
         <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--a10);color:var(--a);border:1px solid var(--a30)">${_editorTab==='eval'?'평가 설정':'챕터 관리'}</span>
       </div>
 
