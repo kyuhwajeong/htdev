@@ -423,17 +423,16 @@ const BooklibApp = (() => {
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
             ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:`<span class="bl-badge" style="color:var(--tx3)">반 미배정</span>`}
             ${stuNames?`<span class="bl-badge" style="background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#3b82f6">👤 ${_e(stuNames)}</span>`:''}
-            ${!isArchived?`<span class="bl-badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#d97706;cursor:pointer" onclick="event.stopPropagation();BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📝 평가 설정</span>`:''}
             ${isArchived?`<span class="bl-badge" style="color:var(--tx3)">📦 완결 ${b.archivedAt?b.archivedAt.slice(0,10):''}</span>`:''}
           </div>
         </div>
         ${isAdmin?`<div class="bl-book-acts" onclick="event.stopPropagation()">
-          ${!isArchived?`<button class="ibtn" onclick="BooklibApp._openEvalTab('${b.id}')" title="평가">📊</button>`:''}
-          ${!isArchived?`<button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>`:''}
-          ${isArchived?`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`:''}
-          <button class="ibtn red" onclick="BooklibApp.deleteBook('${b.id}')" title="삭제">🗑</button>
+          ${!isArchived?`
+            <button class="ibtn" onclick="BooklibApp._openEvalTab('${b.id}')" title="평가 설정">📊</button>
+            <button class="ibtn" onclick="BooklibApp._copyBook('${b.id}')" title="복사">📋</button>
+            <button class="ibtn" onclick="BooklibApp._archiveBook('${b.id}')" title="완결 처리">🔒</button>
+          `:`<button class="ibtn" onclick="BooklibApp._unarchiveBook('${b.id}')" title="복원">↩️</button>`}
         </div>`:''}
-      </div>
       ${chN>0&&!isArchived?`<div class="bl-ch-preview">${(b.chapters||[]).slice(0,5).map(c=>`<span class="bl-ch-tag">${_e(c.title)}</span>`).join('')}${chN>5?`<span style="color:var(--a);font-weight:700;font-size:11px">+${chN-5}</span>`:''}</div>`:''}
     </div>`;}
 
@@ -1232,8 +1231,18 @@ const BooklibApp = (() => {
   function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _mtblFontSize(delta){
     const tbl=document.getElementById('bl-mtbl'); if(!tbl) return;
-    const cur=parseFloat(tbl.style.fontSize)||12;
+    const LS_FONT='bl_mtbl_fontsize';
+    const cur=parseFloat(localStorage.getItem(LS_FONT))||12;
     const ns=Math.min(18,Math.max(9,cur+delta));
+    localStorage.setItem(LS_FONT, ns); // ★ 교재 변경해도 유지
+    tbl.style.fontSize=ns+'px';
+    document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr,.bl-ch-t,.bl-ch-n').forEach(el=>{el.style.fontSize=ns+'px';});
+  }
+  function _applyFontSize(){
+    // ★ 교재/반 변경 후 저장된 폰트 크기 재적용
+    const ns=parseFloat(localStorage.getItem('bl_mtbl_fontsize'));
+    if(!ns||ns===12) return;
+    const tbl=document.getElementById('bl-mtbl'); if(!tbl) return;
     tbl.style.fontSize=ns+'px';
     document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr,.bl-ch-t,.bl-ch-n').forEach(el=>{el.style.fontSize=ns+'px';});
   }
@@ -1274,14 +1283,14 @@ const BooklibApp = (() => {
   }
   function _saveMemo(val){ localStorage.setItem('bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId,val); }
   function _restoreMemoState(){
-    // 반+교재 변경 후 해당 메모 체크 상태 복원
     const ck=document.getElementById('bl-memo-ck');
-    if(!ck) return;
-    const memoKey='bl_memo_'+_st.matrixClassId+'_'+_st.matrixBookId;
+    if(!ck||!_st.matrixClassId||!_st.matrixBookId) return;
     const ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
     const wasCk=localStorage.getItem(ckKey)==='1';
     ck.checked=wasCk;
-    if(wasCk) _toggleMemo(true); // 이전에 체크됐던 교재면 자동 표시
+    // ★ 이전에 체크했던 교재라면 메모창 자동 표시
+    if(wasCk) _toggleMemo(true);
+    else _toggleMemo(false);
   }
 
     function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
@@ -2222,7 +2231,7 @@ const BooklibApp = (() => {
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
     _saveSubTasks,_closeSubPopup,
-    _chWider,_chNarrow,_mtblFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
+    _chWider,_chNarrow,_mtblFontSize,_applyFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
