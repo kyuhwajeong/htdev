@@ -49,6 +49,9 @@ const GradeApp = (() => {
     graphAlign:      localStorage.getItem('gr_graphAlign')|| 'left',
     logoSize:        Number(localStorage.getItem('gr_logoSz'))    || 80,
     hdrFontSize:     Number(localStorage.getItem('gr_hdrFontSz')) || 12,
+    excelFontSize:   Number(localStorage.getItem('gr_excelFontSz')) || 12,
+    cardFontSize:    Number(localStorage.getItem('gr_cardFontSz'))  || 12,
+    graphStyle:      Number(localStorage.getItem('gr_graphStyle'))  || 1, // 1=수직, 2=수평
     graphAlign:      'left',
     logoSize:        80,
     touchStartX: 0,
@@ -327,10 +330,10 @@ const GradeApp = (() => {
         <div id="gr-hdr-cfg" style="display:none;position:absolute;right:0;top:36px;background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:8px 12px;box-shadow:var(--sh);z-index:30;white-space:nowrap">
           <div style="font-size:10px;font-weight:800;color:var(--tx3);margin-bottom:6px">헤더 글자 크기</div>
           <div style="display:flex;align-items:center;gap:6px">
-            <input type="range" min="8" max="16" value="${_st.hdrFontSize||12}" step="1"
+            <input type="range" min="8" max="16" value="${_st.viewMode==='card'?(_st.cardFontSize||12):(_st.excelFontSize||12)}" step="1"
               oninput="GradeApp._setHdrFontSize(this.value)"
               style="width:80px;accent-color:var(--a)">
-            <span id="gr-hdr-sz-lbl" style="font-size:11px;color:var(--tx2);min-width:26px">${_st.hdrFontSize||12}px</span>
+            <span id="gr-hdr-sz-lbl" style="font-size:11px;color:var(--tx2);min-width:26px">${_st.viewMode==='card'?(_st.cardFontSize||12):(_st.excelFontSize||12)}px</span>
           </div>
         </div>
         <button id="gr-hdr-font-btn"
@@ -523,6 +526,18 @@ const GradeApp = (() => {
         </table>
       </div>`;
     cnt.innerHTML = html;
+    /* Fix 3: 헤더 sticky top 값 동적 측정 (실제 렌더 후) */
+    requestAnimationFrame(() => {
+      _fixStickyHeaderTops();
+      /* Fix 2: 엑셀 저장 폰트 복원 */
+      if (_st.excelFontSize && _st.excelFontSize !== 12) {
+        document.querySelectorAll('.gr-sheet thead th').forEach(th => {
+          th.style.fontSize = _st.excelFontSize + 'px';
+          th.style.whiteSpace = 'nowrap';
+        });
+        requestAnimationFrame(_fixStickyHeaderTops);
+      }
+    });
     setTimeout(() => _renderChart(students, actRevs), 30);
   }
 
@@ -852,8 +867,8 @@ const GradeApp = (() => {
         </div>
       </div>`;
     /* ★ 저장된 카드 폰트 크기 즉시 적용 */
-    if (_st.hdrFontSize && _st.hdrFontSize !== 12) {
-      requestAnimationFrame(() => _setHdrFontSize(_st.hdrFontSize));
+    if (_st.cardFontSize && _st.cardFontSize !== 12) {
+      requestAnimationFrame(() => _setHdrFontSize(_st.cardFontSize));
     }
   }
 
@@ -1041,6 +1056,12 @@ const GradeApp = (() => {
           <div>
             <div class="gr-rpt-cfg-title">📊 그래프 &amp; 🖊 라인</div>
             <label class="gr-rpt-toggle" style="display:flex;align-items:center;gap:4px;margin-bottom:4px"><input type="checkbox" ${_st.reportGraph?'checked':''} onchange="GradeApp._toggleGraph(this.checked)"> 그래프 포함</label>
+            <!-- ★ 그래프 스타일 선택 -->
+            <div style="display:flex;gap:4px;margin-bottom:4px;align-items:center">
+              <span style="font-size:9px;color:var(--tx3);font-weight:700;white-space:nowrap">스타일</span>
+              ${[1,2].map(n=>`<button id="gr-gst-${n}" onclick="GradeApp._setGraphStyleMode(${n})"
+                style="padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);border:1.5px solid ${_st.graphStyle===n?'var(--a)':'var(--bdr2)'};background:${_st.graphStyle===n?'var(--a10)':'var(--surf2)'};color:${_st.graphStyle===n?'var(--a)':'var(--tx3)'}">${n===1?'▌ 수직':'≡ 수평'}</button>`).join('')}
+            </div>
             <div style="display:flex;gap:3px;margin-bottom:4px">
               ${['left','center','right'].map(a=>`<button id="gr-ga-${a}" onclick="GradeApp._setGraphAlign('${a}')" style="padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);border:1.5px solid ${_st.graphAlign===a?'var(--a)':'var(--bdr2)'};background:${_st.graphAlign===a?'var(--a10)':'var(--surf2)'};color:${_st.graphAlign===a?'var(--a)':'var(--tx3)'};white-space:nowrap">${a==='left'?'좌':a==='center'?'중앙':'우'}</button>`).join('')}
             </div>
@@ -1136,7 +1157,7 @@ const GradeApp = (() => {
 
     const wordTbl=rec?`<div class="rpt-sec-title">단어 Test Result</div><table class="rpt-tbl"><thead><tr><th>총 테스트수</th><th style="color:#4f46e5">통과</th><th style="color:#ea580c">재시</th><th style="color:#8b5cf6">성취율</th></tr></thead><tbody><tr><td>${wTotalQ||'—'}</td><td class="rpt-pass">${wPass??'—'}</td><td class="rpt-fail">${wRetake??'—'}</td><td class="rpt-achv">${achW!=null?achW+'%':'—'}</td></tr><tr class="rpt-avg"><td colspan="3" style="text-align:center">평균</td><td class="rpt-achv">${avgW!=null?avgW+'%':'—'}</td></tr></tbody></table>`:'';
     const rdTbl=hasRd&&rec?`<div class="rpt-sec-title">리딩 Test Result</div><table class="rpt-tbl"><thead><tr>${actRevs.map(rv=>`<th>${_e(rv.name)}</th>`).join('')}<th style="color:#8b5cf6">성취율</th></tr></thead><tbody><tr>${actRevs.map((_,i)=>{const sc=rec.reading?.[`R${i}`]?.score;return`<td class="rpt-pass">${sc!=null?sc+'점':'—'}</td>`;}).join('')}<td class="rpt-achv">${achRd!=null?Math.round(achRd)+'%':'—'}</td></tr><tr class="rpt-avg"><td colspan="${actRevs.length}" style="text-align:center">평균</td><td class="rpt-achv">${avgRd!=null?avgRd+'%':'—'}</td></tr></tbody></table>`:'';
-    const graph=_st.reportGraph&&achW!=null?_canvasGraph(achW,hasRd&&achRd!=null?Math.round(achRd):null):'';
+    const graph=_st.reportGraph&&achW!=null?_canvasGraph(achW,hasRd&&achRd!=null?Math.round(achRd):null,avgW,hasRd&&avgRd!=null?Math.round(avgRd):null):'';
     const comment=`<div style="margin-top:14px"><div class="rpt-sec-title">Teacher's comment</div><div class="rpt-comment-box">${_e(rec?.comment||'')}</div></div>`;
     const L=_st.reportLayout;
 
@@ -1240,69 +1261,117 @@ const GradeApp = (() => {
     return(bodies[L]||bodies[1]).filter(Boolean).join('');
   }
 
-  /* ★ 그래프를 canvas로 그려 dataURL <img>로 반환
-   *   — SVG는 html2canvas·print에서 깨지는 경우가 있어 canvas 방식 사용
-   *   — 동기 처리를 위해 즉시 dataURL 반환
+  /* ★ 리포트 그래프 — 4개 막대 (학생단어/반평균단어/학생리딩/반평균리딩)
+   *   graphStyle: 1=수직막대, 2=수평막대
    */
-  function _canvasGraph(achW, achRd) {
-    const bars = [['단어', achW, '#6366f1']];
-    if (achRd != null) bars.push(['리딩', Math.round(achRd), '#8b5cf6']);
-    const DPR = 2; // 선명도
-    const bW = 48, gap = 24, padL = gap, padB = 22, padT = 12;
-    const W  = bars.length * (bW + gap) + padL + gap;
-    const H  = 80;
-    const c  = document.createElement('canvas');
-    c.width  = W * DPR; c.height = H * DPR;
-    const ctx = c.getContext('2d');
-    ctx.scale(DPR, DPR);
+  function _canvasGraph(achW, achRd, avgW, avgRd) {
+    const style = _st.graphStyle || 1;
 
-    /* 배경 */
-    ctx.fillStyle = '#ffffff00'; ctx.fillRect(0,0,W,H);
+    /* 데이터 정의 */
+    const bars = [];
+    if (achW  != null) bars.push({ lbl:'내 단어',    val:achW,             clr:'#6366f1', grp:'word' });
+    if (avgW  != null) bars.push({ lbl:'반평균 단어', val:Math.round(avgW), clr:'#a5b4fc', grp:'word' });
+    if (achRd != null) bars.push({ lbl:'내 리딩',    val:Math.round(achRd),clr:'#8b5cf6', grp:'read' });
+    if (avgRd != null) bars.push({ lbl:'반평균 리딩', val:Math.round(avgRd),clr:'#c4b5fd', grp:'read' });
+    if (!bars.length) return '';
 
-    bars.forEach(([lbl, pct, clr], i) => {
-      const barH = Math.round((pct / 100) * (H - padB - padT));
-      const x    = padL + i * (bW + gap);
-      const y    = H - padB - barH;
+    const DPR = 2;
+    let imgTag = '';
 
-      /* 막대 */
-      ctx.fillStyle = clr; ctx.globalAlpha = .88;
-      const r = 4;
-      ctx.beginPath();
-      ctx.moveTo(x+r, y); ctx.lineTo(x+bW-r, y);
-      ctx.quadraticCurveTo(x+bW, y, x+bW, y+r);
-      ctx.lineTo(x+bW, y+barH); ctx.lineTo(x, y+barH);
-      ctx.lineTo(x, y+r);
-      ctx.quadraticCurveTo(x, y, x+r, y);
-      ctx.closePath(); ctx.fill();
-      ctx.globalAlpha = 1;
+    if (style === 1) {
+      /* ── 수직 막대 ── */
+      const bW=44, gap=10, grpGap=20, padL=16, padB=28, padT=14;
+      const W = bars.length * bW + (bars.length - 1) * gap + 2 * padL + grpGap;
+      const H = 90;
+      const c = document.createElement('canvas');
+      c.width = W*DPR; c.height = H*DPR;
+      const ctx = c.getContext('2d');
+      ctx.scale(DPR, DPR);
 
-      /* 퍼센트 레이블 */
-      ctx.fillStyle = clr;
-      ctx.font = `bold 11px 'Noto Sans KR', sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(`${pct}%`, x + bW/2, y - 3);
+      /* 기준선 */
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, H-padB); ctx.lineTo(W, H-padB); ctx.stroke();
+      /* 보조선 */
+      [25,50,75,100].forEach(v => {
+        const y = H - padB - Math.round(v/100*(H-padB-padT));
+        ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = .8;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W-padL, y); ctx.stroke();
+        ctx.fillStyle = '#9ca3af'; ctx.font = `9px sans-serif`; ctx.textAlign = 'right';
+        ctx.fillText(v+'%', padL-3, y+3);
+      });
 
-      /* 바닥 레이블 */
-      ctx.fillStyle = '#6b7280';
-      ctx.font = `10px 'Noto Sans KR', sans-serif`;
-      ctx.fillText(lbl, x + bW/2, H - 5);
-    });
+      let xOff = padL;
+      let prevGrp = null;
+      bars.forEach((bar, i) => {
+        if (prevGrp && prevGrp !== bar.grp) xOff += grpGap;
+        const barH = Math.round(bar.val/100*(H-padB-padT));
+        const x = xOff; const y = H - padB - barH;
+        /* 막대 */
+        ctx.fillStyle = bar.clr; ctx.globalAlpha = .9;
+        ctx.beginPath();
+        const r = 4;
+        ctx.moveTo(x+r,y); ctx.lineTo(x+bW-r,y);
+        ctx.quadraticCurveTo(x+bW,y,x+bW,y+r);
+        ctx.lineTo(x+bW,y+barH); ctx.lineTo(x,y+barH); ctx.lineTo(x,y+r);
+        ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1;
+        /* 값 */
+        ctx.fillStyle = bar.clr; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center';
+        ctx.fillText(bar.val+'%', x+bW/2, y-3);
+        /* 레이블 */
+        ctx.fillStyle = '#6b7280'; ctx.font = `9px sans-serif`;
+        ctx.fillText(bar.lbl, x+bW/2, H-5);
+        xOff += bW + gap;
+        prevGrp = bar.grp;
+      });
+      imgTag = `<img src="${c.toDataURL('image/png')}" width="${W}" height="${H}" style="display:inline-block;max-width:100%;height:auto" alt="그래프">`;
 
-    /* 기준선 */
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, H-padB); ctx.lineTo(W, H-padB); ctx.stroke();
+    } else {
+      /* ── 수평 막대 ── */
+      const bH=22, gap=8, grpGap=14, padL=72, padR=40, padT=10, padB=10;
+      const H = bars.length*bH + (bars.length-1)*gap + grpGap + padT + padB;
+      const W = 320;
+      const c = document.createElement('canvas');
+      c.width = W*DPR; c.height = H*DPR;
+      const ctx = c.getContext('2d');
+      ctx.scale(DPR, DPR);
+      ctx.fillStyle = '#ffffff00'; ctx.fillRect(0,0,W,H);
 
-    const dataUrl = c.toDataURL('image/png');
-    const align   = _st.graphAlign || 'left';
-    return `<div class="rpt-graph-wrap" style="text-align:${align};margin:8px 0 12px">
-      <img src="${dataUrl}" width="${W}" height="${H}"
-           style="display:inline-block;max-width:100%;height:auto"
-           alt="성취율 그래프">
-    </div>`;
+      let yOff = padT;
+      let prevGrp = null;
+      bars.forEach((bar, i) => {
+        if (prevGrp && prevGrp !== bar.grp) yOff += grpGap;
+        const barW = Math.round(bar.val/100*(W-padL-padR));
+        const y = yOff;
+        /* 레이블 */
+        ctx.fillStyle = '#374151'; ctx.font = `9px sans-serif`; ctx.textAlign = 'right';
+        ctx.fillText(bar.lbl, padL-6, y + bH/2 + 3);
+        /* 배경 트랙 */
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(padL, y, W-padL-padR, bH);
+        /* 막대 */
+        ctx.fillStyle = bar.clr; ctx.globalAlpha = .9;
+        const r = 4;
+        ctx.beginPath();
+        const bx=padL, by=y;
+        ctx.moveTo(bx+r,by); ctx.lineTo(bx+barW,by);
+        ctx.lineTo(bx+barW,by+bH); ctx.lineTo(bx,by+bH); ctx.lineTo(bx,by+r);
+        ctx.quadraticCurveTo(bx,by,bx+r,by); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1;
+        /* 값 */
+        ctx.fillStyle = bar.clr; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'left';
+        ctx.fillText(bar.val+'%', padL+barW+4, y+bH/2+3);
+        yOff += bH + gap;
+        prevGrp = bar.grp;
+      });
+      imgTag = `<img src="${c.toDataURL('image/png')}" width="${W}" height="${H}" style="display:inline-block;max-width:100%;height:auto" alt="그래프">`;
+    }
+
+    const align = _st.graphAlign || 'left';
+    return `<div class="rpt-graph-wrap" style="text-align:${align};margin:8px 0 12px">${imgTag}</div>`;
   }
 
-  /* (구) SVG 버전은 _canvasGraph로 대체 */
-  function _svgGraph(achW, achRd) { return _canvasGraph(achW, achRd); }
+  function _svgGraph(achW, achRd) { return _canvasGraph(achW, achRd, null, null); }
 
   function _setChartStyle(n) {
     _st.chartStyle = n;
@@ -1526,15 +1595,47 @@ const GradeApp = (() => {
     _applyRptStyles();
   }
   function _setHdrFontSize(val){
-    _st.hdrFontSize = Number(val);
+    val = Number(val);
+    _st.hdrFontSize = val;
     localStorage.setItem('gr_hdrFontSz', val);
     const lbl = document.getElementById('gr-hdr-sz-lbl'); if(lbl) lbl.textContent = val+'px';
-    /* 엑셀 모드: 헤더 th 적용 */
-    document.querySelectorAll('.gr-sheet thead th').forEach(th => th.style.fontSize = val+'px');
-    /* 카드 모드: 카드 섹션 레이블·제목 적용 */
-    document.querySelectorAll(
-      '.gr-csec-title,.gr-clbl,.gr-csec-badge,.gr-hero-nm,.gr-hero-sub,.gr-hero-lbl'
-    ).forEach(el => el.style.fontSize = val+'px');
+
+    if (_st.viewMode === 'excel' || !_st.viewMode) {
+      /* 엑셀 전용 폰트 — thead th 에만 적용, 바디 셀은 건드리지 않음 */
+      _st.excelFontSize = val;
+      localStorage.setItem('gr_excelFontSz', val);
+      document.querySelectorAll('.gr-sheet thead th').forEach(th => {
+        th.style.fontSize = val + 'px';
+        th.style.whiteSpace = 'nowrap'; /* 라인 이탈 방지 */
+      });
+      /* sticky top 동적 재측정 */
+      requestAnimationFrame(_fixStickyHeaderTops);
+    } else if (_st.viewMode === 'card') {
+      /* 카드 전용 폰트 — 카드 레이블에만 적용 */
+      _st.cardFontSize = val;
+      localStorage.setItem('gr_cardFontSz', val);
+      document.querySelectorAll(
+        '.gr-csec-title,.gr-clbl,.gr-csec-badge,.gr-hero-nm,.gr-hero-sub,.gr-hero-lbl,.gr-cdisp,.gr-cinp'
+      ).forEach(el => el.style.fontSize = val + 'px');
+    }
+  }
+
+  /* Fix 3: sticky 헤더 top 값을 실제 높이로 동적 설정 */
+  function _fixStickyHeaderTops() {
+    const thead = document.querySelector('.gr-sheet thead');
+    if (!thead) return;
+    const rows = [...thead.querySelectorAll('tr')];
+    let cumH = 0;
+    rows.forEach(row => {
+      const h = row.getBoundingClientRect().height || 34;
+      row.querySelectorAll('th').forEach(th => {
+        th.style.position = 'sticky';
+        th.style.top = cumH + 'px';
+        th.style.zIndex = th.classList.contains('gs-fix') ? '7' : '4';
+        th.style.background = th.style.background || 'var(--surf2)';
+      });
+      cumH += h;
+    });
   }
 
   /* ── 제목 정렬 ── */
@@ -1650,6 +1751,21 @@ const GradeApp = (() => {
     pw.querySelectorAll('.rpt-title').forEach(el => {
       el.style.textAlign = _st.titleAlign || 'center';
     });
+  }
+
+  function _setGraphStyleMode(n) {
+    _st.graphStyle = n;
+    localStorage.setItem('gr_graphStyle', n);
+    /* 버튼 상태 */
+    [1,2].forEach(i => {
+      const b = document.getElementById(`gr-gst-${i}`);
+      if (b) {
+        b.style.borderColor = i===n?'var(--a)':'var(--bdr2)';
+        b.style.background  = i===n?'var(--a10)':'var(--surf2)';
+        b.style.color       = i===n?'var(--a)':'var(--tx3)';
+      }
+    });
+    _setLayout(_st.reportLayout);
   }
 
   function _setLayout(n){
@@ -2196,7 +2312,7 @@ const GradeApp = (() => {
       _updateChart();
     } else if (_st.viewMode==='report') {
       const el=document.getElementById('gr-rpt-preview');
-      if(el&&sid){const s=_getStudents().find(s=>s.id===sid);if(s)el.innerHTML=_buildReport(s);}
+      if(el&&sid){const s=_getStudents().find(s=>s.id===sid);if(s){el.innerHTML=_buildReport(s);requestAnimationFrame(_applyRptStyles);}}
     }
   }
   async function _setView(mode) {
@@ -2291,6 +2407,7 @@ const GradeApp = (() => {
     saveOne, saveAll, resetOne,
     _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _toggleCfgPanel, _setRptBg,
     _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
+    _setGraphStyleMode, _fixStickyHeaderTops,
     _copyReport, _shareReport, _printReport, _captureReport, _showShareModal,
     openReport, closeReport, _copy, _shr,
   };
