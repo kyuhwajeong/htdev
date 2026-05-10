@@ -184,6 +184,11 @@ const BookLibDB = (() => {
     const ids=[...new Set([...(b.studentIds||[]),(studentId)])];
     return updateBook(bookId,{studentIds:ids});
   }
+  async function batchAddStudents(bookId, studentIds){
+    const b=getBookById(bookId); if(!b) return;
+    const newIds=[...new Set([...(b.studentIds||[]),...studentIds])];
+    return updateBook(bookId,{studentIds:newIds});
+  }
   async function removeStudentFromBook(bookId, studentId){
     const b=getBookById(bookId); if(!b) return;
     const ids=(b.studentIds||[]).filter(id=>id!==studentId);
@@ -346,7 +351,7 @@ const BookLibDB = (() => {
     init, on,
     getBooks, getAllBooks, getArchivedBooks, getBookById,
     addBook, updateBook, deleteBook,
-    reorderBooks, archiveBook, unarchiveBook, copyBook, assignStudents,
+    reorderBooks, archiveBook, unarchiveBook, copyBook, assignStudents, addStudentToBook, batchAddStudents, removeStudentFromBook,
     setChapters, deleteChapter,
     getBooksForClass, isBookInClass, assignBook, unassignBook,
     getMatrixChecks, getRawCheck, isChecked, getCheckParsed, getSubTasks,

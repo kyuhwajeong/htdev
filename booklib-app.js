@@ -1053,16 +1053,13 @@ const BooklibApp = (() => {
       const checked=[...res.querySelectorAll('input[type=checkbox]:checked')];
       if(!checked.length){_toast('배정할 학생을 선택하세요','error');return;}
       applyBtn.disabled=true; applyBtn.textContent='⏳ 적용 중...';
-      let count=0;
-      for(const ck of checked){
-        await BookLibDB.addStudentToBook(bookId, ck.dataset.sid).catch(()=>{});
-        count++;
-      }
+      const sids=checked.map(ck=>ck.dataset.sid);
+      await BookLibDB.batchAddStudents(bookId,sids).catch(e=>console.error('배정오류',e));
       _refreshStudentChips(bookId);
       res.style.display='none';
       const inp=document.getElementById('bl-stu-search');
       if(inp) inp.value='';
-      _toast(`✅ ${count}명 배정 완료`,'success');
+      _toast(`✅ ${sids.length}명 배정 완료`,'success');
     };
     applyBtn.addEventListener('mousedown',doApply);
     applyBtn.addEventListener('touchstart',doApply,{passive:false});
