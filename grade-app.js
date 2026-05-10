@@ -388,11 +388,17 @@ const GradeApp = (() => {
   }
   function _fillBooks() {
     const sel = document.getElementById('gr-bsel'); if (!sel) return;
-    if (!_st.classId) { sel.innerHTML = `<option value="">— 교재 선택 —</option>`; sel.disabled = true; return; }
-    const books = typeof BookLibDB !== 'undefined' ? BookLibDB.getBooksForClass(_st.classId) : [];
+    let books = [];
+    if (_st.classId) {
+      // 반 선택됨: 반 배정 교재 (완결 제외)
+      books = typeof BookLibDB!=='undefined' ? BookLibDB.getBooksForClass(_st.classId).filter(b=>!b.archived) : [];
+    } else {
+      // ★ 반 미선택: 학생 직접 배정된 교재만
+      books = typeof BookLibDB!=='undefined' ? BookLibDB.getBooks().filter(b=>!b.archived&&(b.studentIds||[]).length>0) : [];
+    }
     sel.disabled = false;
-    sel.innerHTML = `<option value="">— 교재 선택 —</option>` +
-      books.map(b => `<option value="${b.id}" ${_st.bookId===b.id?'selected':''}>${_e(b.name)}</option>`).join('');
+    sel.innerHTML = `<option value="">— 교재 선택${_st.classId?'':', (학생 배정 교재)'} —</option>` +
+      books.map(b => `<option value="${b.id}" ${_st.bookId===b.id?'selected':''}>${_e(b.name)}${_st.classId?'':' ('+((b.studentIds||[]).length)+'명)'}</option>`).join('');
     if (!books.length) { sel.innerHTML = `<option value="">배정된 교재 없음</option>`; sel.disabled = true; }
   }
 
@@ -2401,7 +2407,21 @@ const GradeApp = (() => {
   function closeReport(){document.getElementById('gr-rpt-ov')?.classList.add('hidden');}
 
   /* ══ 유틸 ══ */
-  function _getStudents(){const cls=_st.classId?_getCls(_st.classId):null;if(!cls||typeof StudentDB==='undefined')return[];return StudentDB.getFiltered({classCode:cls.name,status:'재원'});}
+  function _getStudents(){
+    if(_st.classId){
+      const cls=_getCls(_st.classId);
+      if(!cls||typeof StudentDB==='undefined') return [];
+      return StudentDB.getFiltered({classCode:cls.name,status:'재원'});
+    } else if(_st.bookId){
+      // ★ 반 미선택: 교재에 직접 배정된 학생만
+      const bk=typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;
+      const sIds=bk?.studentIds||[];
+      if(!sIds.length||typeof StudentDB==='undefined') return [];
+      const all=StudentDB.getAll();
+      return sIds.map(id=>all.find(s=>s.id===id)).filter(Boolean);
+    }
+    return [];
+  }
   function _ensureData(sid){if(!_st.data[sid]){const cfg=GradeDB.getReportConfig(_st.bookId);const tq=cfg.word?.totalQ||0;const rec=GradeDB.getLatest(_st.classId,sid,_st.bookId);_st.data[sid]=rec?JSON.parse(JSON.stringify(rec)):{word:{totalQ:tq,retake:'',pass:''},reading:{},comment:''};_st.data[sid].comment=_st.data[sid].comment||'';}}
   function _givN(n){return n?.length>1?n.slice(1):n||'';}
   function _getCls(id){if(typeof DB==='undefined')return null;if(typeof DB.getClassById==='function')return DB.getClassById(id);return(DB.getActiveClasses?.()||[]).find(c=>c.id===id)||null;}

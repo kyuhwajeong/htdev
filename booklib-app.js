@@ -57,6 +57,8 @@ const BooklibApp = (() => {
 .bl-book-card.has-ch{background:linear-gradient(135deg,var(--card) 80%,rgba(5,150,105,.06));}
 .bl-book-card:not(.has-ch):not(.archived){background:linear-gradient(135deg,var(--card) 80%,rgba(59,130,246,.05));}
 .bl-book-card.archived{background:var(--surf2);opacity:.75;cursor:default;}
+.bl-stu-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:linear-gradient(135deg,var(--a10),rgba(99,102,241,.08));border:1.5px solid var(--a40);border-radius:20px;font-size:12px;font-weight:600;color:var(--tx);box-shadow:0 1px 3px rgba(99,102,241,.1);}
+.bl-stu-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:8px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr);min-height:36px;}
 .bl-stu-dropdown{position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--card);border:1.5px solid var(--a40);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px;}
 .bl-book-card.multi-selecting{cursor:default;}
 .bl-multi-ck{margin-right:2px;}
@@ -516,6 +518,7 @@ const BooklibApp = (() => {
         </div>`:''} 
       </div>
       ${chN>0&&!isArchived?`<div class="bl-ch-preview">${(b.chapters||[]).slice(0,5).map(c=>`<span class="bl-ch-tag">${_e(c.title)}</span>`).join('')}${chN>5?`<span style="color:var(--a);font-weight:700;font-size:11px">+${chN-5}</span>`:''}</div>`:''}
+${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof StudentDB!=='undefined'?StudentDB.getAll():[];const _nms=_sIds.slice(0,4).map(id=>(_aS.find(s=>s.id===id)||{}).name||'').filter(Boolean);return _nms.length?`<div style='margin-top:4px;padding:3px 8px;background:var(--a10);border-radius:6px;font-size:10px;color:var(--a);font-weight:600;display:inline-block'>👤 ${_nms.join(' · ')}${_sIds.length>4?' 외 '+(_sIds.length-4)+'명':''}</div>`:'';})()}
     </div>`;}
 
 
@@ -886,6 +889,9 @@ const BooklibApp = (() => {
       <div class="sh-acts">
         <button class="btn-x" onclick="BooklibApp.closeEditor()">취소</button>
         ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>`:''}
+      ${isAdmin?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
+        <button onclick="event.stopPropagation();BooklibApp._deleteBookFromPopup('${book.id}','${_e(book.name)}')" style="width:100%;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.25);color:#dc2626;font-size:12px;font-weight:700;cursor:pointer">🗑 이 교재 삭제</button>
+      </div>`:''}
       </div>`;
     if(isAdmin&&_editorTab==='chapters')_bindDrop('bl-ch-drop',book.id,_importChFile);
     // 학생 검색 이벤트
@@ -1141,6 +1147,14 @@ const BooklibApp = (() => {
   function _pasteChapters(mode){const ta=document.getElementById('bl-ch-ta');const text=(ta?.value||'').trim();if(!text){_toast('⚠️ 챕터 목록을 입력해주세요');return;}const titles=text.split(/[\r\n]+/).map(l=>l.trim()).filter(Boolean);if(!titles.length){_toast('⚠️ 유효한 챕터가 없습니다');return;}BookLibDB.setChapters(_st.editBookId,titles,mode).then(()=>{if(ta)ta.value='';_toast(`✅ ${titles.length}개 ${mode==='append'?'추가':'교체'}`,'success');_drawEditor(document.getElementById('bl-editor-sh'));});}
   function _delCh(bid,chId){BookLibDB.deleteChapter(bid,chId).then(()=>_drawEditor(document.getElementById('bl-editor-sh')));}
   function _clearChs(){if(!confirm('챕터를 전체 삭제하시겠습니까?'))return;BookLibDB.updateBook(_st.editBookId,{chapters:[]}).then(()=>_drawEditor(document.getElementById('bl-editor-sh')));}
+  async function _deleteBookFromPopup(bookId, bookName){
+    if(!confirm(`"${bookName}" 교재를 삭제하시겠습니까?\n\n⚠️ 챕터, 학습 현황 데이터가 모두 삭제됩니다.`)) return;
+    await BookLibDB.deleteBook(bookId);
+    BooklibApp.closeEditor();
+    _renderLibrary();
+    _toast('🗑 교재 삭제 완료','success');
+  }
+
   async function _toggleAssign(bookId,classId,el){const isOn=el.classList.contains('on');if(isOn)await BookLibDB.unassignBook(bookId,classId);else await BookLibDB.assignBook(bookId,classId);el.classList.toggle('on',!isOn);_toast(isOn?'반 배정 해제':'✅ 반 배정','success');}
 
   // ★ 학생 직접 배정
