@@ -1067,6 +1067,10 @@ const BooklibApp = (() => {
     if(typeof GradeDB!=='undefined') await GradeDB.saveReportConfig(bookId,_st.editConfig);
     closeEditor();
     _toast('✅ 저장 완료','success');
+    // ★ 성적관리가 같은 교재를 보고 있으면 자동 새로고침
+    if(typeof GradeApp!=='undefined'&&GradeApp._refreshAfterEvalUpdate){
+      GradeApp._refreshAfterEvalUpdate(bookId);
+    }
   }
 
   async function _importChFile(file,bookId){try{const lines=await _fileToLines(file);if(!lines.length){_toast('⚠️ 유효한 챕터가 없습니다');return;}await BookLibDB.setChapters(bookId,lines,'replace');_toast(`✅ ${lines.length}개 챕터 등록`,'success');_drawEditor(document.getElementById('bl-editor-sh'));}catch(e){_toast('❌ '+e.message);}}

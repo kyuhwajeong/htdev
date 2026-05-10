@@ -2297,6 +2297,9 @@ const GradeApp = (() => {
       // ★ 교재 선택 완료 후 즉각 그래프 표시
       requestAnimationFrame(() => _updateChart());
     }
+    // ★ 평가 설정 버튼 표시/숨김
+    const _evalBtn = document.getElementById('gr-eval-btn');
+    if (_evalBtn) _evalBtn.style.display = _st.bookId ? 'inline-block' : 'none';
   }
   function _onStu(sid, idx) {
     _st.studentId=sid||null; _st.slideIdx=idx??0;
@@ -2397,9 +2400,29 @@ const GradeApp = (() => {
   const _e=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   function _toast(msg,type){const el=document.getElementById('toast');if(!el)return;el.textContent=msg;el.className=type==='success'?'success':'';el.classList.remove('hidden');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.add('hidden'),3000);}
 
+  // ★ 평가 설정 저장 후 성적관리 UI 새로고침
+  function _refreshAfterEvalUpdate(bookId){
+    if(_st.bookId !== bookId) return; // 다른 교재면 무시
+    // 리포트 설정 업데이트 반영
+    _renderContent();
+    _toast('✅ 평가 설정이 업데이트되었습니다','success');
+  }
+
+  // ★ 성적관리에서 교재 평가 설정 팝업 열기
+  function _openEvalFromGrade(){
+    if(!_st.bookId){ _toast('교재를 먼저 선택하세요','error'); return; }
+    if(typeof BooklibApp !== 'undefined' && BooklibApp._openEvalTab){
+      BooklibApp._openEvalTab(_st.bookId);
+    } else if(typeof BooklibApp !== 'undefined' && BooklibApp.openEditor){
+      BooklibApp.openEditor(_st.bookId, 'eval');
+    } else {
+      alert('교재 학습 관리 탭을 먼저 초기화해주세요.');
+    }
+  }
+  
   return {
     init, render,
-    _onCls, _onBk, _onStu, _setView, _toggleSort,
+    _onCls, _onBk, _openEvalFromGrade, _refreshAfterEvalUpdate, _onStu, _setView, _toggleSort,
     _excelWordInput, _excelRdInput, _excelComment, _onKey,
     _cardWordInput, _cardRdInput, _cardComment,
     _slideTo, _ts, _te,
