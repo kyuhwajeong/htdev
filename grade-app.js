@@ -2354,6 +2354,9 @@ const GradeApp = (() => {
     /* 저장 버튼 */
     const saveBtn = document.getElementById('gr-save-btn');
     if(saveBtn) saveBtn.style.display = hasData ? '' : 'none';
+    /* 평가 설정 버튼 */
+    const evalBtn = document.getElementById('gr-eval-btn');
+    if(evalBtn) evalBtn.style.display = (_st.bookId) ? 'inline-block' : 'none';
 
     /* 헤더 폰트 버튼 — 엑셀 + 카드 모드에서 표시 */
     const fontBtn = document.getElementById('gr-hdr-font-btn');
@@ -2411,14 +2414,8 @@ const GradeApp = (() => {
 
   // ★ 성적관리에서 교재 평가 설정 팝업 열기
   function _openEvalFromGrade(){
-    if(!_st.bookId){ _toast('교재를 먼저 선택하세요','error'); return; }
-    // ★ BooklibApp 전역 노출 후 바로 사용
-    const BApp = window.BooklibApp || (typeof BooklibApp!=='undefined'?BooklibApp:null);
-    if(BApp && BApp._openEvalTab){
-      BApp._openEvalTab(_st.bookId);
-      return;
-    }
-    // ★ 폴백: grade-app에서 직접 평가 설정 팝업 구현
+    if(!_st.bookId){ _toast && _toast('교재를 먼저 선택하세요','error'); alert('교재를 먼저 선택하세요'); return; }
+    // 항상 직접 팝업 구현 사용 (안정적)
     _openEvalPopupDirect();
   }
 
