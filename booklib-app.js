@@ -1074,6 +1074,39 @@ const BooklibApp = (() => {
   function _delCh(bid,chId){BookLibDB.deleteChapter(bid,chId).then(()=>_drawEditor(document.getElementById('bl-editor-sh')));}
   function _clearChs(){if(!confirm('챕터를 전체 삭제하시겠습니까?'))return;BookLibDB.updateBook(_st.editBookId,{chapters:[]}).then(()=>_drawEditor(document.getElementById('bl-editor-sh')));}
   async function _toggleAssign(bookId,classId,el){const isOn=el.classList.contains('on');if(isOn)await BookLibDB.unassignBook(bookId,classId);else await BookLibDB.assignBook(bookId,classId);el.classList.toggle('on',!isOn);_toast(isOn?'반 배정 해제':'✅ 반 배정','success');}
+
+  // ★ 학생 직접 배정
+  async function _assignStudentBtn(bookId, studentId, btn){
+    try{
+      await BookLibDB.addStudentToBook(bookId, studentId);
+      if(btn){btn.textContent='✅';btn.style.background='var(--green)';btn.disabled=true;}
+      _refreshStudentChips(bookId);
+      const res=document.getElementById('bl-stu-results');
+      const inp=document.getElementById('bl-stu-search');
+      if(res) res.style.display='none';
+      if(inp) inp.value='';
+      const stu=typeof StudentDB!=='undefined'?StudentDB.getAll().find(s=>s.id===studentId):null;
+      _toast('✅ '+(stu?.name||'학생')+'님 배정 완료','success');
+    }catch(e){_toast('❌ 배정 실패: '+e.message,'error');}
+  }
+  function _refreshStudentChips(bookId){
+    const wrap=document.getElementById('bl-stu-chips-wrap'); if(!wrap) return;
+    const book=BookLibDB.getBookById(bookId); if(!book) return;
+    const allStus=typeof StudentDB!=='undefined'?StudentDB.getAll():[];
+    const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
+    const assigned=(book.studentIds||[]).map(id=>allStus.find(s=>s.id===id)).filter(Boolean);
+    if(!assigned.length){wrap.innerHTML='<span style="font-size:11px;color:var(--tx3)">배정된 학생 없음</span>';return;}
+    wrap.innerHTML=assigned.map(s=>{
+      const c=allCls.find(cl=>cl.name===s.classCode);
+      const lbl=c?'('+c.name+'반)':'';
+      return`<div class="bl-stu-chip"><span>${_e(s.name)+lbl}</span><button onclick="BooklibApp._removeStudent('${bookId}','${s.id}')" style="margin-left:4px;background:none;border:none;cursor:pointer;color:var(--tx3);font-size:13px">✕</button></div>`;
+    }).join('');
+  }
+  async function _removeStudent(bookId, studentId){
+    await BookLibDB.removeStudentFromBook(bookId, studentId);
+    _refreshStudentChips(bookId);
+    _toast('🗑 배정 해제','success');
+  }
   function closeEditor(){document.getElementById('bl-editor-ov')?.classList.add('hidden');_st.editBookId=null;_st.editConfig=null;if(_st.subTab==='library')_renderLibrary();}
 
   /* ══ MATRIX TAB ══ */
