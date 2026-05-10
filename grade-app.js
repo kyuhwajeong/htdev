@@ -393,13 +393,22 @@ const GradeApp = (() => {
       // 반 선택됨: 반 배정 교재 (완결 제외)
       books = typeof BookLibDB!=='undefined' ? BookLibDB.getBooksForClass(_st.classId).filter(b=>!b.archived) : [];
     } else {
-      // ★ 반 미선택: 학생 직접 배정된 교재만
-      books = typeof BookLibDB!=='undefined' ? BookLibDB.getBooks().filter(b=>!b.archived&&(b.studentIds||[]).length>0) : [];
+      // ★ 반 미선택: 학생 직접 배정된 교재만 (classIds 없거나 학생만 배정)
+      books = typeof BookLibDB!=='undefined'
+        ? BookLibDB.getBooks().filter(b=>!b.archived&&(b.studentIds&&b.studentIds.length>0)) : [];
     }
+    // ★ 반 미선택이어도 교재 드롭다운 활성화
     sel.disabled = false;
-    sel.innerHTML = `<option value="">— 교재 선택${_st.classId?'':', (학생 배정 교재)'} —</option>` +
-      books.map(b => `<option value="${b.id}" ${_st.bookId===b.id?'selected':''}>${_e(b.name)}${_st.classId?'':' ('+((b.studentIds||[]).length)+'명)'}</option>`).join('');
-    if (!books.length) { sel.innerHTML = `<option value="">배정된 교재 없음</option>`; sel.disabled = true; }
+    sel.innerHTML = `<option value="">— 교재 선택${_st.classId?'':' (학생배정 교재)'} —</option>` +
+      books.map(b => {
+        const stuCnt = _st.classId ? '' : ' ('+((b.studentIds||[]).length)+'명)';
+        return `<option value="${b.id}" ${_st.bookId===b.id?'selected':''}>${_e(b.name)}${stuCnt}</option>`;
+      }).join('');
+    if (!books.length && !_st.classId) {
+      sel.innerHTML = `<option value="">학생 배정 교재 없음</option>`;
+    } else if (!books.length) {
+      sel.innerHTML = `<option value="">배정된 교재 없음</option>`; sel.disabled = true;
+    }
   }
 
   /* ── 학생 패널 ── */

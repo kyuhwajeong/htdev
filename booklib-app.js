@@ -57,7 +57,7 @@ const BooklibApp = (() => {
 .bl-book-card.has-ch{background:linear-gradient(135deg,var(--card) 80%,rgba(5,150,105,.06));}
 .bl-book-card:not(.has-ch):not(.archived){background:linear-gradient(135deg,var(--card) 80%,rgba(59,130,246,.05));}
 .bl-book-card.archived{background:var(--surf2);opacity:.75;cursor:default;}
-.bl-stu-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:linear-gradient(135deg,var(--a10),rgba(99,102,241,.08));border:1.5px solid var(--a40);border-radius:20px;font-size:12px;font-weight:600;color:var(--tx);box-shadow:0 1px 3px rgba(99,102,241,.1);}
+.bl-stu-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--a10);border:1px solid var(--a40);border-radius:16px;font-size:12px;font-weight:600;color:var(--a);}
 .bl-stu-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:8px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr);min-height:36px;}
 .bl-stu-dropdown{position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--card);border:1.5px solid var(--a40);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px;}
 .bl-book-card.multi-selecting{cursor:default;}
@@ -505,7 +505,7 @@ const BooklibApp = (() => {
           <div class="bl-book-title" ondblclick="event.stopPropagation();BooklibApp._inlineRenameBook('${b.id}',this)" title="더블클릭하여 교재명 변경">${_e(b.name)}</div>
           <div class="bl-book-meta">
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
-            ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:`<span class="bl-badge" style="color:var(--tx3)">반 미배정</span>`}
+            ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:(b.studentIds&&b.studentIds.length?(()=>{const _aS=typeof StudentDB!=="undefined"?StudentDB.getAll():[];const _nms=(b.studentIds||[]).slice(0,3).map(id=>(_aS.find(s=>s.id===id)||{}).name||"").filter(Boolean);return _nms.length?`<span class="bl-badge" style="background:var(--a10);color:var(--a);border:1px solid var(--a40)">👤 ${_nms.join(" · ")}${(b.studentIds||[]).length>3?" 외 "+((b.studentIds||[]).length-3)+"명":""}</span>`:"";})():"")}
             ${isArchived?`<span class="bl-badge" style="color:var(--tx3)">📦 완결 ${b.archivedAt?b.archivedAt.slice(0,10):''}</span>`:''}
           </div>
         </div>
@@ -1148,11 +1148,24 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
   function _delCh(bid,chId){BookLibDB.deleteChapter(bid,chId).then(()=>_drawEditor(document.getElementById('bl-editor-sh')));}
   function _clearChs(){if(!confirm('챕터를 전체 삭제하시겠습니까?'))return;BookLibDB.updateBook(_st.editBookId,{chapters:[]}).then(()=>_drawEditor(document.getElementById('bl-editor-sh')));}
   async function _deleteBookFromPopup(bookId, bookName){
-    if(!confirm(`"${bookName}" 교재를 삭제하시겠습니까?\n\n⚠️ 챕터, 학습 현황 데이터가 모두 삭제됩니다.`)) return;
+    const msg = [
+      '"'+bookName+'" 교재를 삭제하시겠습니까?',
+      '',
+      '⚠️ 아래 데이터가 모두 삭제됩니다:',
+      '  · 챕터 목록',
+      '  · 학습 현황 (학생별 수행/미수행)',
+      '  · 플로팅 메모',
+      '  · 성적 평가 및 리포트 데이터 (*)',
+      '',
+      '(*) 성적 데이터는 성적 관리 탭에 저장된 데이터입니다.',
+      '',
+      '정말 삭제하시겠습니까? 되돌릴 수 없습니다.'
+    ].join('\n');
+    if(!confirm(msg)) return;
     await BookLibDB.deleteBook(bookId);
     BooklibApp.closeEditor();
     _renderLibrary();
-    _toast('🗑 교재 삭제 완료','success');
+    _toast('🗑 "'+bookName+'" 삭제 완료','success');
   }
 
   async function _toggleAssign(bookId,classId,el){const isOn=el.classList.contains('on');if(isOn)await BookLibDB.unassignBook(bookId,classId);else await BookLibDB.assignBook(bookId,classId);el.classList.toggle('on',!isOn);_toast(isOn?'반 배정 해제':'✅ 반 배정','success');}
