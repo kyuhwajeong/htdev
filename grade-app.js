@@ -294,6 +294,12 @@ const GradeApp = (() => {
   function render() {
     const pg = document.getElementById('page-grade'); if (!pg) return;
     pg.innerHTML = _shell();
+    // ★ 평가 설정 버튼 - addEventListener로 직접 등록
+    const _evalBtnEl = pg.querySelector('#gr-eval-btn');
+    if(_evalBtnEl){
+      _evalBtnEl.addEventListener('click', _showEvalPopup);
+      _evalBtnEl.addEventListener('touchstart', e=>{e.preventDefault();_showEvalPopup();}, {passive:false});
+    }
     _fillClass();
     if (_st.classId) _fillBooks();
     _renderStudents();
@@ -321,7 +327,7 @@ const GradeApp = (() => {
         <select class="gr-sel" id="gr-bsel" onchange="GradeApp._onBk(this.value)" disabled>
           <option value="">— 교재 선택 —</option>
         </select>
-<button id="gr-eval-btn" onclick="GradeApp._openEvalFromGrade()" title="선택 교재 평가 설정" style="display:none;padding:6px 14px;border-radius:8px;background:rgba(245,158,11,.1);border:1.5px solid rgba(245,158,11,.4);color:#d97706;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font)">⚙️ 평가 설정</button>
+<button id="gr-eval-btn" title="선택 교재 평가 설정" style="display:none;padding:6px 14px;border-radius:8px;background:rgba(245,158,11,.1);border:1.5px solid rgba(245,158,11,.4);color:#d97706;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font)">⚙️ 평가 설정</button>
         <div class="gr-view-toggle">
           <button class="gr-vbtn ${_st.viewMode==='excel'?'on':''}"  data-mode="excel"  onclick="GradeApp._setView('excel')">🔲 엑셀</button>
           <button class="gr-vbtn ${_st.viewMode==='card'?'on':''}"   data-mode="card"   onclick="GradeApp._setView('card')">👤 카드</button>
@@ -2413,6 +2419,175 @@ const GradeApp = (() => {
   }
 
   // ★ 성적관리에서 교재 평가 설정 팝업 열기
+  function _openEvalFromGrade(){ _showEvalPopup(); }
+
+  function _showEvalPopup(){
+    if(!_st.bookId){ alert('교재를 먼저 선택하세요'); return; }
+    document.getElementById('gr-eval-popup')?.remove();
+
+    const cfg = JSON.parse(JSON.stringify(GradeDB.getReportConfig(_st.bookId)));
+    const bkName = (typeof BookLibDB!=='undefined' ? (BookLibDB.getBookById(_st.bookId)?.name||'') : '') || '선택 교재';
+
+    const ov = document.createElement('div');
+    ov.id = 'gr-eval-popup';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:500px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 -4px 30px rgba(0,0,0,.2)';
+
+    // 헤더
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0';
+    hdr.innerHTML = '<div style="font-size:16px;font-weight:800">⚙️ 평가 설정 <span style="font-size:12px;font-weight:400;color:#6b7280">— '+bkName+'</span></div>';
+    const xBtn = document.createElement('button');
+    xBtn.textContent = '✕';
+    xBtn.style.cssText = 'background:none;border:none;font-size:24px;cursor:pointer;color:#9ca3af;line-height:1';
+    xBtn.onclick = ()=>ov.remove();
+    hdr.appendChild(xBtn);
+    box.appendChild(hdr);
+
+    // 스크롤 영역
+    const body = document.createElement('div');
+    body.style.cssText = 'overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px';
+
+    // ── 단어 테스트 ──
+    const wSec = document.createElement('div');
+    wSec.style.cssText = 'background:#f9fafb;border-radius:12px;padding:14px;border:1px solid #e5e7eb';
+    wSec.innerHTML = '<div style="font-size:13px;font-weight:800;margin-bottom:10px;color:#1f2937">🔤 단어 테스트</div>'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+      +'<label style="font-size:12px;color:#6b7280;flex:1">총 테스트(문제) 수</label>'
+      +'<input id="gep-wq" type="number" min="0" value="'+(cfg.word?.totalQ||'')+'" placeholder="0"'
+      +' style="width:80px;padding:6px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;text-align:center;outline:none">'
+      +'</div>';
+    body.appendChild(wSec);
+
+    // ── 리딩 테스트 ──
+    const rSec = document.createElement('div');
+    rSec.style.cssText = 'background:#f9fafb;border-radius:12px;padding:14px;border:1px solid #e5e7eb';
+
+    const rdHdr = document.createElement('div');
+    rdHdr.style.cssText = 'display:flex;align-items:center;margin-bottom:10px';
+    rdHdr.innerHTML = '<span style="font-size:13px;font-weight:800;color:#1f2937">📖 리딩 테스트</span>';
+
+    const rdToggleLabel = document.createElement('label');
+    rdToggleLabel.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:auto';
+    const rdCk = document.createElement('input');
+    rdCk.type='checkbox'; rdCk.id='gep-rd-on';
+    rdCk.style.cssText = 'width:17px;height:17px;accent-color:#6366f1;cursor:pointer';
+    rdCk.checked = !!cfg.reading?.enabled;
+    rdToggleLabel.appendChild(rdCk);
+    rdToggleLabel.appendChild(Object.assign(document.createElement('span'),{
+      textContent:'리딩 포함', style:'font-size:13px;font-weight:700;color:#374151'
+    }));
+    rdHdr.appendChild(rdToggleLabel);
+    rSec.appendChild(rdHdr);
+
+    const rdBody = document.createElement('div');
+    rdBody.id = 'gep-rd-body';
+    rdBody.style.display = cfg.reading?.enabled ? '' : 'none';
+    rdBody.innerHTML = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+      +'<label style="font-size:12px;color:#6b7280;flex:1">총 문제 수</label>'
+      +'<input id="gep-rdq" type="number" min="0" value="'+(cfg.reading?.totalQ||'')+'" placeholder="0"'
+      +' style="width:80px;padding:6px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;text-align:center;outline:none">'
+      +'</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#9ca3af;letter-spacing:.5px;margin-bottom:8px">Review 컬럼</div>'
+      +'<div id="gep-rv-list"></div>'
+      +'<button id="gep-add-rv" style="margin-top:6px;font-size:12px;padding:5px 12px;border-radius:7px;background:#ede9fe;border:none;color:#6366f1;font-weight:700;cursor:pointer">＋ Review 추가</button>';
+
+    rSec.appendChild(rdBody);
+    body.appendChild(rSec);
+
+    rdCk.addEventListener('change',()=>{ rdBody.style.display=rdCk.checked?'':'none'; });
+
+    box.appendChild(body);
+
+    // 리뷰 목록 렌더
+    function renderReviews(reviews){
+      const list = box.querySelector('#gep-rv-list'); if(!list) return;
+      list.innerHTML='';
+      (reviews||[]).forEach((rv,i)=>{
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
+        const ck=document.createElement('input'); ck.type='checkbox'; ck.className='gep-rv-ck';
+        ck.checked=!!rv.enabled; ck.style.cssText='width:16px;height:16px;accent-color:#6366f1;cursor:pointer';
+        const nm=document.createElement('input'); nm.type='text'; nm.className='gep-rv-nm';
+        nm.value=rv.name||('Review '+(i+1));
+        nm.style.cssText='flex:1;padding:5px 8px;border:1.5px solid #d1d5db;border-radius:7px;font-size:12px;outline:none';
+        const del=document.createElement('button'); del.textContent='✕';
+        del.style.cssText='background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px';
+        del.onclick=()=>{row.remove();};
+        row.appendChild(ck); row.appendChild(nm); row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+    renderReviews(cfg.reading?.reviews||[]);
+
+    box.querySelector('#gep-add-rv')?.addEventListener('click',()=>{
+      const list=box.querySelector('#gep-rv-list'); if(!list) return;
+      const n=list.querySelectorAll('div').length+1;
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
+      const ck=document.createElement('input'); ck.type='checkbox'; ck.className='gep-rv-ck'; ck.checked=true;
+      ck.style.cssText='width:16px;height:16px;accent-color:#6366f1;cursor:pointer';
+      const nm=document.createElement('input'); nm.type='text'; nm.className='gep-rv-nm';
+      nm.value='Review '+n;
+      nm.style.cssText='flex:1;padding:5px 8px;border:1.5px solid #d1d5db;border-radius:7px;font-size:12px;outline:none';
+      const del=document.createElement('button'); del.textContent='✕';
+      del.style.cssText='background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px';
+      del.onclick=()=>row.remove();
+      row.appendChild(ck); row.appendChild(nm); row.appendChild(del);
+      list.appendChild(row);
+    });
+
+    // 하단 버튼
+    const footer=document.createElement('div');
+    footer.style.cssText='display:flex;gap:10px;margin-top:16px;flex-shrink:0';
+    const cancelBtn=document.createElement('button');
+    cancelBtn.textContent='취소';
+    cancelBtn.style.cssText='flex:1;padding:12px;border-radius:10px;background:#f3f4f6;border:none;font-size:14px;font-weight:700;cursor:pointer';
+    cancelBtn.onclick=()=>ov.remove();
+
+    const saveBtn=document.createElement('button');
+    saveBtn.textContent='💾 저장';
+    saveBtn.style.cssText='flex:2;padding:12px;border-radius:10px;background:#6366f1;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer';
+
+    const doSave=async(e)=>{
+      e.preventDefault();
+      saveBtn.disabled=true; saveBtn.textContent='저장 중...';
+      const wq  = Number(box.querySelector('#gep-wq')?.value||0);
+      const rdOn= box.querySelector('#gep-rd-on')?.checked||false;
+      const rdQ = Number(box.querySelector('#gep-rdq')?.value||0);
+      const reviews=[...box.querySelectorAll('#gep-rv-list > div')].map((r,i)=>({
+        enabled: r.querySelector('.gep-rv-ck')?.checked||false,
+        name:    r.querySelector('.gep-rv-nm')?.value||('Review '+(i+1))
+      }));
+      const newCfg={word:{totalQ:wq}, reading:{enabled:rdOn,totalQ:rdQ,reviews}};
+      await GradeDB.saveReportConfig(_st.bookId, newCfg);
+      ov.remove();
+      _renderContent();
+      if(typeof _toast!=='undefined') _toast('✅ 평가 설정 저장','success');
+      else alert('✅ 저장 완료');
+    };
+    saveBtn.addEventListener('click', doSave);
+    saveBtn.addEventListener('touchstart', doSave, {passive:false});
+
+    footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+    box.appendChild(footer);
+
+    ov.appendChild(box);
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+    document.body.appendChild(ov);
+  }
+
+
+  function _refreshAfterEvalUpdate(bookId){
+    if(_st.bookId !== bookId) return; // 다른 교재면 무시
+    // 리포트 설정 업데이트 반영
+    _renderContent();
+    _toast('✅ 평가 설정이 업데이트되었습니다','success');
+  }
+
+  // ★ 성적관리에서 교재 평가 설정 팝업 열기
   function _openEvalFromGrade(){
     if(!_st.bookId){ _toast && _toast('교재를 먼저 선택하세요','error'); alert('교재를 먼저 선택하세요'); return; }
     // 항상 직접 팝업 구현 사용 (안정적)
@@ -2527,7 +2702,7 @@ const GradeApp = (() => {
   
   return {
     init, render,
-    _onCls, _onBk, _openEvalFromGrade, _openEvalPopupDirect, _grAddReview, _saveEvalCfg, _refreshAfterEvalUpdate, _onStu, _setView, _toggleSort,
+    _onCls, _onBk, _openEvalFromGrade, _showEvalPopup, _openEvalPopupDirect, _grAddReview, _saveEvalCfg, _refreshAfterEvalUpdate, _onStu, _setView, _toggleSort,
     _excelWordInput, _excelRdInput, _excelComment, _onKey,
     _cardWordInput, _cardRdInput, _cardComment,
     _slideTo, _ts, _te,
