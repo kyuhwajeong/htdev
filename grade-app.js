@@ -321,6 +321,7 @@ const GradeApp = (() => {
         <select class="gr-sel" id="gr-bsel" onchange="GradeApp._onBk(this.value)" disabled>
           <option value="">— 교재 선택 —</option>
         </select>
+<button id="gr-eval-btn" onclick="GradeApp._openEvalFromGrade()" title="선택 교재 평가 설정" style="display:none;padding:6px 14px;border-radius:8px;background:rgba(245,158,11,.1);border:1.5px solid rgba(245,158,11,.4);color:#d97706;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font)">⚙️ 평가 설정</button>
         <div class="gr-view-toggle">
           <button class="gr-vbtn ${_st.viewMode==='excel'?'on':''}"  data-mode="excel"  onclick="GradeApp._setView('excel')">🔲 엑셀</button>
           <button class="gr-vbtn ${_st.viewMode==='card'?'on':''}"   data-mode="card"   onclick="GradeApp._setView('card')">👤 카드</button>

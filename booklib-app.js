@@ -993,19 +993,86 @@ const BooklibApp = (() => {
     const book=BookLibDB.getBookById(bookId);
     const assigned=new Set(book?.studentIds||[]);
     const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
-    const found=allStus.filter(s=>!assigned.has(s.id)&&matchChosung(s.name||'',q)).slice(0,12);
-    if(!found.length){res.innerHTML='<div style="padding:8px 12px;font-size:12px;color:var(--tx3)">결과 없음</div>';res.style.display='block';return;}
-    res.innerHTML=found.map(s=>{
+    const found=allStus.filter(s=>!assigned.has(s.id)&&matchChosung(s.name||'',q)).slice(0,15);
+
+    res.innerHTML='';
+    if(!found.length){
+      const noResult=document.createElement('div');
+      noResult.style.cssText='padding:8px 12px;font-size:12px;color:var(--tx3)';
+      noResult.textContent='결과 없음';
+      res.appendChild(noResult);
+      res.style.display='block';
+      return;
+    }
+
+    // ★ 체크박스 목록
+    found.forEach(s=>{
       const cls=allCls.find(c=>c.name===s.classCode);
-      const clsLabel=cls?` <span style="font-size:10px;color:var(--tx3);background:var(--surf2);padding:1px 5px;border-radius:5px">${cls.name}반</span>`:'';
-      return `<div style="padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bdr);background:var(--card)">
-        <span style="font-size:13px;font-weight:700;color:var(--tx)">${_e(s.name)}</span>
-        ${clsLabel}
-        <button onclick="event.stopPropagation();BooklibApp._assignStudentBtn('${bookId}','${s.id}',this)" style="margin-left:auto;padding:4px 10px;border-radius:7px;background:var(--a);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">＋ 배정</button>
-      </div>`;
-    }).join('');
+      const row=document.createElement('label');
+      row.style.cssText='padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bdr);background:var(--card);cursor:pointer';
+      row.onmouseenter=()=>row.style.background='var(--a10)';
+      row.onmouseleave=()=>row.style.background='var(--card)';
+
+      const ck=document.createElement('input');
+      ck.type='checkbox'; ck.dataset.sid=s.id; ck.dataset.sname=s.name;
+      ck.style.cssText='width:15px;height:15px;accent-color:var(--a);flex-shrink:0;cursor:pointer';
+      ck.addEventListener('mousedown',e=>e.stopPropagation());
+      ck.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
+
+      const nameSpan=document.createElement('span');
+      nameSpan.style.cssText='font-size:13px;font-weight:700;color:var(--tx)';
+      nameSpan.textContent=s.name||'';
+
+      if(cls){
+        const clsBadge=document.createElement('span');
+        clsBadge.style.cssText='font-size:10px;color:var(--tx3);background:var(--surf2);padding:1px 5px;border-radius:5px;margin-left:2px';
+        clsBadge.textContent=cls.name+'반';
+        nameSpan.appendChild(clsBadge);
+      }
+      row.appendChild(ck);
+      row.appendChild(nameSpan);
+      res.appendChild(row);
+    });
+
+    // ★ 하단 적용 버튼
+    const applyRow=document.createElement('div');
+    applyRow.style.cssText='padding:8px 12px;background:var(--surf2);border-top:2px solid var(--a40);display:flex;gap:8px;align-items:center';
+
+    const selectAll=document.createElement('button');
+    selectAll.textContent='전체선택';
+    selectAll.style.cssText='font-size:11px;padding:3px 8px;border-radius:5px;background:var(--card);border:1px solid var(--bdr2);cursor:pointer';
+    selectAll.addEventListener('mousedown',e=>{e.preventDefault();res.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=true);});
+    selectAll.addEventListener('touchstart',e=>{e.preventDefault();res.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=true);},{passive:false});
+
+    const applyBtn=document.createElement('button');
+    applyBtn.textContent='✅ 배정 적용';
+    applyBtn.style.cssText='font-size:12px;padding:5px 14px;border-radius:7px;background:var(--a);color:#fff;border:none;font-weight:700;cursor:pointer;margin-left:auto';
+
+    const doApply=async(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      const checked=[...res.querySelectorAll('input[type=checkbox]:checked')];
+      if(!checked.length){_toast('배정할 학생을 선택하세요','error');return;}
+      applyBtn.disabled=true; applyBtn.textContent='⏳ 적용 중...';
+      let count=0;
+      for(const ck of checked){
+        await BookLibDB.addStudentToBook(bookId, ck.dataset.sid).catch(()=>{});
+        count++;
+      }
+      _refreshStudentChips(bookId);
+      res.style.display='none';
+      const inp=document.getElementById('bl-stu-search');
+      if(inp) inp.value='';
+      _toast(`✅ ${count}명 배정 완료`,'success');
+    };
+    applyBtn.addEventListener('mousedown',doApply);
+    applyBtn.addEventListener('touchstart',doApply,{passive:false});
+
+    applyRow.appendChild(selectAll);
+    applyRow.appendChild(applyBtn);
+    res.appendChild(applyRow);
     res.style.display='block';
   }
+
   function _rvListHTML(reviews){
     return reviews.map((rv,i)=>`
       <div class="bl-rv-row" id="bl-rv-${i}">
