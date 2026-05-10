@@ -2168,7 +2168,7 @@ const BooklibApp = (() => {
   };
 
   /* ── CSV 임포트 확인 모달 ── */
-  function openCsvImportModal(file) {
+  async function openCsvImportModal(file) {
     if (!_st.matrixClassId || !_st.matrixBookId) {
       _toast('⚠️ 반과 교재를 먼저 선택해주세요'); return;
     }
@@ -2184,7 +2184,7 @@ const BooklibApp = (() => {
     // DB에서 더 상세한 정보(enabled 포함) 로드
     let _dbExcs = {};
     if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.loadClassExempts) {
-      _dbExcs = BookLibDB.loadClassExempts(_st.matrixClassId) || {};
+      _dbExcs = await BookLibDB.loadClassExempts(_st.matrixClassId) || {};
       if (Object.keys(_dbExcs).length) {
         const simpleExcs = Object.fromEntries(Object.entries(_dbExcs).map(([n,v])=>[n, Array.isArray(v)?v:(v.items||[])]));
         _csvImportState.exceptions = simpleExcs;
