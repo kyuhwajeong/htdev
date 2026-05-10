@@ -1289,7 +1289,7 @@ const BooklibApp = (() => {
   function _fmtStamp(raw){if(!raw)return'';const[dp='',tp='']=String(raw).split(' ');const[,mo='',d='']=dp.split('-');if(!mo||!d)return raw;const dow=DOW_KO[new Date(dp).getDay()]||'';return`${Number(mo)}/${Number(d)} (${dow}) ${tp.slice(0,5)}`;}
 
   function _matrixHTML(){
-    if(!_st.matrixClassId||!_st.matrixBookId)return`<div class="bl-mempty"><div class="bl-mempty-ico">📊</div>반과 교재를 선택하면 학습 현황이 표시됩니다<br><small style="font-size:11px">챕터 셀 탭 → 진도 스탬프 · 학생 이름 탭 → 공유</small></div>`;
+    if(!_st.matrixBookId)return`<div class="bl-mempty"><div class="bl-mempty-ico">📊</div>교재를 선택하면 학습 현황이 표시됩니다<br><small style="font-size:11px">챕터 셀 탭 → 진도 스탬프 · 학생 이름 탭 → 공유</small></div>`;
     const book=BookLibDB.getBookById(_st.matrixBookId);
     if(!book)return`<div class="bl-mempty"><div class="bl-mempty-ico">❌</div>교재를 찾을 수 없습니다</div>`;
     const chs=book.chapters||[];if(!chs.length)return`<div class="bl-mempty"><div class="bl-mempty-ico">📑</div>챕터가 없습니다<br><small>교재 관리 탭 → 챕터 추가</small></div>`;
@@ -1406,6 +1406,9 @@ const BooklibApp = (() => {
     const scrollLeft=tbl?tbl.scrollLeft:0;
     mb.innerHTML=_matrixHTML();
     _setupDrag();_bindCsvDrop();
+    // ★ 교재 목록 재필터링
+    const _bsel2=document.getElementById('bl-bsel');
+    if(_bsel2) _fillBookSel(_bsel2);
     // ★ 교재 목록 필터 재적용 (innerHTML 재생성 후)
     const _bsel=mb.querySelector('#bl-bsel')||document.getElementById('bl-bsel');
     if(_bsel) _fillBookSel(_bsel);

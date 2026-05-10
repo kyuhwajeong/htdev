@@ -2304,7 +2304,7 @@ const GradeApp = (() => {
     }
     _st.classId=clsId||null; _st.bookId=null; _st.studentId=null; _st.data={}; _st.dirty.clear(); _st.sortCol=null;
     _fillBooks(); _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub();
-    const bsel=document.getElementById('gr-bsel'); if(bsel)bsel.disabled=!_st.classId;
+    const bsel=document.getElementById('gr-bsel'); if(bsel)bsel.disabled=false; // ★ 반 미선택도 교재 선택 가능
   }
   async function _onBk(bkId) {
     if (_st.dirty.size > 0) {
