@@ -3061,3 +3061,4 @@ const BooklibApp = (() => {
     _renameBook, _excAutoComplete,
   };
 })();
+if(typeof window!=='undefined') window.BooklibApp=BooklibApp;

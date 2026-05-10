@@ -2412,18 +2412,125 @@ const GradeApp = (() => {
   // ★ 성적관리에서 교재 평가 설정 팝업 열기
   function _openEvalFromGrade(){
     if(!_st.bookId){ _toast('교재를 먼저 선택하세요','error'); return; }
-    if(typeof BooklibApp !== 'undefined' && BooklibApp._openEvalTab){
-      BooklibApp._openEvalTab(_st.bookId);
-    } else if(typeof BooklibApp !== 'undefined' && BooklibApp.openEditor){
-      BooklibApp.openEditor(_st.bookId, 'eval');
-    } else {
-      alert('교재 학습 관리 탭을 먼저 초기화해주세요.');
+    // ★ BooklibApp 전역 노출 후 바로 사용
+    const BApp = window.BooklibApp || (typeof BooklibApp!=='undefined'?BooklibApp:null);
+    if(BApp && BApp._openEvalTab){
+      BApp._openEvalTab(_st.bookId);
+      return;
     }
+    // ★ 폴백: grade-app에서 직접 평가 설정 팝업 구현
+    _openEvalPopupDirect();
+  }
+
+  function _openEvalPopupDirect(){
+    document.getElementById('gr-eval-popup')?.remove();
+    const cfg = JSON.parse(JSON.stringify(GradeDB.getReportConfig(_st.bookId)));
+    const bkName = (typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId)?.name:'')||'교재';
+
+    const modal = document.createElement('div');
+    modal.id = 'gr-eval-popup';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick = e => { if(e.target===modal) modal.remove(); };
+
+    const sheet = document.createElement('div');
+    sheet.style.cssText = 'background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:500px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -4px 24px rgba(0,0,0,.18)';
+
+    // 헤더
+    sheet.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0">
+      <div>
+        <div style="font-size:15px;font-weight:800">⚙️ 평가 설정</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:2px">${bkName}</div>
+      </div>
+      <button onclick="document.getElementById('gr-eval-popup').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>
+    </div>
+    <div id="gr-eval-body" style="overflow-y:auto;flex:1">
+      <!-- 단어 테스트 -->
+      <div style="background:var(--surf2);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px">🔤 단어 테스트</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--tx2);flex:1">총 테스트(문제) 수</span>
+          <input id="gr-cfg-wq" type="number" min="0" step="1" value="${cfg.word?.totalQ||''}" placeholder="0"
+            style="width:70px;padding:5px 8px;border:1px solid var(--bdr2);border-radius:7px;font-size:13px;background:var(--card);text-align:center">
+        </div>
+      </div>
+      <!-- 리딩 테스트 -->
+      <div style="background:var(--surf2);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:800">📖 리딩 테스트</span>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-left:auto">
+            <input type="checkbox" id="gr-cfg-rd-on" ${cfg.reading?.enabled?'checked':''} style="width:16px;height:16px;accent-color:var(--a)">
+            <span style="font-size:12px;font-weight:700">리딩 포함</span>
+          </label>
+        </div>
+        <div id="gr-cfg-rd-body" style="${cfg.reading?.enabled?'':'display:none'}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:12px;color:var(--tx2);flex:1">총 문제 수</span>
+            <input id="gr-cfg-rdq" type="number" min="0" step="1" value="${cfg.reading?.totalQ||''}" placeholder="0"
+              style="width:70px;padding:5px 8px;border:1px solid var(--bdr2);border-radius:7px;font-size:13px;background:var(--card);text-align:center">
+          </div>
+          <div style="font-size:11px;font-weight:800;color:var(--tx3);margin-bottom:6px">Review 컬럼</div>
+          <div id="gr-rv-list">${(cfg.reading?.reviews||[]).map((rv,i)=>
+            `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <input type="checkbox" class="gr-rv-ck" ${rv.enabled?'checked':''} style="accent-color:var(--a)">
+              <input type="text" class="gr-rv-nm" value="${rv.name||('Review '+(i+1))}" style="flex:1;padding:4px 8px;border:1px solid var(--bdr2);border-radius:6px;font-size:12px;background:var(--card)">
+              <button onclick="this.closest('div[style]').remove()" style="background:none;border:none;color:var(--tx3);cursor:pointer">✕</button>
+            </div>`
+          ).join('')}</div>
+          <button onclick="GradeApp._grAddReview()" style="font-size:11px;padding:4px 10px;border-radius:7px;background:var(--a10);border:1px solid var(--a40);color:var(--a);cursor:pointer;margin-top:4px">＋ Review 추가</button>
+        </div>
+      </div>
+    </div>
+    <!-- 하단 버튼 -->
+    <div style="display:flex;gap:8px;margin-top:12px;flex-shrink:0">
+      <button onclick="document.getElementById('gr-eval-popup').remove()" style="flex:1;padding:11px;border-radius:10px;background:var(--surf2);border:1px solid var(--bdr2);font-size:13px;font-weight:700;cursor:pointer">취소</button>
+      <button onclick="GradeApp._saveEvalCfg()" style="flex:2;padding:11px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">💾 저장</button>
+    </div>`;
+
+    // 리딩 체크박스 토글
+    sheet.querySelector('#gr-cfg-rd-on').onchange = function(){
+      sheet.querySelector('#gr-cfg-rd-body').style.display = this.checked ? '' : 'none';
+    };
+
+    // cfg를 modal에 저장
+    modal._cfg = cfg;
+    modal.appendChild(sheet);
+    document.body.appendChild(modal);
+  }
+
+  function _grAddReview(){
+    const list = document.getElementById('gr-rv-list'); if(!list) return;
+    const n = list.querySelectorAll('div').length + 1;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px';
+    row.innerHTML = `<input type="checkbox" class="gr-rv-ck" checked style="accent-color:var(--a)">
+      <input type="text" class="gr-rv-nm" value="Review ${n}" style="flex:1;padding:4px 8px;border:1px solid var(--bdr2);border-radius:6px;font-size:12px;background:var(--card)">
+      <button onclick="this.closest('div').remove()" style="background:none;border:none;color:var(--tx3);cursor:pointer">✕</button>`;
+    list.appendChild(row);
+  }
+
+  async function _saveEvalCfg(){
+    const wq   = Number(document.getElementById('gr-cfg-wq')?.value||0);
+    const rdOn = document.getElementById('gr-cfg-rd-on')?.checked||false;
+    const rdQ  = Number(document.getElementById('gr-cfg-rdq')?.value||0);
+    const rvRows = [...document.querySelectorAll('#gr-rv-list > div')];
+    const reviews = rvRows.map((row,i)=>({
+      enabled: row.querySelector('.gr-rv-ck')?.checked||false,
+      name: row.querySelector('.gr-rv-nm')?.value||('Review '+(i+1))
+    }));
+    const cfg = {
+      word:    { totalQ: wq },
+      reading: { enabled: rdOn, totalQ: rdQ, reviews }
+    };
+    await GradeDB.saveReportConfig(_st.bookId, cfg);
+    document.getElementById('gr-eval-popup')?.remove();
+    _toast('✅ 평가 설정 저장 완료','success');
+    // 성적관리 갱신
+    _renderContent();
   }
   
   return {
     init, render,
-    _onCls, _onBk, _openEvalFromGrade, _refreshAfterEvalUpdate, _onStu, _setView, _toggleSort,
+    _onCls, _onBk, _openEvalFromGrade, _openEvalPopupDirect, _grAddReview, _saveEvalCfg, _refreshAfterEvalUpdate, _onStu, _setView, _toggleSort,
     _excelWordInput, _excelRdInput, _excelComment, _onKey,
     _cardWordInput, _cardRdInput, _cardComment,
     _slideTo, _ts, _te,
