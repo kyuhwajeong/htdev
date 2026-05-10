@@ -57,7 +57,7 @@ const BooklibApp = (() => {
 .bl-book-card.has-ch{background:linear-gradient(135deg,var(--card) 80%,rgba(5,150,105,.06));}
 .bl-book-card:not(.has-ch):not(.archived){background:linear-gradient(135deg,var(--card) 80%,rgba(59,130,246,.05));}
 .bl-book-card.archived{background:var(--surf2);opacity:.75;cursor:default;}
-.bl-stu-dropdown{position:absolute;left:0;right:0;top:100%;z-index:100;background:var(--card);border:1.5px solid var(--a40);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px;}
+.bl-stu-dropdown{position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--card);border:1.5px solid var(--a40);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px;}
 .bl-book-card.multi-selecting{cursor:default;}
 .bl-multi-ck{margin-right:2px;}
 .bl-book-card:hover{border-color:var(--a40);}
@@ -1001,7 +1001,7 @@ const BooklibApp = (() => {
       return `<div style="padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bdr);background:var(--card)">
         <span style="font-size:13px;font-weight:700;color:var(--tx)">${_e(s.name)}</span>
         ${clsLabel}
-        <button onclick="BooklibApp._assignStudentBtn('${bookId}','${s.id}',this)" style="margin-left:auto;padding:4px 10px;border-radius:7px;background:var(--a);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">＋ 배정</button>
+        <button onclick="event.stopPropagation();BooklibApp._assignStudentBtn('${bookId}','${s.id}',this)" style="margin-left:auto;padding:4px 10px;border-radius:7px;background:var(--a);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">＋ 배정</button>
       </div>`;
     }).join('');
     res.style.display='block';
@@ -1178,6 +1178,7 @@ const BooklibApp = (() => {
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
          <button class="bl-report-btn" onclick="BooklibApp.openBatchImport()" title="여러 xlsx 파일 일괄 반영" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.4);color:#059669">📂 일괄 반영</button>
          <button class="bl-report-btn" onclick="BooklibApp.openExemptMgr()" title="반+교재별 예외 학생 관리" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:#d97706">⚙️ 예외 설정</button>
+         <button class="bl-report-btn" onclick="BooklibApp.openExemptList()" title="예외 학생 전체 목록" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.4);color:var(--a)">📋 예외 목록</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
         <input type="file" id="bl-csv-inp" accept=".xlsx,.xls,.csv" style="display:none"
@@ -2859,6 +2860,110 @@ const BooklibApp = (() => {
   }
   // ★★★ 예외 학생 관리 끝 ★★★
 
+  
+  // ★ 예외 학생 전체 목록 조회
+  async function openExemptList(){
+    document.getElementById('bl-exempt-list')?.remove();
+    const modal=document.createElement('div');
+    modal.id='bl-exempt-list';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+
+    const sheet=document.createElement('div');
+    sheet.style.cssText='background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18)';
+
+    const hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0';
+    hdr.innerHTML='<div><div style="font-size:16px;font-weight:800">📋 예외 학생 전체 목록</div><div style="font-size:11px;color:var(--tx3);margin-top:2px">등록된 예외 학생을 반/교재별로 확인합니다</div></div>';
+    const xBtn=document.createElement('button'); xBtn.textContent='✕';
+    xBtn.style.cssText='background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)';
+    xBtn.onclick=()=>modal.remove(); hdr.appendChild(xBtn);
+    sheet.appendChild(hdr);
+
+    const listWrap=document.createElement('div');
+    listWrap.style.cssText='overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px';
+    listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">로드 중...</div>';
+    sheet.appendChild(listWrap);
+    modal.appendChild(sheet);
+    document.body.appendChild(modal);
+
+    // 모든 반의 예외 로드
+    const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
+    const allBks=BookLibDB.getBooks().filter(b=>!b.archived);
+    const items=[];
+
+    for(const cls of allCls){
+      const exempts=await BookLibDB.loadClassExempts(cls.id)||{};
+      Object.entries(exempts).forEach(([name,v])=>{
+        const bk=allBks.find(b=>b.id===v.bookId)||null;
+        items.push({cls, bk, name, data:v});
+      });
+    }
+
+    if(!items.length){
+      listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:13px;padding:30px">등록된 예외 학생이 없습니다<br><span style="font-size:11px">⚙️ 예외 설정 버튼으로 등록하세요</span></div>';
+      return;
+    }
+
+    // 반+교재별 그룹핑
+    const groups={};
+    items.forEach(item=>{
+      const key=item.cls.id+'__'+(item.bk?.id||'nobook');
+      if(!groups[key]) groups[key]={cls:item.cls,bk:item.bk,items:[]};
+      groups[key].items.push(item);
+    });
+
+    listWrap.innerHTML='';
+    Object.values(groups).forEach(g=>{
+      const sec=document.createElement('div');
+      sec.style.cssText='background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;padding:12px';
+
+      const secHdr=document.createElement('div');
+      secHdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+      secHdr.innerHTML=`<div style="font-size:13px;font-weight:800">
+        <span style="background:var(--a10);color:var(--a);padding:2px 8px;border-radius:6px;margin-right:6px">${g.cls.name}반</span>
+        ${g.bk?`<span style="color:var(--tx2)">${g.bk.name}</span>`:'<span style="color:var(--tx3)">교재 미지정</span>'}
+      </div>
+      <button onclick="BooklibApp.openExemptMgr_cls('${g.cls.id}','${g.bk?.id||''}')" style="font-size:11px;padding:4px 10px;border-radius:7px;background:var(--a10);border:1px solid var(--a40);color:var(--a);cursor:pointer;font-weight:700">✏️ 수정</button>`;
+      sec.appendChild(secHdr);
+
+      g.items.forEach(item=>{
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--card);border-radius:8px;margin-bottom:6px';
+        const alias=item.data.alias?`<span style="font-size:10px;color:#d97706;margin-left:4px">(가명: ${item.data.alias})</span>`:'';
+        const itemsList=(item.data.items||[]).join(', ')||'없음';
+        row.innerHTML=`<div style="flex:1">
+          <span style="font-size:13px;font-weight:700">${_e(item.name)}</span>${alias}
+          <span style="font-size:11px;color:var(--tx3);margin-left:8px">면제: ${itemsList}</span>
+        </div>
+        <button onclick="BooklibApp._deleteExemptItem('${g.cls.id}','${item.name}',this.closest('.bl-exempt-item-row'))" class="bl-exempt-item-row" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#dc2626;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;flex-shrink:0">🗑</button>`;
+        sec.appendChild(row);
+      });
+      listWrap.appendChild(sec);
+    });
+  }
+
+  async function _deleteExemptItem(clsId, studentName, rowEl){
+    if(!confirm('"'+studentName+'" 예외 설정을 삭제하시겠습니까?')) return;
+    const exempts=await BookLibDB.loadClassExempts(clsId)||{};
+    delete exempts[studentName];
+    await BookLibDB.saveClassExempts(clsId, exempts);
+    rowEl?.remove();
+    _toast('🗑 삭제 완료','success');
+  }
+
+  function openExemptMgr_cls(clsId, bkId){
+    document.getElementById('bl-exempt-list')?.remove();
+    openExemptMgr(); // 이미 정의된 openExemptMgr 호출
+    // 선택값 자동 설정
+    setTimeout(()=>{
+      const clsSel=document.querySelector('#bl-exempt-mgr select:first-of-type');
+      const bkSel=document.querySelector('#bl-exempt-mgr select:last-of-type');
+      if(clsSel){ clsSel.value=clsId; clsSel.dispatchEvent(new Event('change')); }
+      if(bkSel&&bkId) setTimeout(()=>{bkSel.value=bkId;bkSel.dispatchEvent(new Event('change'));},100);
+    },50);
+  }
+
     /* ══ PUBLIC ══ */
   return{
     init,render,switchTab,
@@ -2875,6 +2980,7 @@ const BooklibApp = (() => {
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     openBatchImport, _addBatchFiles, _removeBatchFile, _runBatchImport,
+    openExemptList, _deleteExemptItem, openExemptMgr_cls,
     openExemptMgr,
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
