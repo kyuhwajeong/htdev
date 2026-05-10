@@ -417,7 +417,7 @@ const GradeApp = (() => {
     const students = _getSorted();
     if (!students.length) { panel.innerHTML = ''; return; }
     panel.innerHTML = students.map((s, i) => {
-      const rec  = _st.classId && _st.bookId ? GradeDB.getLatest(_st.classId, s.id, _st.bookId) : null;
+      const rec  = _st.classId && _st.bookId ? GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId) : null;
       const achW = rec?.word?.totalQ > 0 ? Math.round(rec.word.pass / rec.word.totalQ * 100) : null;
       const dotClr = achW != null ? (achW >= 80 ? '#16a34a' : '#f97316') : 'var(--bdr2)';
       const isSel  = _st.viewMode === 'card' ? _st.slideIdx === i : _st.studentId === s.id;
@@ -448,8 +448,8 @@ const GradeApp = (() => {
         va = a.name; vb = b.name;
         return _st.sortDesc ? vb.localeCompare(va,'ko') : va.localeCompare(vb,'ko');
       }
-      const ra = GradeDB.getLatest(_st.classId, a.id, _st.bookId);
-      const rb = GradeDB.getLatest(_st.classId, b.id, _st.bookId);
+      const ra = GradeDB.getLatest(_st.classId||'__noclass__', a.id, _st.bookId);
+      const rb = GradeDB.getLatest(_st.classId||'__noclass__', b.id, _st.bookId);
       if (_st.sortCol === 'wordAch') {
         va = ra?.word?.totalQ > 0 ? ra.word.pass / ra.word.totalQ : -1;
         vb = rb?.word?.totalQ > 0 ? rb.word.pass / rb.word.totalQ : -1;
@@ -631,7 +631,7 @@ const GradeApp = (() => {
     const achWs = students.map(s => {
       const d = _st.data[s.id];
       if (d?.word?.pass != null && d?.word?.totalQ > 0) return Math.round(d.word.pass / d.word.totalQ * 100);
-      const rec = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+      const rec = GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId);
       return rec?.word?.totalQ > 0 ? Math.round(rec.word.pass / rec.word.totalQ * 100) : null;
     }).filter(v => v != null);
     const avgW = achWs.length ? Math.round(achWs.reduce((a,b)=>a+b,0)/achWs.length) : null;
@@ -640,7 +640,7 @@ const GradeApp = (() => {
     if (hasRd) {
       const achRds = students.map(s => {
         const d = _st.data[s.id];
-        const rec = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        const rec = GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId);
         const rd = d?.reading || rec?.reading || {};
         return _calcRdN(rd, actRevs);
       }).filter(v => v != null);
@@ -785,7 +785,7 @@ const GradeApp = (() => {
   /* ── 차트 ── */
   function _getClassAvgW(students) {
     const vals = students.map(s => {
-      const d=_st.data[s.id]||{}; const rec=GradeDB.getLatest(_st.classId,s.id,_st.bookId);
+      const d=_st.data[s.id]||{}; const rec=GradeDB.getLatest(_st.classId||'__noclass__',s.id,_st.bookId);
       const wd=d.word||rec?.word||{};
       return wd.totalQ>0&&wd.pass!=null ? Math.round(wd.pass/wd.totalQ*100) : null;
     }).filter(v=>v!=null);
@@ -793,7 +793,7 @@ const GradeApp = (() => {
   }
   function _getClassAvgR(students, actRevs) {
     const vals = students.map(s => {
-      const d=_st.data[s.id]||{}; const rec=GradeDB.getLatest(_st.classId,s.id,_st.bookId);
+      const d=_st.data[s.id]||{}; const rec=GradeDB.getLatest(_st.classId||'__noclass__',s.id,_st.bookId);
       const rd=d.reading||rec?.reading||{};
       return _calcRdN(rd,actRevs);
     }).filter(v=>v!=null);
@@ -818,7 +818,7 @@ const GradeApp = (() => {
 
     students.forEach((s, i) => {
       const d    = _st.data[s.id] || {};
-      const rec  = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+      const rec  = GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId);
       const wd   = d.word || rec?.word || {};
       const rdD  = d.reading || rec?.reading || {};
       const achW = wd.totalQ > 0 && wd.pass != null ? Math.round(wd.pass / wd.totalQ * 100) : 0;
@@ -856,9 +856,9 @@ const GradeApp = (() => {
     const chartWrap = document.getElementById('gr-chart-wrap');
     if (chartWrap) {
       const isExcel = _st.viewMode === 'excel';
-      const hasData = !!(  _st.classId && _st.bookId);
+      const hasData = !!(_st.bookId); // ★ 반 미선택도 저장 가능
       const hasScore = sts.some(s => {
-        const r = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        const r = GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId);
         return r?.word?.pass != null && r?.word?.totalQ > 0;
       });
       chartWrap.style.display = (isExcel && hasData && hasScore) ? '' : 'none';
@@ -937,7 +937,7 @@ const GradeApp = (() => {
         <div class="gr-hero-emo">${_emoji(s, achW!==''?achW:null)}</div>
         <div>
           <div class="gr-hero-nm">${_e(s.name)}${s.nickname?` <span style="font-size:11px;color:var(--tx3)">(${_e(s.nickname)})</span>`:''}</div>
-          <div class="gr-hero-sub">${_getCls(_st.classId)?.name||''}반</div>
+          <div class="gr-hero-sub">${_getCls(_st.classId)?.name||'학생전용'}반</div>
         </div>
         ${achW!==''?`<div class="gr-hero-score">
           <div class="gr-hero-pct" style="color:${isGW?'#16a34a':'#f97316'}">${achW}%</div>
@@ -1153,14 +1153,14 @@ const GradeApp = (() => {
     const config=GradeDB.getReportConfig(_st.bookId),actRevs=GradeDB.getActiveReviews(_st.bookId);
     const hasRd=config.reading?.enabled&&actRevs.length>0;
     const book=typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;
-    const cls=_getCls(_st.classId);
-    const rec=GradeDB.getLatest(_st.classId,s.id,_st.bookId);
+    const cls=_st.classId?_getCls(_st.classId):null;
+    const rec=GradeDB.getLatest(_st.classId||'__noclass__',s.id,_st.bookId);
     const students=_getStudents();
     const today=new Date().toLocaleDateString('ko-KR');
 
-    const achWs=students.map(st=>{const r=GradeDB.getLatest(_st.classId,st.id,_st.bookId);return r?.word?.totalQ>0?Math.round(r.word.pass/r.word.totalQ*100):null;}).filter(v=>v!=null);
+    const achWs=students.map(st=>{const r=GradeDB.getLatest(_st.classId||'__noclass__',st.id,_st.bookId);return r?.word?.totalQ>0?Math.round(r.word.pass/r.word.totalQ*100):null;}).filter(v=>v!=null);
     const avgW=achWs.length?Math.round(achWs.reduce((a,b)=>a+b,0)/achWs.length):null;
-    const achRds=hasRd?students.map(st=>{const r=GradeDB.getLatest(_st.classId,st.id,_st.bookId);return _calcRdN(r?.reading||{},actRevs);}).filter(v=>v!=null):[];
+    const achRds=hasRd?students.map(st=>{const r=GradeDB.getLatest(_st.classId||'__noclass__',st.id,_st.bookId);return _calcRdN(r?.reading||{},actRevs);}).filter(v=>v!=null):[];
     const avgRd=achRds.length?Math.round(achRds.reduce((a,b)=>a+b,0)/achRds.length):null;
     const achW=rec?.word?.totalQ>0?Math.round(rec.word.pass/rec.word.totalQ*100):null;
     const achRd=hasRd?_calcRdN(rec?.reading||{},actRevs):null;
@@ -1813,7 +1813,7 @@ const GradeApp = (() => {
     const s = _getStudents().find(st=>st.id===_st.studentId) || _getStudents()[0];
     if (!s) { _toast('⚠️ 학생을 먼저 선택해주세요'); return; }
 
-    const cls  = _getCls(_st.classId);
+    const cls=_st.classId?_getCls(_st.classId):null;
     const book = typeof BookLibDB !== 'undefined' ? BookLibDB.getBookById(_st.bookId) : null;
     const pw   = {A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize] || '210mm';
     const title= `${s.name}${s.nickname?'('+s.nickname+')':''} 성적 리포트`;
@@ -2011,7 +2011,7 @@ const GradeApp = (() => {
   async function _captureReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
     /* 파일명: 반이름_교재명_학생명_Report_날짜_시간.png */
-    const cls  = _getCls(_st.classId);
+    const cls=_st.classId?_getCls(_st.classId):null;
     const book = typeof BookLibDB!=='undefined' ? BookLibDB.getBookById(_st.bookId) : null;
     const stu  = _getStudents().find(s=>s.id===_st.studentId) || _getStudents()[0];
     const now  = new Date();
@@ -2035,7 +2035,7 @@ const GradeApp = (() => {
    * 저장
    * ════════════════════════════════════ */
   async function saveOne(sid) {
-    if (!_st.classId || !_st.bookId) { _toast('⚠️ 반과 교재를 선택해주세요'); return; }
+    if (!_st.bookId) { _toast('⚠️ 교재를 선택해주세요'); return; }
     _ensureData(sid);
 
     /* 엑셀 모드: DOM 최신값 수집 */
@@ -2069,7 +2069,7 @@ const GradeApp = (() => {
     _st.data[sid].savedAt = savedAt;
 
     await GradeDB.saveRecord({
-      classId:   _st.classId,
+      classId:   _st.classId||'__noclass__',
       studentId: sid,
       bookId:    _st.bookId,
       word:      _st.data[sid].word    || null,
@@ -2288,7 +2288,7 @@ const GradeApp = (() => {
 
   async function resetOne(sid) {
     if (!confirm('이 학생의 입력 데이터를 초기화하시겠습니까?')) return;
-    const records = GradeDB.getRecords(_st.classId, sid, _st.bookId);
+    const records = GradeDB.getRecords(_st.classId||'__noclass__', sid, _st.bookId);
     for (const r of records) await GradeDB.deleteRecord(_st.classId, sid, _st.bookId, r.id);
     delete _st.data[sid]; _st.dirty.delete(sid);
     _refreshDirtyUI(); _renderContent(); _renderStudents();
@@ -2354,7 +2354,7 @@ const GradeApp = (() => {
     _renderStudents(); _renderContent(); _refreshToolbar();
   }
   function _updateRptBtn(){const btn=document.getElementById('gr-rpt-btn');if(btn)btn.style.display=(_st.classId&&_st.bookId)?'':'none';}
-  function _updateSub(){const sub=document.getElementById('gr-sub');if(!sub)return;const cls=_st.classId?_getCls(_st.classId):null;const bk=_st.bookId&&typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;sub.textContent=cls&&bk?`${cls.name}반 · ${bk.name}`:cls?`${cls.name}반`:'반 · 교재를 선택하세요';}
+  function _updateSub(){const sub=document.getElementById('gr-sub');if(!sub)return;const cls=_st.classId?_getCls(_st.classId):null;const bk=_st.bookId&&typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;sub.textContent=cls&&bk?`${cls?.name||'학생배정'}반 · ${bk.name}`:cls?`${cls?.name||'학생배정'}반`:'반 · 교재를 선택하세요';}
   function _refreshDirtyUI(){
     const el=document.getElementById('gr-dirty-cnt');
     if(el) el.textContent=_st.dirty.size?`(${_st.dirty.size})`:'';
@@ -2388,7 +2388,7 @@ const GradeApp = (() => {
     if(chartWrap){
       const sts = _getSorted();
       const hasScore = sts.some(s=>{
-        const r = GradeDB.getLatest(_st.classId, s.id, _st.bookId);
+        const r = GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId);
         return r?.word?.pass != null && r?.word?.totalQ > 0;
       });
       chartWrap.style.display = (isExcel && hasData && hasScore) ? '' : 'none';
@@ -2405,9 +2405,9 @@ const GradeApp = (() => {
     const hasRd=config.reading?.enabled&&actRevs.length>0;
     const sts=_getSorted(),today=new Date().toLocaleDateString('ko-KR');
     let txt=`📝 ${book?.name||''} 성적표\n🏫 ${cls?.name||''}반 · ${today}\n${'─'.repeat(26)}\n`;
-    sts.forEach(s=>{const rec=GradeDB.getLatest(_st.classId,s.id,_st.bookId);if(!rec){txt+=`${s.name}: 미입력\n`;return;}const achW=rec.word?.totalQ>0?Math.round(rec.word.pass/rec.word.totalQ*100):null;const achRd=hasRd?_calcRdN(rec.reading||{},actRevs):null;txt+=`${s.name}${s.nickname?'('+s.nickname+')':''}: 단어 ${rec.word?.pass??'—'}/${rec.word?.totalQ??'—'}${achW!=null?'('+achW+'%)':''}`+(achRd!=null?` · 리딩 ${Math.round(achRd)}%`:'')+'\n';});
+    sts.forEach(s=>{const rec=GradeDB.getLatest(_st.classId||'__noclass__',s.id,_st.bookId);if(!rec){txt+=`${s.name}: 미입력\n`;return;}const achW=rec.word?.totalQ>0?Math.round(rec.word.pass/rec.word.totalQ*100):null;const achRd=hasRd?_calcRdN(rec.reading||{},actRevs):null;txt+=`${s.name}${s.nickname?'('+s.nickname+')':''}: 단어 ${rec.word?.pass??'—'}/${rec.word?.totalQ??'—'}${achW!=null?'('+achW+'%)':''}`+(achRd!=null?` · 리딩 ${Math.round(achRd)}%`:'')+'\n';});
     const thRd=hasRd?actRevs.map(rv=>`<th style="border:1px solid var(--bdr);padding:6px">${_e(rv.name)}</th>`).join('')+'<th style="border:1px solid var(--bdr);padding:6px">성취율</th>':'';
-    const tdRows=sts.map(s=>{const r=GradeDB.getLatest(_st.classId,s.id,_st.bookId);if(!r)return`<tr><td style="border:1px solid var(--bdr);padding:6px;font-weight:700">${_e(s.name)}</td><td colspan="99" style="border:1px solid var(--bdr);padding:6px;color:var(--tx3)">미입력</td></tr>`;const achW=r.word?.totalQ>0?Math.round(r.word.pass/r.word.totalQ*100):null;const isGW=achW!=null&&achW>=80;const achRd=hasRd?_calcRdN(r.reading||{},actRevs):null;const rdTds=hasRd?actRevs.map((_,i)=>{const sc=r.reading?.[`R${i}`]?.score??'—';return`<td style="border:1px solid var(--bdr);padding:6px;color:var(--a)">${sc}</td>`;}).join('')+`<td style="border:1px solid var(--bdr);padding:6px;color:#8b5cf6;font-weight:700">${achRd!=null?Math.round(achRd)+'%':'—'}</td>`:'';return`<tr><td style="border:1px solid var(--bdr);padding:6px;font-weight:700">${_e(s.name)}${s.nickname?` (${_e(s.nickname)})`:''}</td><td style="border:1px solid var(--bdr);padding:6px;color:${isGW?'#16a34a':'#f97316'};font-weight:700">${r.word?.pass??'—'}</td><td style="border:1px solid var(--bdr);padding:6px">${r.word?.retake??'—'}</td><td style="border:1px solid var(--bdr);padding:6px;color:${isGW?'#16a34a':'#f97316'};font-weight:800">${achW!=null?achW+'%':'—'}</td>${rdTds}<td style="border:1px solid var(--bdr);padding:6px;font-size:11px">${_e(r.comment||'')}</td></tr>`;}).join('');
+    const tdRows=sts.map(s=>{const r=GradeDB.getLatest(_st.classId||'__noclass__',s.id,_st.bookId);if(!r)return`<tr><td style="border:1px solid var(--bdr);padding:6px;font-weight:700">${_e(s.name)}</td><td colspan="99" style="border:1px solid var(--bdr);padding:6px;color:var(--tx3)">미입력</td></tr>`;const achW=r.word?.totalQ>0?Math.round(r.word.pass/r.word.totalQ*100):null;const isGW=achW!=null&&achW>=80;const achRd=hasRd?_calcRdN(r.reading||{},actRevs):null;const rdTds=hasRd?actRevs.map((_,i)=>{const sc=r.reading?.[`R${i}`]?.score??'—';return`<td style="border:1px solid var(--bdr);padding:6px;color:var(--a)">${sc}</td>`;}).join('')+`<td style="border:1px solid var(--bdr);padding:6px;color:#8b5cf6;font-weight:700">${achRd!=null?Math.round(achRd)+'%':'—'}</td>`:'';return`<tr><td style="border:1px solid var(--bdr);padding:6px;font-weight:700">${_e(s.name)}${s.nickname?` (${_e(s.nickname)})`:''}</td><td style="border:1px solid var(--bdr);padding:6px;color:${isGW?'#16a34a':'#f97316'};font-weight:700">${r.word?.pass??'—'}</td><td style="border:1px solid var(--bdr);padding:6px">${r.word?.retake??'—'}</td><td style="border:1px solid var(--bdr);padding:6px;color:${isGW?'#16a34a':'#f97316'};font-weight:800">${achW!=null?achW+'%':'—'}</td>${rdTds}<td style="border:1px solid var(--bdr);padding:6px;font-size:11px">${_e(r.comment||'')}</td></tr>`;}).join('');
     sh.innerHTML=`<div class="sh-handle"></div><div class="sh-title">📋 반 전체 성적표</div><div class="sh-sub">${_e(cls?.name||'')}반 · ${_e(book?.name||'')} · ${today}</div><div class="gr-rpt-sh-scroll"><div style="overflow-x:auto;padding:10px 2px"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:max-content"><thead><tr style="background:var(--surf2)"><th style="border:1px solid var(--bdr);padding:7px 10px;font-size:11px;color:var(--tx3)">학생</th><th style="border:1px solid var(--bdr);padding:7px 10px;font-size:11px;color:var(--tx3)">통과</th><th style="border:1px solid var(--bdr);padding:7px 10px;font-size:11px;color:var(--tx3)">재시험</th><th style="border:1px solid var(--bdr);padding:7px 10px;font-size:11px;color:var(--tx3)">성취율</th>${thRd}<th style="border:1px solid var(--bdr);padding:7px 10px;font-size:11px;color:var(--tx3)">코멘트</th></tr></thead><tbody>${tdRows}</tbody></table></div><div style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:1px;margin:10px 14px 4px">공유용 텍스트</div><div class="gr-share-box" style="margin:0 14px 8px">${_e(txt)}</div></div><div class="gr-sacts" style="padding:0 0 8px"><button class="gr-sbtn copy" onclick="GradeApp._copy(${JSON.stringify(txt)})">📋 복사</button><button class="gr-sbtn share" onclick="GradeApp._shr(${JSON.stringify(txt)})">📤 공유</button></div><button class="btn-x" style="width:100%" onclick="GradeApp.closeReport()">닫기</button>`;
     ov.classList.remove('hidden');history.pushState({pg:'grade',modal:'report'},'');
   }
@@ -2418,7 +2418,7 @@ const GradeApp = (() => {
   /* ══ 유틸 ══ */
   function _getStudents(){
     if(_st.classId){
-      const cls=_getCls(_st.classId);
+      const cls=_st.classId?_getCls(_st.classId):null;
       if(!cls||typeof StudentDB==='undefined') return [];
       return StudentDB.getFiltered({classCode:cls.name,status:'재원'});
     } else if(_st.bookId){
@@ -2431,7 +2431,7 @@ const GradeApp = (() => {
     }
     return [];
   }
-  function _ensureData(sid){if(!_st.data[sid]){const cfg=GradeDB.getReportConfig(_st.bookId);const tq=cfg.word?.totalQ||0;const rec=GradeDB.getLatest(_st.classId,sid,_st.bookId);_st.data[sid]=rec?JSON.parse(JSON.stringify(rec)):{word:{totalQ:tq,retake:'',pass:''},reading:{},comment:''};_st.data[sid].comment=_st.data[sid].comment||'';}}
+  function _ensureData(sid){if(!_st.data[sid]){const cfg=GradeDB.getReportConfig(_st.bookId);const tq=cfg.word?.totalQ||0;const rec=GradeDB.getLatest(_st.classId||'__noclass__',sid,_st.bookId);_st.data[sid]=rec?JSON.parse(JSON.stringify(rec)):{word:{totalQ:tq,retake:'',pass:''},reading:{},comment:''};_st.data[sid].comment=_st.data[sid].comment||'';}}
   function _givN(n){return n?.length>1?n.slice(1):n||'';}
   function _getCls(id){if(typeof DB==='undefined')return null;if(typeof DB.getClassById==='function')return DB.getClassById(id);return(DB.getActiveClasses?.()||[]).find(c=>c.id===id)||null;}
   function _calcRdN(rd,revs){if(!revs?.length)return null;const sc=revs.map((_,i)=>rd[`R${i}`]?.score).filter(s=>s!=null&&s!=='');if(!sc.length)return null;return Math.round(sc.reduce((a,b)=>a+b,0)/sc.length);}
