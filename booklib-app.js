@@ -920,7 +920,7 @@ const BooklibApp = (() => {
           <input class="f-inp" id="bl-stu-search" placeholder="학생 이름 검색..." style="width:100%;padding:7px 10px;font-size:13px">
           <div id="bl-stu-results" class="bl-stu-dropdown"></div>
         </div>
-        ${assignedStus.length?`<div class="bl-stu-chips">${assignedStus.map(s=>`<div class="bl-stu-chip"><span>${_e(s.name)}</span><button onclick="BooklibApp._removeStudent('${book.id}','${s.id}')">✕</button></div>`).join('')}</div>`:''}
+        ${assignedStus.length?`<div id="bl-stu-chips-wrap" class="bl-stu-chips">${assignedStus.map(s=>`<div class="bl-stu-chip"><span>${_e(s.name)}</span><button onclick="BooklibApp._removeStudent('${book.id}','${s.id}')">✕</button></div>`).join('')}</div>`:''}
       `:''}
 
       <!-- 챕터 목록 -->
@@ -976,7 +976,7 @@ const BooklibApp = (() => {
     function _renderStuSearchResults(bookId,query,allStus){
     const res=document.getElementById('bl-stu-results'); if(!res)return;
     const q=query.trim();
-    if(!q){res.innerHTML='';res.style.display='none';return;}
+    if(q.length<1){res.innerHTML='';res.style.display='none';return;}
     const CHOSUNGS='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
     function matchChosung(name,q){
       if(name.toLowerCase().includes(q.toLowerCase())) return true;
@@ -998,12 +998,10 @@ const BooklibApp = (() => {
     res.innerHTML=found.map(s=>{
       const cls=allCls.find(c=>c.name===s.classCode);
       const clsLabel=cls?` <span style="font-size:10px;color:var(--tx3);background:var(--surf2);padding:1px 5px;border-radius:5px">${cls.name}반</span>`:'';
-      return `<div onclick="BooklibApp._toggleAssign('${bookId}','${s.id}')"
-        style="padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;border-bottom:1px solid var(--bdr)"
-        onmouseover="this.style.background='var(--a10)'" onmouseout="this.style.background=''">
+      return `<div style="padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bdr);background:var(--card)">
         <span style="font-size:13px;font-weight:700;color:var(--tx)">${_e(s.name)}</span>
         ${clsLabel}
-        <span style="margin-left:auto;font-size:11px;color:var(--a);font-weight:700">＋ 배정</span>
+        <button onclick="BooklibApp._assignStudentBtn('${bookId}','${s.id}',this)" style="margin-left:auto;padding:4px 10px;border-radius:7px;background:var(--a);color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">＋ 배정</button>
       </div>`;
     }).join('');
     res.style.display='block';
@@ -1101,7 +1099,13 @@ const BooklibApp = (() => {
   }
 
   function _fillBookSel(sel){
-    const allBks=_st.matrixClassId?BookLibDB.getBooksForClass(_st.matrixClassId):BookLibDB.getBooks();
+    let allBks;
+    if(_st.matrixClassId){
+      allBks=BookLibDB.getBooksForClass(_st.matrixClassId);
+    } else {
+      // ★ 반 미선택 시: 학생 직접 배정된 교재만 표시
+      allBks=BookLibDB.getBooks().filter(b=>(b.studentIds&&b.studentIds.length>0)||(b.assignedStudents&&b.assignedStudents.length>0));
+    }
     const bks=allBks.filter(b=>!b.archived); // ★ 완결 교재 제외
     sel.innerHTML=`<option value="">— 교재 선택 —</option>`+bks.map(b=>`<option value="${b.id}" ${_st.matrixBookId===b.id?'selected':''}>${_e(b.name)}</option>`).join('');
   }
@@ -1140,6 +1144,7 @@ const BooklibApp = (() => {
         <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
          <button class="bl-report-btn" onclick="BooklibApp.openBatchImport()" title="여러 xlsx 파일 일괄 반영" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.4);color:#059669">📂 일괄 반영</button>
+         <button class="bl-report-btn" onclick="BooklibApp.openExemptMgr()" title="반+교재별 예외 학생 관리" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:#d97706">⚙️ 예외 설정</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
         <input type="file" id="bl-csv-inp" accept=".xlsx,.xls,.csv" style="display:none"
@@ -1232,7 +1237,10 @@ const BooklibApp = (() => {
         if(_tbl) _tbl.style.fontSize=_fs+'px';
         document.querySelectorAll('#bl-mtbl th,#bl-mtbl td,.bl-ch-hdr,.bl-shdr,.bl-shdr-name,.bl-shdr-cnt,.bl-batch-row,.bl-chdr,.bl-ch-t,.bl-ch-n').forEach(el=>el.style.fontSize=_fs+'px');
       }
-      // ★ 메모 체크 상태 복원 (교재별 독립)
+      // ★ 메모 상태 복원 - Firebase에서 직접 읽기
+      if(typeof BooklibApp!=='undefined'&&BooklibApp._restoreMemoState){
+        BooklibApp._restoreMemoState();
+      }
       const _ck=document.getElementById('bl-memo-ck');
       if(_ck&&_st.matrixClassId&&_st.matrixBookId){
         const _ckKey='bl_memo_ck_'+_st.matrixClassId+'_'+_st.matrixBookId;
@@ -2673,13 +2681,158 @@ const BooklibApp = (() => {
   }
   // ★★★ 일괄 반영 끝 ★★★
 
+  
+  // ★★★ 예외 학생 관리 (반+교재별, DB 저장) ★★★
+  async function openExemptMgr(){
+    document.getElementById('bl-exempt-mgr')?.remove();
+    // 반+교재 선택 필요
+    const allCls = typeof DB!=='undefined'?DB.getActiveClasses():[];
+    const allBks = BookLibDB.getBooks().filter(b=>!b.archived);
+
+    const modal=document.createElement('div');
+    modal.id='bl-exempt-mgr';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:flex-end;justify-content:center';
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+
+    const sheet=document.createElement('div');
+    sheet.style.cssText='background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:580px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18)';
+
+    // 헤더
+    const hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0';
+    hdr.innerHTML='<div><div style="font-size:16px;font-weight:800">⚙️ 예외 학생 관리</div><div style="font-size:11px;color:var(--tx3);margin-top:2px">반+교재별 미수행 예외 학생 및 가명을 DB에 저장합니다</div></div>';
+    const xBtn=document.createElement('button'); xBtn.textContent='✕';
+    xBtn.style.cssText='background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)';
+    xBtn.onclick=()=>modal.remove(); hdr.appendChild(xBtn); sheet.appendChild(hdr);
+
+    // 반/교재 선택
+    const selRow=document.createElement('div');
+    selRow.style.cssText='display:flex;gap:8px;margin-bottom:14px;flex-shrink:0';
+    const clsSel=document.createElement('select');
+    clsSel.style.cssText='flex:1;padding:8px;border-radius:8px;border:1px solid var(--bdr2);background:var(--card);font-size:13px;font-family:var(--font)';
+    clsSel.innerHTML='<option value="">— 반 선택 —</option>'+allCls.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    const bkSel=document.createElement('select');
+    bkSel.style.cssText='flex:1;padding:8px;border-radius:8px;border:1px solid var(--bdr2);background:var(--card);font-size:13px;font-family:var(--font)';
+    bkSel.innerHTML='<option value="">— 교재 선택 —</option>';
+    clsSel.onchange=()=>{
+      const cid=clsSel.value;
+      const bks=cid?BookLibDB.getBooksForClass(cid).filter(b=>!b.archived):allBks;
+      bkSel.innerHTML='<option value="">— 교재 선택 —</option>'+bks.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    };
+    bkSel.onchange=()=>_loadExemptMgrList(clsSel.value, bkSel.value, listWrap, modal);
+    selRow.appendChild(clsSel); selRow.appendChild(bkSel); sheet.appendChild(selRow);
+
+    // 목록 영역
+    const listWrap=document.createElement('div');
+    listWrap.style.cssText='overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px';
+    listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">반과 교재를 선택하세요</div>';
+    sheet.appendChild(listWrap);
+
+    // 하단 버튼
+    const acts=document.createElement('div');
+    acts.style.cssText='display:flex;gap:8px;margin-top:14px;flex-shrink:0';
+    const addBtn=document.createElement('button');
+    addBtn.textContent='＋ 예외 학생 추가'; addBtn.style.cssText='flex:1;padding:10px;border-radius:10px;background:rgba(245,158,11,.1);border:1.5px dashed rgba(245,158,11,.5);color:#92400e;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)';
+    addBtn.onclick=()=>{
+      if(!clsSel.value||!bkSel.value){_toast('⚠️ 반과 교재를 먼저 선택하세요','error');return;}
+      _addExemptRow(clsSel.value, bkSel.value, listWrap, modal, null);
+    };
+    acts.appendChild(addBtn);
+    const saveBtn=document.createElement('button');
+    saveBtn.textContent='💾 저장'; saveBtn.style.cssText='flex:1;padding:10px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)';
+    saveBtn.onclick=()=>_saveExemptMgr(clsSel.value, bkSel.value, listWrap, modal);
+    acts.appendChild(saveBtn);
+    sheet.appendChild(acts);
+
+    // 현재 선택된 반/교재 자동 선택
+    if(_st.matrixClassId) clsSel.value=_st.matrixClassId;
+    if(_st.matrixClassId){
+      const bks=BookLibDB.getBooksForClass(_st.matrixClassId).filter(b=>!b.archived);
+      bkSel.innerHTML='<option value="">— 교재 선택 —</option>'+bks.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    }
+    if(_st.matrixBookId){ bkSel.value=_st.matrixBookId; }
+    if(_st.matrixClassId&&_st.matrixBookId){
+      _loadExemptMgrList(_st.matrixClassId, _st.matrixBookId, listWrap, modal);
+    }
+
+    modal.appendChild(sheet); document.body.appendChild(modal);
+  }
+
+  async function _loadExemptMgrList(clsId, bkId, listWrap, modal){
+    if(!clsId||!bkId){listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">반과 교재를 선택하세요</div>';return;}
+    listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">로드 중...</div>';
+    const exempts=await BookLibDB.loadClassExempts(clsId)||{};
+    listWrap.innerHTML='';
+    // bookId별 필터링
+    const bkExempts=Object.entries(exempts).filter(([k,v])=>!v.bookId||v.bookId===bkId);
+    if(!bkExempts.length){
+      listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:16px">등록된 예외 학생이 없습니다</div>';
+    } else {
+      bkExempts.forEach(([name,v])=>_addExemptRow(clsId,bkId,listWrap,modal,{name,data:v}));
+    }
+  }
+
+  function _addExemptRow(clsId, bkId, listWrap, modal, existing){
+    const ALL=['암기','리콜','스펠','스피킹','게임','테스트'];
+    const name=existing?.name||'';
+    const items=(existing?.data?.items)||[];
+    const alias=(existing?.data?.alias)||'';
+    const useAlias=(existing?.data?.useAlias)||false;
+
+    const row=document.createElement('div');
+    row.style.cssText='background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:12px;position:relative';
+    row.innerHTML=`
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <input class="em-name" type="text" value="${_e(name)}" placeholder="학생 이름 (예: 홍길동)"
+          style="flex:1;padding:6px 10px;border:1px solid var(--bdr2);border-radius:7px;font-size:13px;background:var(--card);font-family:var(--font)">
+        <button onclick="this.closest('div[style*=position]').remove()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#dc2626;border-radius:7px;padding:4px 8px;cursor:pointer">🗑</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--tx3);cursor:pointer">
+          <input class="em-alias-ck" type="checkbox" ${useAlias?'checked':''} style="accent-color:var(--a)"> xlsx 가명
+        </label>
+        <input class="em-alias" type="text" value="${_e(alias)}" placeholder="xlsx 가명/영문명" style="display:${useAlias?'block':'none'};flex:1;padding:4px 8px;border:1px solid var(--a40);border-radius:6px;font-size:12px;background:var(--card)">
+      </div>
+      <div style="font-size:10px;font-weight:800;color:var(--tx3);margin-bottom:6px">면제 항목</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${ALL.map(it=>`<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--card);border:1.5px solid ${items.includes(it)?'var(--a)':'var(--bdr2)'};border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">
+          <input class="em-item" type="checkbox" value="${it}" ${items.includes(it)?'checked':''} style="accent-color:var(--a)" onchange="this.closest('label').style.borderColor=this.checked?'var(--a)':'var(--bdr2)'"> ${it}</label>`).join('')}
+      </div>`;
+    // 가명 체크박스 토글
+    const aliasCk=row.querySelector('.em-alias-ck');
+    const aliasInp=row.querySelector('.em-alias');
+    aliasCk.onchange=()=>{ aliasInp.style.display=aliasCk.checked?'block':'none'; };
+    listWrap.appendChild(row);
+  }
+
+  async function _saveExemptMgr(clsId, bkId, listWrap, modal){
+    if(!clsId||!bkId){_toast('⚠️ 반과 교재를 선택하세요','error');return;}
+    const rows=[...listWrap.querySelectorAll('div[style*=position]')];
+    const existing=await BookLibDB.loadClassExempts(clsId)||{};
+    // 현재 bkId에 해당하는 기존 항목 제거
+    Object.keys(existing).forEach(k=>{ if(!existing[k].bookId||existing[k].bookId===bkId) delete existing[k]; });
+    // 새 항목 추가
+    rows.forEach(row=>{
+      const nm=row.querySelector('.em-name')?.value?.trim();
+      if(!nm) return;
+      const items=[...row.querySelectorAll('.em-item:checked')].map(c=>c.value);
+      const useAlias=row.querySelector('.em-alias-ck')?.checked||false;
+      const alias=row.querySelector('.em-alias')?.value?.trim()||'';
+      existing[nm]={items, useAlias, alias:alias||null, bookId:bkId};
+    });
+    await BookLibDB.saveClassExempts(clsId, existing);
+    _toast('✅ 예외 설정 저장 완료','success');
+    modal.remove();
+  }
+  // ★★★ 예외 학생 관리 끝 ★★★
+
     /* ══ PUBLIC ══ */
   return{
     init,render,switchTab,
     _addExcRow,
     addBook,deleteBook,_renameBook,_excAutoComplete,
     openEditor,closeEditor,saveEditor,
-    _pasteChapters,_delCh,_clearChs,_toggleAssign,
+    _pasteChapters,_delCh,_clearChs,_toggleAssign,_assignStudentBtn,_refreshStudentChips,_removeStudent,
     _onRdToggle,_onRvCheck,_onRvName,_addReview,_delReview,
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
@@ -2689,6 +2842,7 @@ const BooklibApp = (() => {
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     openBatchImport, _addBatchFiles, _removeBatchFile, _runBatchImport,
+    openExemptMgr,
     _saveExempts, _loadExempts,
     _archiveBook,_unarchiveBook,_copyBook, _openEvalTab,
     _toggleMultiSelect,_cancelMultiSelect,_multiArchive,_onMultiCkChange,

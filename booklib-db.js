@@ -172,12 +172,22 @@ const BookLibDB = (() => {
     _fire('books'); return copy;
   }
 
-  async function assignStudents(bookId, studentIds) {
+  function assignStudents(bookId, studentIds) {
     const b=_books.find(x=>x.id===bookId); if(!b) return;
-    b.assignedStudents = studentIds;
+    b.studentIds = studentIds;
     _ls(LS_BOOKS, _books);
-    if(_fb()) FireDB.update(`${FB_BOOKS}/${bookId}`,{assignedStudents:studentIds}).catch(()=>{});
+    if(_fb()) FireDB.update(`${FB_BOOKS}/${bookId}`,{studentIds:studentIds}).catch(()=>{});
     _fire('books');
+  }
+  async function addStudentToBook(bookId, studentId){
+    const b=getBookById(bookId); if(!b) return;
+    const ids=[...new Set([...(b.studentIds||[]),(studentId)])];
+    return updateBook(bookId,{studentIds:ids});
+  }
+  async function removeStudentFromBook(bookId, studentId){
+    const b=getBookById(bookId); if(!b) return;
+    const ids=(b.studentIds||[]).filter(id=>id!==studentId);
+    return updateBook(bookId,{studentIds:ids});
   }
 
   async function setChapters(bookId, chapters, mode='replace') {
