@@ -1293,9 +1293,13 @@ const BooklibApp = (() => {
     const book=BookLibDB.getBookById(_st.matrixBookId);
     if(!book)return`<div class="bl-mempty"><div class="bl-mempty-ico">❌</div>교재를 찾을 수 없습니다</div>`;
     const chs=book.chapters||[];if(!chs.length)return`<div class="bl-mempty"><div class="bl-mempty-ico">📑</div>챕터가 없습니다<br><small>교재 관리 탭 → 챕터 추가</small></div>`;
-    const cls=_getCls(_st.matrixClassId);if(!cls)return`<div class="bl-mempty"><div class="bl-mempty-ico">❌</div>반 정보를 찾을 수 없습니다</div>`;
-    const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];
-    if(!allStu.length)return`<div class="bl-mempty"><div class="bl-mempty-ico">👨‍🎓</div>${_e(cls.name)}반 재원 학생 없음<br><small>학생 탭에서 엑셀을 가져오세요</small></div>`;
+    const cls=_st.matrixClassId?_getCls(_st.matrixClassId):null;
+    if(_st.matrixClassId&&!cls)return`<div class="bl-mempty"><div class="bl-mempty-ico">❌</div>반 정보를 찾을 수 없습니다</div>`;
+    const allStu=cls
+      ?(typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[])
+      :((book.studentIds||[]).length&&typeof StudentDB!=='undefined'
+        ?StudentDB.getAll().filter(s=>(book.studentIds||[]).includes(s.id)):[]);
+    if(!allStu.length)return`<div class="bl-mempty"><div class="bl-mempty-ico">👨‍🎓</div>${cls?_e(cls.name)+'반 ':''}학생이 없습니다</div>`;
     const savedOrder=_loadColOrder(_st.matrixClassId,_st.matrixBookId);_st.colOrder=_buildColOrder(allStu,savedOrder);const students=_getOrderedStu(allStu);
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     // ★ 미수행 = evalChs(타임스탬프 이내) 챕터 × 학생 조합 중 체크된 것만
