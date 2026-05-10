@@ -1378,6 +1378,9 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
     const scrollLeft=tbl?tbl.scrollLeft:0;
     mb.innerHTML=_matrixHTML();
     _setupDrag();_bindCsvDrop();
+    // ★ 교재 목록 필터 재적용 (innerHTML 재생성 후)
+    const _bsel=mb.querySelector('#bl-bsel')||document.getElementById('bl-bsel');
+    if(_bsel) _fillBookSel(_bsel);
     // ★ 폰트 크기 복원 (localStorage에 저장된 값)
     requestAnimationFrame(()=>{
       const _fs=parseFloat(localStorage.getItem('bl_mtbl_fontsize'));

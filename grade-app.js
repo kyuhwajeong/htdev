@@ -301,7 +301,7 @@ const GradeApp = (() => {
       _evalBtnEl.addEventListener('touchstart', e=>{e.preventDefault();_showEvalPopup();}, {passive:false});
     }
     _fillClass();
-    if (_st.classId) _fillBooks();
+    _fillBooks(); // ★ 반 미선택이어도 학생배정 교재 표시
     _renderStudents();
     _renderContent();
   }
