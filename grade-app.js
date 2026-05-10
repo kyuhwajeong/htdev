@@ -83,7 +83,7 @@ const GradeApp = (() => {
 .gr-stu-panel{width:88px;flex-shrink:0;border-right:1.5px solid var(--bdr);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--surf);}
 .gr-stu-panel::-webkit-scrollbar{width:3px;}
 .gr-stu-panel::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
-.gr-content{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;}
+.gr-content{flex:1;overflow:hidden;display:flex;flex-direction:column;}
 .gr-content::-webkit-scrollbar{width:4px;height:4px;}
 .gr-content::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
 
@@ -102,7 +102,7 @@ const GradeApp = (() => {
 .gr-empty-ico{font-size:44px;margin-bottom:10px;}
 
 /* ══ EXCEL MODE ══ */
-.gr-sheet-wrap{width:100%;overflow-x:auto;}
+.gr-sheet-wrap{width:100%;overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 280px);position:relative;}
 .gr-sheet{border-collapse:collapse;font-size:12px;width:100%;}
 
 /* fixed student col */
