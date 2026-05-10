@@ -473,7 +473,7 @@ const GradeApp = (() => {
   /* ── 콘텐츠 ── */
   function _renderContent() {
     const cnt = document.getElementById('gr-content'); if (!cnt) return;
-    if (!_st.classId || !_st.bookId) {
+    if (!_st.bookId) {
       cnt.innerHTML = `<div class="gr-empty"><div class="gr-empty-ico">📝</div>반과 교재를 선택하세요</div>`; return;
     }
     const sts = _getSorted();
@@ -2315,7 +2315,7 @@ const GradeApp = (() => {
     _st.bookId=bkId||null; _st.studentId=null; _st.data={}; _st.dirty.clear(); _st.sortCol=null;
     _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub(); _refreshToolbar();
     if (_st.bookId) {
-      GradeDB.init(_st.classId, _st.bookId);
+      GradeDB.init(_st.classId||'__noclass__', _st.bookId);
       // ★ 교재 선택 완료 후 즉각 그래프 표시
       requestAnimationFrame(() => _updateChart());
     }

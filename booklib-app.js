@@ -57,7 +57,7 @@ const BooklibApp = (() => {
 .bl-book-card.has-ch{background:linear-gradient(135deg,var(--card) 80%,rgba(5,150,105,.06));}
 .bl-book-card:not(.has-ch):not(.archived){background:linear-gradient(135deg,var(--card) 80%,rgba(59,130,246,.05));}
 .bl-book-card.archived{background:var(--surf2);opacity:.75;cursor:default;}
-.bl-stu-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--a10);border:1px solid var(--a40);border-radius:16px;font-size:12px;font-weight:600;color:var(--a);}
+.bl-stu-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--a10);border:1px solid var(--a40);border-radius:12px;font-size:11px;font-weight:600;color:var(--a);}
 .bl-stu-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:8px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr);min-height:36px;}
 .bl-stu-dropdown{position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--card);border:1.5px solid var(--a40);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px;}
 .bl-book-card.multi-selecting{cursor:default;}
@@ -523,7 +523,6 @@ const BooklibApp = (() => {
         </div>`:''} 
       </div>
       ${chN>0&&!isArchived?`<div class="bl-ch-preview">${(b.chapters||[]).slice(0,5).map(c=>`<span class="bl-ch-tag">${_e(c.title)}</span>`).join('')}${chN>5?`<span style="color:var(--a);font-weight:700;font-size:11px">+${chN-5}</span>`:''}</div>`:''}
-${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof StudentDB!=='undefined'?StudentDB.getAll():[];const _nms=_sIds.slice(0,4).map(id=>(_aS.find(s=>s.id===id)||{}).name||'').filter(Boolean);return _nms.length?`<div style='margin-top:4px;padding:3px 8px;background:var(--a10);border-radius:6px;font-size:10px;color:var(--a);font-weight:600;display:inline-block'>👤 ${_nms.join(' · ')}${_sIds.length>4?' 외 '+(_sIds.length-4)+'명':''}</div>`:'';})()}
     </div>`;}
 
 
@@ -910,7 +909,7 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
         <button class="btn-x" onclick="BooklibApp.closeEditor()">취소</button>
         ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>`:''}
       ${isAdmin?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
-        <button onclick="event.stopPropagation();BooklibApp._deleteBookFromPopup('${book.id}','${_e(book.name)}')" style="width:100%;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.25);color:#dc2626;font-size:12px;font-weight:700;cursor:pointer">🗑 이 교재 삭제</button>
+        <button id="bl-ed-del-btn" style="width:100%;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.25);color:#dc2626;font-size:12px;font-weight:700;cursor:pointer">🗑 이 교재 삭제</button>
       </div>`:''}
       </div>`;
     if(isAdmin&&_editorTab==='chapters')_bindDrop('bl-ch-drop',book.id,_importChFile);
@@ -918,6 +917,30 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
     if(isAdmin&&_editorTab==='chapters'){
       const sinp=document.getElementById('bl-stu-search');
       if(sinp)sinp.addEventListener('input',()=>_renderStuSearchResults(book.id,sinp.value,allStus));
+    }
+    // ★ 교재 삭제 버튼 - addEventListener 직접 등록
+    if(isAdmin){
+      const _dBtn=document.getElementById('bl-ed-del-btn');
+      if(_dBtn){
+        const _bid=book.id, _bname=book.name;
+        const _doDelete=async(e)=>{
+          e.preventDefault(); e.stopPropagation();
+          const msg=[
+            '"'+_bname+'" 교재를 삭제하시겠습니까?','',
+            '⚠️ 아래 데이터가 모두 삭제됩니다:',
+            '  · 챕터 목록','  · 학습 현황 (학생별 수행/미수행)',
+            '  · 플로팅 메모','  · 성적 평가 및 리포트 데이터','',
+            '정말 삭제하시겠습니까? 되돌릴 수 없습니다.'
+          ].join('\n');
+          if(!confirm(msg)) return;
+          await BookLibDB.deleteBook(_bid);
+          BooklibApp.closeEditor();
+          _renderLibrary();
+          _toast('🗑 "'+_bname+'" 삭제 완료','success');
+        };
+        _dBtn.addEventListener('click',_doDelete);
+        _dBtn.addEventListener('touchstart',e=>{e.preventDefault();_doDelete(e);},{passive:false});
+      }
     }
   }
 
@@ -1251,8 +1274,13 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
     if(_st.matrixClassId){
       allBks=BookLibDB.getBooksForClass(_st.matrixClassId);
     } else {
-      // ★ 반 미선택 시: 학생 직접 배정된 교재만 표시
-      allBks=BookLibDB.getBooks().filter(b=>(b.studentIds&&b.studentIds.length>0)||(b.assignedStudents&&b.assignedStudents.length>0));
+      // ★ 반 미선택: 반 미배정(classIds 없음) 또는 학생만 배정된 교재
+      const _all=BookLibDB.getBooks().filter(b=>!b.archived);
+      allBks=_all.filter(b=>{
+        const noClass=!(b.classIds&&b.classIds.length>0);
+        const hasStu=(b.studentIds&&b.studentIds.length>0)||(b.assignedStudents&&b.assignedStudents.length>0);
+        return noClass||hasStu;
+      });
     }
     const bks=allBks.filter(b=>!b.archived); // ★ 완결 교재 제외
     sel.innerHTML=`<option value="">— 교재 선택 —</option>`+bks.map(b=>`<option value="${b.id}" ${_st.matrixBookId===b.id?'selected':''}>${_e(b.name)}</option>`).join('');
