@@ -307,7 +307,12 @@ const BooklibApp = (() => {
         const cks=[...modal.querySelectorAll('.arc-ck:checked')];
         if(!cks.length){_toast('삭제할 교재를 선택하세요','error');return;}
         if(!confirm(cks.length+'개를 삭제하시겠습니까?'))return;
-        for(const ck of cks){await BookLibDB.deleteBook(ck.dataset.bid);ck.closest('.arc-row')?.remove();}
+        for(const ck of cks){
+          const bName=BookLibDB.getBookById(ck.dataset.bid)?.name||ck.dataset.bid;
+          const arcMsg=['"'+bName+'" 완결 교재를 완전히 삭제하시겠습니까?','','⚠️ 아래 데이터가 모두 삭제됩니다:','  · 챕터 목록','  · 학습 현황','  · 플로팅 메모','  · 성적 평가/리포트 데이터','','정말 삭제하시겠습니까? 되돌릴 수 없습니다.'].join('\n');
+          if(!confirm(arcMsg)) continue;
+          await BookLibDB.deleteBook(ck.dataset.bid);ck.closest('.arc-row')?.remove();
+        }
         titleEl.textContent='📦 완결 교재 목록 ('+modal.querySelectorAll('.arc-row').length+'개)';
         _renderLibrary();
       },true));
@@ -742,8 +747,22 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
   async function _multiDelete() {
     const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
     if (!ids.length) return;
-    const names = ids.map(id=>BookLibDB.getBookById(id)?.name||'').filter(Boolean).join(', ');
-    if (!confirm(`선택한 ${ids.length}개 교재를 삭제하시겠습니까?\n\n${names}\n\n⚠️ 삭제된 교재와 관련 데이터는 복구할 수 없습니다.`)) return;
+    const names = ids.map(id=>BookLibDB.getBookById(id)?.name||'').filter(Boolean);
+    const msg = [
+      `선택한 ${ids.length}개 교재를 삭제하시겠습니까?`,
+      '',
+      '📚 삭제 대상:',
+      ...names.map(n=>'  · '+n),
+      '',
+      '⚠️ 아래 데이터가 모두 삭제됩니다:',
+      '  · 챕터 목록',
+      '  · 학습 현황 (학생별 수행/미수행)',
+      '  · 플로팅 메모',
+      '  · 성적 평가 및 리포트 데이터',
+      '',
+      '정말 삭제하시겠습니까? 되돌릴 수 없습니다.'
+    ].join('\n');
+    if (!confirm(msg)) return;
     for (const id of ids) { await BookLibDB.deleteBook(id); }
     _multiSelectMode = false;
     _renderLibrary();
@@ -832,7 +851,8 @@ ${(()=>{const _sIds=b.studentIds||[];if(!_sIds.length)return'';const _aS=typeof 
 
   async function deleteBook(id){
     const book=BookLibDB.getBookById(id);if(!book)return;
-    if(!confirm(`"${book.name}" 교재를 삭제할까요?`))return;
+    const _delMsg=['"'+book.name+'" 교재를 삭제하시겠습니까?','','⚠️ 아래 데이터가 모두 삭제됩니다:','  · 챕터 목록','  · 학습 현황 (학생별 수행/미수행)','  · 플로팅 메모','  · 성적 평가 및 리포트 데이터','','정말 삭제하시겠습니까? 되돌릴 수 없습니다.'].join('\n');
+    if(!confirm(_delMsg))return;
     await BookLibDB.deleteBook(id);_renderLibrary();_toast(`🗑 "${book.name}" 삭제`);
   }
 

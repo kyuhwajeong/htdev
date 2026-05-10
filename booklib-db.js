@@ -156,6 +156,10 @@ const BookLibDB = (() => {
     // 6. localStorage 메모 정리
     Object.keys(localStorage).filter(k=>k.includes('bl_memo_')&&k.includes(id))
       .forEach(k=>localStorage.removeItem(k));
+    // 7. 성적 데이터 삭제 (grade-db)
+    if(typeof GradeDB!=='undefined'&&GradeDB.deleteAllForBook){
+      await GradeDB.deleteAllForBook(id).catch(console.warn);
+    }
 
     _fire('books');
   }
