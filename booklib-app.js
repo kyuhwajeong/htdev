@@ -576,7 +576,7 @@ const BooklibApp = (() => {
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
     const sub=document.getElementById('bl-ph-sub');if(sub)sub.textContent=`교재 ${books.length}개`;
     // ★ 반 필터 버튼 생성
-    _renderClsFilterBtns(books,isAdmin);
+    // ★ 반 필터 버튼은 cnt.innerHTML 이후에 생성 (아래에서 호출)
     cnt.innerHTML=`<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
       <!-- ★ 고정 헤더 (스크롤해도 고정) -->
       <div style="flex-shrink:0;background:var(--card);border-bottom:1.5px solid var(--bdr2);padding:8px 14px 0;z-index:5">
@@ -633,6 +633,8 @@ const BooklibApp = (() => {
         `}
       </div>
     </div>`;
+    // ★ cnt DOM 생성 후 반 필터 버튼 생성
+    _renderClsFilterBtns(books,isAdmin);
     if(isAdmin){
       _bindDrop('bl-book-csv',null,_importBookFile);
       setTimeout(()=>document.getElementById('bl-book-inp')?.focus(),80);
