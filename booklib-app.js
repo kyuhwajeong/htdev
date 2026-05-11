@@ -249,7 +249,10 @@ const BooklibApp = (() => {
         <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6366f1);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 3px 10px rgba(139,92,246,.4)">📖</div>
         <div style="min-width:0">
           <div class="ph-title" onclick="BooklibApp.render()" title="새로고침" style="cursor:pointer">교재 학습 관리 <span class="admin-badge">🔑 관리자</span></div>
-          <div class="ph-sub" id="bl-ph-sub">교재 등록 · 챕터 체크</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div class="ph-sub" id="bl-ph-sub">교재 등록 · 챕터 체크</div>
+            <div id="bl-cls-filter-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -412,6 +415,64 @@ const BooklibApp = (() => {
   }
 
   let _libViewMode = localStorage.getItem('bl_lib_view')||'list';
+  let _libFilterCls = null; // 현재 선택된 반 필터
+
+  function _renderClsFilterBtns(books, isAdmin){
+    const wrap = document.getElementById('bl-cls-filter-btns');
+    if(!wrap) return;
+    const allCls = typeof DB!=='undefined' ? DB.getActiveClasses() : [];
+    // 실제 교재가 있는 반만 표시
+    const usedCls = allCls.filter(c=>books.some(b=>(b.classIds||[]).includes(c.id)));
+    const hasStu = books.some(b=>(b.studentIds||[]).length>0);
+    const hasNone = books.some(b=>!(b.classIds||[]).length&&!(b.studentIds||[]).length);
+
+    wrap.innerHTML = '';
+    // [전체] 버튼
+    const allBtn = document.createElement('button');
+    allBtn.textContent = '전체';
+    allBtn.style.cssText = 'padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;' + (!_libFilterCls?'background:var(--a);color:#fff;border:none;':'background:var(--card);color:var(--tx3);border:1px solid var(--bdr2);');
+    allBtn.onclick = ()=>{ _libFilterCls=null; _rerenderBookGroups(books,isAdmin); _renderClsFilterBtns(books,isAdmin); };
+    wrap.appendChild(allBtn);
+
+    // 반별 버튼
+    usedCls.forEach(cls=>{
+      const btn = document.createElement('button');
+      btn.textContent = cls.name+'반';
+      const isActive = _libFilterCls===cls.id;
+      btn.style.cssText = 'padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;' + (isActive?'background:var(--a);color:#fff;border:none;':'background:var(--card);color:var(--tx3);border:1px solid var(--bdr2);');
+      btn.onclick = ()=>{
+        _libFilterCls = (_libFilterCls===cls.id)?null:cls.id;
+        _rerenderBookGroups(books,isAdmin);
+        _renderClsFilterBtns(books,isAdmin);
+        // ★ 선택한 반 섹션으로 스크롤
+        if(_libFilterCls){
+          setTimeout(()=>{
+            const sec = document.querySelector('.bl-cls-section[data-cls-id="'+_libFilterCls+'"]');
+            if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
+          },50);
+        }
+      };
+      wrap.appendChild(btn);
+    });
+
+    // 학생배정/미배정 버튼
+    if(hasStu){
+      const btn=document.createElement('button');
+      btn.textContent='👤 학생배정';
+      const isActive=_libFilterCls==='__stu__';
+      btn.style.cssText='padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;'+(isActive?'background:var(--a);color:#fff;border:none;':'background:var(--card);color:var(--tx3);border:1px solid var(--bdr2);');
+      btn.onclick=()=>{_libFilterCls=(_libFilterCls==='__stu__')?null:'__stu__';_rerenderBookGroups(books,isAdmin);_renderClsFilterBtns(books,isAdmin);if(_libFilterCls){setTimeout(()=>{const sec=document.querySelector('.bl-cls-section[data-cls-id="__stu__"]');if(sec)sec.scrollIntoView({behavior:'smooth',block:'start'});},50);}};
+      wrap.appendChild(btn);
+    }
+  }
+
+  function _rerenderBookGroups(books, isAdmin){
+    const grpEl = document.querySelector('.bl-books-grouped');
+    if(!grpEl) return;
+    grpEl.innerHTML = _renderBooksByClass(books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999)), isAdmin);
+  }
+
+
 
   function _setLibView(mode){
     _libViewMode = mode;
@@ -455,13 +516,28 @@ const BooklibApp = (() => {
 
     const sections = [];
 
+    // ★ 필터 적용: 특정 반 선택 시 해당 반 맨 위
+    const filterId = typeof _libFilterCls !== 'undefined' ? _libFilterCls : null;
+    let sortedCls = [...allCls];
+    if(filterId && filterId !== '__stu__'){
+      sortedCls = [
+        ...sortedCls.filter(c=>c.id===filterId),
+        ...sortedCls.filter(c=>c.id!==filterId)
+      ];
+    }
+
     // 반별 섹션
-    allCls.forEach(cls=>{
+    sortedCls.forEach(cls=>{
       if(!groups[cls.id]) return;
+      const isFiltered = filterId && filterId!=='__stu__';
+      const isActive = filterId===cls.id;
+      // 필터 있고 해당 반 아니면 숨김
+      const display = isFiltered && !isActive ? 'display:none;' : '';
+      const highlight = isActive ? 'border:2px solid var(--a);box-shadow:0 0 0 3px var(--a20);' : '';
       const booksHTML = groups[cls.id].books.map(b=>_bookCardHTML(b,isAdmin)).join('');
-      sections.push(`<div class="bl-cls-section">
-        <div class="bl-cls-section-hdr">
-          <span style="background:var(--a);color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">${_e(cls.name)}반</span>
+      sections.push(`<div class="bl-cls-section" data-cls-id="${cls.id}" style="${display}">
+        <div class="bl-cls-section-hdr" style="${highlight}border-radius:8px;padding:6px 10px;">
+          <span style="background:${isActive?'var(--a)':'var(--a)'};color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">${_e(cls.name)}반</span>
           <span style="font-size:11px;color:var(--tx3);font-weight:400">${groups[cls.id].books.length}개</span>
         </div>
         <div class="${wrapClass}">${booksHTML}</div>
@@ -471,7 +547,7 @@ const BooklibApp = (() => {
     // 학생만 배정
     if(stuOnly.length){
       const booksHTML = stuOnly.map(b=>_bookCardHTML(b,isAdmin)).join('');
-      sections.push(`<div class="bl-cls-section">
+      sections.push(`<div class="bl-cls-section" data-cls-id="__stu__" style="${filterId&&filterId!=='__stu__'?'display:none;':''}">
         <div class="bl-cls-section-hdr">
           <span style="background:rgba(99,102,241,.6);color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">👤 학생 배정</span>
           <span style="font-size:11px;color:var(--tx3);font-weight:400">${stuOnly.length}개</span>
@@ -499,6 +575,8 @@ const BooklibApp = (() => {
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
     const sub=document.getElementById('bl-ph-sub');if(sub)sub.textContent=`교재 ${books.length}개`;
+    // ★ 반 필터 버튼 생성
+    _renderClsFilterBtns(books,isAdmin);
     cnt.innerHTML=`<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
       <!-- ★ 고정 헤더 (스크롤해도 고정) -->
       <div style="flex-shrink:0;background:var(--card);border-bottom:1.5px solid var(--bdr2);padding:8px 14px 0;z-index:5">
@@ -3227,7 +3305,7 @@ const BooklibApp = (() => {
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     openBatchImport, _addBatchFiles, _removeBatchFile, _runBatchImport,
-    _setLibView, _renderBooksByClass,
+    _setLibView, _renderBooksByClass, _renderClsFilterBtns, _rerenderBookGroups,
     openExemptList, _deleteExemptItem, openExemptMgr_cls,
     openExemptMgr,
     _saveExempts, _loadExempts,
