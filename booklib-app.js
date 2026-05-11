@@ -591,12 +591,17 @@ const BooklibApp = (() => {
           <div class="bl-drop-zone" id="bl-book-csv">📂 교재 목록 파일 드롭 · 또는 탭하여 선택<div style="font-size:10px;margin-top:2px;opacity:.7">.csv/.txt/.xlsx</div></div>
         </div>`:``}
         <!-- 교재 목록 타이틀 + 다중선택 버튼 -->
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:12px;font-weight:800;color:var(--tx2)">교재 목록</span>
-            <span style="font-size:11px;color:var(--tx3);background:var(--surf2);padding:1px 7px;border-radius:10px">${books.filter(b=>!b.archived).length}개</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;min-width:0">
+            <span style="font-size:12px;font-weight:800;color:var(--tx2);flex-shrink:0">교재 목록</span>
+            <span style="font-size:11px;color:var(--tx3);background:var(--surf2);padding:1px 7px;border-radius:10px;font-weight:700;flex-shrink:0" id="bl-book-cnt-badge">${books.filter(b=>!b.archived).length}개</span>
+            <!-- ★ 반 퀵 서치 버튼 -->
+            <div id="bl-cls-filter-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div>
           </div>
-          <div style="display:flex;align-items:center;gap:5px">
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+            <!-- ★ 뷰 모드 토글 -->
+            <button id="bl-view-list" class="bl-lib-view-btn active" onclick="BooklibApp._setLibView('list')" title="리스트 보기" style="padding:3px 8px;border-radius:6px;font-size:13px;background:var(--a10);border:1px solid var(--a40);color:var(--a);cursor:pointer;font-weight:700">☰</button>
+            <button id="bl-view-grid" class="bl-lib-view-btn" onclick="BooklibApp._setLibView('grid')" title="2열 그리드" style="padding:3px 8px;border-radius:6px;font-size:13px;background:var(--card);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer">⊞</button>
             ${isAdmin&&books.filter(b=>!b.archived).length>0?`<button id="bl-multi-arc-btn" style="font-size:11px;padding:3px 10px;border-radius:7px;background:var(--card2);border:1px solid var(--bdr2);color:var(--tx3);cursor:pointer;font-family:var(--font)" onclick="BooklibApp._toggleMultiSelect()">☑ 다중선택</button>`:''}
           </div>
         </div>
@@ -1492,10 +1497,7 @@ const BooklibApp = (() => {
         <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
          <button class="bl-report-btn" onclick="BooklibApp.openBatchImport()" title="여러 xlsx 파일 일괄 반영" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.4);color:#059669">📂 일괄 반영</button>
-          <div style="display:flex;gap:4px;margin-left:auto">
-            <button id="bl-view-list" class="bl-lib-view-btn active" onclick="BooklibApp._setLibView('list')" title="리스트">☰</button>
-            <button id="bl-view-grid" class="bl-lib-view-btn" onclick="BooklibApp._setLibView('grid')" title="2열 그리드">⊞</button>
-          </div>
+
          <button class="bl-report-btn" onclick="BooklibApp.openExemptMgr()" title="반+교재별 예외 학생 관리" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:#d97706">⚙️ 예외 설정</button>
          <button class="bl-report-btn" onclick="BooklibApp.openExemptList()" title="예외 학생 전체 목록" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.4);color:var(--a)">📋 예외 목록</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
