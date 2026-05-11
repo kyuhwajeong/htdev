@@ -249,11 +249,11 @@ const BooklibApp = (() => {
         <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#6366f1);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 3px 10px rgba(139,92,246,.4)">📖</div>
         <div style="min-width:0">
           <div class="ph-title" onclick="BooklibApp.render()" title="새로고침" style="cursor:pointer">교재 학습 관리 <span class="admin-badge">🔑 관리자</span></div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <div class="ph-sub" id="bl-ph-sub">교재 등록 · 챕터 체크</div>
-            <div id="bl-cls-filter-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-          </div>
-        </div>
+          <div class="ph-sub" id="bl-ph-sub">교재 등록 · 챕터 체크</div>
+
+
+
+
       </div>
     </div>
     <div class="bl-stabs">
