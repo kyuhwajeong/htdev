@@ -130,6 +130,12 @@ const BooklibApp = (() => {
 .bl-wbtn{padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;background:var(--card);border:1px solid var(--bdr2);color:var(--tx2);cursor:pointer;font-family:var(--font);transition:all .12s;}
 .bl-wbtn:active{background:var(--card2);}
 .bl-report-btn{padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;background:var(--a10);border:1px solid var(--a40);color:var(--a);cursor:pointer;font-family:var(--font);white-space:nowrap;transition:all .15s;}
+.bl-lib-view-btn{padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700;background:var(--card);border:1px solid var(--bdr2);color:var(--tx2);cursor:pointer;transition:all .15s;}
+.bl-lib-view-btn.active{background:var(--a10);border-color:var(--a40);color:var(--a);}
+.bl-book-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.bl-cls-section{margin-bottom:18px;}
+.bl-cls-section-hdr{display:flex;align-items:center;gap:8px;padding:6px 2px 8px;border-bottom:2px solid var(--a40);margin-bottom:10px;font-size:13px;font-weight:800;color:var(--a);}
+
 .bl-report-btn:active{transform:scale(.95);}
 .bl-mwrap{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 0 120px;}
 .bl-mwrap::-webkit-scrollbar{width:4px;height:4px;}
@@ -405,6 +411,90 @@ const BooklibApp = (() => {
     });
   }
 
+  let _libViewMode = localStorage.getItem('bl_lib_view')||'list';
+
+  function _setLibView(mode){
+    _libViewMode = mode;
+    localStorage.setItem('bl_lib_view', mode);
+    document.getElementById('bl-view-list')?.classList.toggle('active', mode==='list');
+    document.getElementById('bl-view-grid')?.classList.toggle('active', mode==='grid');
+    // 교재 목록 영역만 재렌더
+    const activeBooks = document.getElementById('bl-active-books');
+    if(!activeBooks) return;
+    const books = BookLibDB.getBooks();
+    const isAdmin = typeof DB!=='undefined'&&DB.isAdmin();
+    const activeList = books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999));
+    // 그룹 영역만 교체
+    const grpEl = activeBooks.querySelector('.bl-books-grouped');
+    if(grpEl) grpEl.innerHTML = _renderBooksByClass(activeList, isAdmin);
+  }
+
+  function _renderBooksByClass(activeBooks, isAdmin){
+    if(!activeBooks.length) return '';
+    const allCls = typeof DB!=='undefined' ? DB.getActiveClasses() : [];
+    const viewMode = _libViewMode || 'list';
+    const wrapClass = viewMode==='grid' ? 'bl-book-grid' : '';
+
+    // 반별 그룹핑
+    const groups = {}; // clsId → {cls, books:[]}
+    const noClass = []; // 반 미배정
+    const stuOnly = []; // 학생만 배정
+
+    activeBooks.forEach(b=>{
+      const cIds = b.classIds||[];
+      if(cIds.length===0){
+        if((b.studentIds||[]).length>0) stuOnly.push(b);
+        else noClass.push(b);
+      } else {
+        cIds.forEach(cid=>{
+          if(!groups[cid]) groups[cid]={cls:allCls.find(c=>c.id===cid)||{id:cid,name:'?'},books:[]};
+          if(!groups[cid].books.find(x=>x.id===b.id)) groups[cid].books.push(b);
+        });
+      }
+    });
+
+    const sections = [];
+
+    // 반별 섹션
+    allCls.forEach(cls=>{
+      if(!groups[cls.id]) return;
+      const booksHTML = groups[cls.id].books.map(b=>_bookCardHTML(b,isAdmin)).join('');
+      sections.push(`<div class="bl-cls-section">
+        <div class="bl-cls-section-hdr">
+          <span style="background:var(--a);color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">${_e(cls.name)}반</span>
+          <span style="font-size:11px;color:var(--tx3);font-weight:400">${groups[cls.id].books.length}개</span>
+        </div>
+        <div class="${wrapClass}">${booksHTML}</div>
+      </div>`);
+    });
+
+    // 학생만 배정
+    if(stuOnly.length){
+      const booksHTML = stuOnly.map(b=>_bookCardHTML(b,isAdmin)).join('');
+      sections.push(`<div class="bl-cls-section">
+        <div class="bl-cls-section-hdr">
+          <span style="background:rgba(99,102,241,.6);color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">👤 학생 배정</span>
+          <span style="font-size:11px;color:var(--tx3);font-weight:400">${stuOnly.length}개</span>
+        </div>
+        <div class="${wrapClass}">${booksHTML}</div>
+      </div>`);
+    }
+
+    // 반 미배정
+    if(noClass.length){
+      const booksHTML = noClass.map(b=>_bookCardHTML(b,isAdmin)).join('');
+      sections.push(`<div class="bl-cls-section">
+        <div class="bl-cls-section-hdr">
+          <span style="background:var(--bdr2);color:var(--tx2);padding:2px 10px;border-radius:20px;font-size:12px">📦 반 미배정</span>
+          <span style="font-size:11px;color:var(--tx3);font-weight:400">${noClass.length}개</span>
+        </div>
+        <div class="${wrapClass}">${booksHTML}</div>
+      </div>`);
+    }
+
+    return '<div class="bl-books-grouped">'+sections.join('')+'</div>';
+  }
+
   function _renderLibrary(){
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const books=BookLibDB.getBooks(),isAdmin=typeof DB!=='undefined'&&DB.isAdmin();
@@ -444,7 +534,7 @@ const BooklibApp = (() => {
       <!-- ★ 스크롤 영역 (교재 카드만 스크롤) -->
       <div id="bl-active-books" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 120px">
         ${books.length===0?`<div class="bl-empty"><div style="font-size:48px;margin-bottom:10px">📚</div>등록된 교재가 없습니다</div>`:`
-        ${books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999)).map(b=>_bookCardHTML(b,isAdmin)).join('')}
+        ${_renderBooksByClass(books.filter(b=>!b.archived).sort((a,b2)=>(a.sortOrder??999)-(b2.sortOrder??999)),isAdmin)}
         ${books.some(b=>b.archived)?`
         <div style="margin-top:20px">
           <div style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-top:2px solid var(--bdr);cursor:pointer"
@@ -1324,6 +1414,10 @@ const BooklibApp = (() => {
         <button class="bl-wbtn" title="글자 크기 늘리기" onclick="BooklibApp._mtblFontSize(1)">A+</button>
         <button class="bl-report-btn" onclick="BooklibApp.openClassReport()">📋 전체 출력</button>
          <button class="bl-report-btn" onclick="BooklibApp.openBatchImport()" title="여러 xlsx 파일 일괄 반영" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.4);color:#059669">📂 일괄 반영</button>
+          <div style="display:flex;gap:4px;margin-left:auto">
+            <button id="bl-view-list" class="bl-lib-view-btn active" onclick="BooklibApp._setLibView('list')" title="리스트">☰</button>
+            <button id="bl-view-grid" class="bl-lib-view-btn" onclick="BooklibApp._setLibView('grid')" title="2열 그리드">⊞</button>
+          </div>
          <button class="bl-report-btn" onclick="BooklibApp.openExemptMgr()" title="반+교재별 예외 학생 관리" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:#d97706">⚙️ 예외 설정</button>
          <button class="bl-report-btn" onclick="BooklibApp.openExemptList()" title="예외 학생 전체 목록" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.4);color:var(--a)">📋 예외 목록</button>
         <button class="bl-report-btn" style="background:rgba(5,150,105,.1);border-color:rgba(5,150,105,.3);color:var(--green)"
@@ -3133,6 +3227,7 @@ const BooklibApp = (() => {
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
     openBatchImport, _addBatchFiles, _removeBatchFile, _runBatchImport,
+    _setLibView, _renderBooksByClass,
     openExemptList, _deleteExemptItem, openExemptMgr_cls,
     openExemptMgr,
     _saveExempts, _loadExempts,
