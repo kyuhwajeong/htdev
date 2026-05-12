@@ -334,7 +334,11 @@ const BooklibApp = (() => {
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surf2);border-radius:10px;border:1px solid var(--bdr)';
       if(isAdm){const ck=document.createElement('input');ck.type='checkbox';ck.className='arc-ck';ck.dataset.bid=b.id;ck.style.cssText='width:16px;height:16px;accent-color:var(--a);flex-shrink:0';row.appendChild(ck);}
       const info=document.createElement('div'); info.style.cssText='flex:1;min-width:0';
-      info.innerHTML='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_e(b.name)+'</div><div style="font-size:11px;color:var(--tx3)">'+(b.archivedAt?b.archivedAt.slice(0,10):'')+'</div>';
+      const _arcAllCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
+      const _arcClsNames=(b.classIds||[]).map(cid=>{const c=_arcAllCls.find(x=>x.id===cid);return c?c.name:'?';}).filter(Boolean);
+      const _arcStuNames=(b.studentIds||[]).length&&typeof StudentDB!=='undefined'?StudentDB.getAll().filter(s=>(b.studentIds||[]).includes(s.id)).map(s=>s.name).slice(0,3):[]; 
+      const _arcBadge=_arcClsNames.length?'<span style="background:var(--a10);color:var(--a);border:1px solid var(--a40);border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">'+_arcClsNames.join('·')+'반</span>':(_arcStuNames.length?'<span style="background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.3);border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">👤 '+_arcStuNames.join('·')+(((b.studentIds||[]).length>3)?' 외':'')+' </span>':'');
+      info.innerHTML='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_e(b.name)+'</div><div style="display:flex;align-items:center;gap:6px;margin-top:3px">'+_arcBadge+'<span style="font-size:11px;color:var(--tx3)">'+(b.archivedAt?b.archivedAt.slice(0,10):'')+'</span></div>';
       row.appendChild(info);
       if(isAdm){
         const rBtn=document.createElement('button'); rBtn.textContent='↩️ 복원';
@@ -678,7 +682,7 @@ const BooklibApp = (() => {
       data-admin="${isAdmin&&!isArchived?'1':'0'}">
       <div class="bl-book-chdr">
 
-        ${isAdmin&&!isArchived?`<div class="bl-move-btns" style="display:none;flex-direction:column;gap:1px;flex-shrink:0;margin-right:2px"><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',-1)" title="위로">▲</button><button class="bl-move-btn" onclick="event.stopPropagation();BooklibApp._moveBook('${b.id}',1)" title="아래로">▼</button></div>`:''}
+
         ${isAdmin&&!isArchived?`<input type="checkbox" class="bl-multi-ck" data-bid="${b.id}" onclick="event.stopPropagation();BooklibApp._onMultiCkChange()" style="display:none;width:17px;height:17px;accent-color:var(--a);cursor:pointer;flex-shrink:0">`:''} 
         <div class="bl-book-ico">${isArchived?'📦':'📖'}</div>
         <div class="bl-book-info" style="flex:1;min-width:0">
@@ -881,43 +885,10 @@ const BooklibApp = (() => {
   }
 
   // ★ 선택된 교재 위로 이동
-  async function _multiMoveUp() {
-    const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
-    if (!ids.length) { _toast('⚠️ 이동할 교재를 선택해주세요'); return; }
-    const books = BookLibDB.getBooks(); // sortOrder 순 정렬된 목록
-    const ordered = books.map(b=>b.id);
-    // 선택된 항목들을 위로 1칸씩 이동
-    for (const id of ids) {
-      const idx = ordered.indexOf(id);
-      if (idx > 0 && !ids.includes(ordered[idx-1])) {
-        // 바로 위 항목과 교환
-        [ordered[idx-1], ordered[idx]] = [ordered[idx], ordered[idx-1]];
-      }
-    }
-    await BookLibDB.reorderBooks(ordered);
-    _renderLibrary();
-    _toast('▲ 위로 이동', 'success');
-  }
+    async function _multiMoveUp(){ /* 제거됨 */ }
 
-  // ★ 선택된 교재 아래로 이동
-  async function _multiMoveDown() {
-    const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
-    if (!ids.length) { _toast('⚠️ 이동할 교재를 선택해주세요'); return; }
-    const books = BookLibDB.getBooks();
-    const ordered = books.map(b=>b.id);
-    // 뒤에서부터 처리 (아래 이동)
-    for (const id of [...ids].reverse()) {
-      const idx = ordered.indexOf(id);
-      if (idx < ordered.length - 1 && !ids.includes(ordered[idx+1])) {
-        [ordered[idx], ordered[idx+1]] = [ordered[idx+1], ordered[idx]];
-      }
-    }
-    await BookLibDB.reorderBooks(ordered);
-    _renderLibrary();
-    _toast('▼ 아래로 이동', 'success');
-  }
+    async function _multiMoveDown(){ /* 제거됨 */ }
 
-  // ★ 선택된 교재 복사 (교재명_복사본)
   async function _multiDelete() {
     const ids = [...document.querySelectorAll('.bl-multi-ck:checked')].map(c=>c.dataset.bid);
     if (!ids.length) return;
@@ -1565,7 +1536,18 @@ const BooklibApp = (() => {
   function _onClsChange(clsId){
     // ★ 반 변경 시: 메모창 제거
     document.getElementById('bl-memo-pad')?.remove();
-    _stopListeners();_st.matrixClassId=clsId||null;_st.matrixBookId=null;_checks={};_stamps={};_renderMatrixTab();}
+    _stopListeners();_st.matrixClassId=clsId||null;_st.matrixBookId=null;_checks={};_stamps={};
+    // ★ 첫 번째 교재 자동 선택
+    if(clsId){
+      const books=BookLibDB.getBooksForClass(clsId).filter(b=>!b.archived);
+      if(books.length){
+        _st.matrixBookId=books[0].id;
+        _checks={};_stamps={};
+      }
+    }
+    _renderMatrixTab();
+    if(_st.matrixBookId) _refreshBody();
+  }
   function _onBkChange(bkId){
     // ★ 교재 변경 시: 메모창 제거 (체크 상태는 건드리지 않음 - 교재별 독립 유지)
     document.getElementById('bl-memo-pad')?.remove();
