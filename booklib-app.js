@@ -2105,16 +2105,20 @@ const BooklibApp = (() => {
   async function _processCsv(rows) {
     if (!Array.isArray(rows) || !rows.length) throw new Error('유효한 데이터가 없습니다');
 
-    const classId = _st.matrixClassId;
+    const classId = _st.matrixClassId||'__noclass__';
     const bookId  = _st.matrixBookId;
     const book    = BookLibDB.getBookById(bookId);
     const chs     = book?.chapters || [];
-    const cls     = _getCls(classId);
+    const cls     = _st.matrixClassId ? _getCls(_st.matrixClassId) : null;
 
-    /* 2. 이 반의 재원 학생 목록 */
-    const students = typeof StudentDB !== 'undefined'
-      ? StudentDB.getFiltered({ classCode: cls?.name, status: '재원' })
-      : [];
+    /* 2. 학생 목록: 반 선택 시 반 학생 / 미선택 시 교재 직접 배정 학생 */
+    const students = cls
+      ? (typeof StudentDB!=='undefined' ? StudentDB.getFiltered({classCode:cls.name,status:'재원'}) : [])
+      : (()=>{
+          const sIds = book?.studentIds||[];
+          if(!sIds.length||typeof StudentDB==='undefined') return [];
+          return StudentDB.getAll().filter(s=>sIds.includes(s.id));
+        })();
 
     /* 3. 타임스탬프 기준 챕터 결정 (CSV 역순, 완료율 ≥80%) */
     const stampTs   = _nowStampStr();
@@ -2837,6 +2841,19 @@ const BooklibApp = (() => {
     closeBtn.onclick=()=>modal.remove();
     hdr.appendChild(closeBtn);
     sheet.appendChild(hdr);
+    // ★ 타임스탬프 임계값 슬라이더
+    const _threshRow = document.createElement('div');
+    _threshRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surf2);border-radius:8px;border:1px solid var(--bdr);margin-bottom:8px;flex-shrink:0';
+    const _threshVal = Number(localStorage.getItem('bl_stamp_threshold')||50);
+    _threshRow.innerHTML = '<span style="font-size:11px;font-weight:700;color:var(--tx2);white-space:nowrap">📍 스탬프 기준</span>'
+      +'<input type="range" id="bl-stamp-thresh" min="30" max="80" step="5" value="'+_threshVal+'" style="flex:1;accent-color:var(--a)">'
+      +'<span id="bl-stamp-thresh-val" style="font-size:12px;font-weight:800;color:var(--a);min-width:34px;text-align:right">'+_threshVal+'%</span>'
+      +'<span style="font-size:10px;color:var(--tx3)">(기본50%)</span>';
+    _threshRow.querySelector('#bl-stamp-thresh').addEventListener('input', function(){
+      document.getElementById('bl-stamp-thresh-val').textContent = this.value+'%';
+      localStorage.setItem('bl_stamp_threshold', this.value);
+    });
+    sheet.appendChild(_threshRow);
 
     // 드롭존
     const dropZone = document.createElement('div');
