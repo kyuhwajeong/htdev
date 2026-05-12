@@ -1540,23 +1540,28 @@ const BooklibApp = (() => {
     // ★ 첫 번째 교재 자동 선택
     if(clsId){
       const books=BookLibDB.getBooksForClass(clsId).filter(b=>!b.archived);
-      if(books.length){
-        _st.matrixBookId=books[0].id;
-        _checks={};_stamps={};
-      }
+      if(books.length) _st.matrixBookId=books[0].id;
     }
     _renderMatrixTab();
-    if(_st.matrixBookId) _refreshBody();
+    if(_st.matrixBookId){
+      const _cid2=_st.matrixClassId||'__noclass__';
+      _checks=BookLibDB.getMatrixChecks(_cid2,_st.matrixBookId);
+      _stamps=BookLibDB.getStamps(_cid2,_st.matrixBookId);
+      _st.stopMatrix=BookLibDB.listenMatrix(_cid2,_st.matrixBookId,v=>{_checks=v;_refreshBody();});
+      _st.stopStamps=BookLibDB.listenStamps(_cid2,_st.matrixBookId,v=>{_stamps=v;_refreshBody();});
+      _refreshBody();
+    }
   }
   function _onBkChange(bkId){
     // ★ 교재 변경 시: 메모창 제거 (체크 상태는 건드리지 않음 - 교재별 독립 유지)
     document.getElementById('bl-memo-pad')?.remove();
     _stopListeners();_st.matrixBookId=bkId||null;_checks={};_stamps={};
-    if(_st.matrixClassId&&_st.matrixBookId){
-      _checks=BookLibDB.getMatrixChecks(_st.matrixClassId||'__noclass__',_st.matrixBookId);
-      _stamps=BookLibDB.getStamps(_st.matrixClassId||'__noclass__',_st.matrixBookId);
-      _st.stopMatrix=BookLibDB.listenMatrix(_st.matrixClassId,_st.matrixBookId,v=>{_checks=v;_refreshBody();});
-      _st.stopStamps=BookLibDB.listenStamps(_st.matrixClassId,_st.matrixBookId,v=>{_stamps=v;_refreshBody();});
+    if(_st.matrixBookId){
+      const _cid=_st.matrixClassId||'__noclass__';
+      _checks=BookLibDB.getMatrixChecks(_cid,_st.matrixBookId);
+      _stamps=BookLibDB.getStamps(_cid,_st.matrixBookId);
+      _st.stopMatrix=BookLibDB.listenMatrix(_cid,_st.matrixBookId,v=>{_checks=v;_refreshBody();});
+      _st.stopStamps=BookLibDB.listenStamps(_cid,_st.matrixBookId,v=>{_stamps=v;_refreshBody();});
     }
     _refreshBody();
   }
