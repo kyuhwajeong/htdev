@@ -1553,8 +1553,8 @@ const BooklibApp = (() => {
     document.getElementById('bl-memo-pad')?.remove();
     _stopListeners();_st.matrixBookId=bkId||null;_checks={};_stamps={};
     if(_st.matrixClassId&&_st.matrixBookId){
-      _checks=BookLibDB.getMatrixChecks(_st.matrixClassId,_st.matrixBookId);
-      _stamps=BookLibDB.getStamps(_st.matrixClassId,_st.matrixBookId);
+      _checks=BookLibDB.getMatrixChecks(_st.matrixClassId||'__noclass__',_st.matrixBookId);
+      _stamps=BookLibDB.getStamps(_st.matrixClassId||'__noclass__',_st.matrixBookId);
       _st.stopMatrix=BookLibDB.listenMatrix(_st.matrixClassId,_st.matrixBookId,v=>{_checks=v;_refreshBody();});
       _st.stopStamps=BookLibDB.listenStamps(_st.matrixClassId,_st.matrixBookId,v=>{_stamps=v;_refreshBody();});
     }
@@ -2492,8 +2492,8 @@ const BooklibApp = (() => {
 
   /* ── CSV 임포트 확인 모달 ── */
   async function openCsvImportModal(file) {
-    if (!_st.matrixClassId || !_st.matrixBookId) {
-      _toast('⚠️ 반과 교재를 먼저 선택해주세요'); return;
+    if (!_st.matrixBookId) {
+      _toast('⚠️ 교재를 먼저 선택해주세요'); return;
     }
     /* 기존 모달 있으면 제거 */
     document.getElementById('bl-csv-modal')?.remove();
