@@ -2118,7 +2118,8 @@ const BooklibApp = (() => {
 
     /* 3. 타임스탬프 기준 챕터 결정 (CSV 역순, 완료율 ≥80%) */
     const stampTs   = _nowStampStr();
-    const stampChId = _findStampChapter(rows, chs);
+    const stampThreshold = Number(localStorage.getItem('bl_stamp_threshold')||50);
+    const stampChId = _findStampChapter(rows, chs, stampThreshold);
 
     /* ★ 타임스탬프 이후 챕터는 처리 대상에서 제외
      *   - 타임스탬프 챕터 order 이하만 처리
@@ -2429,7 +2430,8 @@ const BooklibApp = (() => {
   /* ── 타임스탬프 기준 챕터 찾기 ──
    * CSV를 챕터 역순으로 순회, 첫 번째 완료율 ≥50% 챕터
    */
-  function _findStampChapter(rows, chs) {
+  function _findStampChapter(rows, chs, threshold) {
+    threshold = threshold || 50; // default 50%
     /* ★ CSV 챕터 고유 목록: 제목+타입 조합으로 dedup (역순) */
     const csvChapters = []; // [{title, type}]
     const seen = new Set();
@@ -2449,16 +2451,21 @@ const BooklibApp = (() => {
       const done = titleRows.filter(r => r['완료']?.trim() === '완료').length;
       // ★ 50% 이상(포함): done/total >= 0.5 → done*2 >= total
       const pct  = done / titleRows.length * 100;
-      if (pct >= 50) {
+      if (pct >= threshold) {
         /* ★ 학습현황 챕터에서 제목+타입 매칭 (_syncChaptersFromXlsx로 이미 동기화됨) */
         const fullTitle = `[${csvType}] ${csvTitle}`;
-        // 1차: _matchChapter 정확 매칭
-        let matched = chs.find(ch => _matchChapter(ch.title, csvTitle, csvType));
-        // 2차: fullTitle 직접 매칭 (타입 접두사 포함)
-        if (!matched) matched = chs.find(ch => ch.title === fullTitle);
-        // 3차: 정규화 없이 title만 비교
-        if (!matched) matched = chs.find(ch => ch.title.includes(csvTitle));
-        if (matched) return matched.id;
+        // 1차: _matchChapter 정확 매칭 → 동일명 전체 중 order 최대(마지막) 반환
+        let matchedAll = chs.filter(ch => _matchChapter(ch.title, csvTitle, csvType));
+        // 2차: fullTitle 직접 매칭
+        if (!matchedAll.length) matchedAll = chs.filter(ch => ch.title === fullTitle);
+        // 3차: 정규화 없이 title 포함 비교
+        if (!matchedAll.length) matchedAll = chs.filter(ch => ch.title.includes(csvTitle));
+        if (matchedAll.length) {
+          // ★ 동일명 그룹 중 가장 마지막(order 최대) 챕터를 stamp로 지정
+          // → chsInScope = order ≤ 마지막 → 동일명 그룹 전체가 scope에 포함
+          const matched = matchedAll.reduce((a,b)=>(b.order>a.order?b:a));
+          return matched.id;
+        }
         /* 매칭 실패 시: 계속 탐색 */
       }
     }
