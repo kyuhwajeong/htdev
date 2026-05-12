@@ -1664,7 +1664,7 @@ const BooklibApp = (() => {
   }
 
   function _refreshStatsBar(){
-    const bar=document.getElementById('bl-mstats');if(!bar||!_st.matrixClassId||!_st.matrixBookId)return;
+    const bar=document.getElementById('bl-mstats');if(!bar||!_st.matrixBookId)return;
     const book=BookLibDB.getBookById(_st.matrixBookId);if(!book)return;const chs=book.chapters||[];const cls=_getCls(_st.matrixClassId);if(!cls)return;
     const sts=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
@@ -1806,7 +1806,7 @@ const BooklibApp = (() => {
   }
   async function _restoreMemoState(){
     const ck=document.getElementById('bl-memo-ck');
-    if(!ck||!_st.matrixClassId||!_st.matrixBookId) return;
+    if(!ck||!_st.matrixBookId) return;
     const clsId=_st.matrixClassId, bkId=_st.matrixBookId;
 
     // ★ Firebase에서 직접 로드 (localStorage 캐시와 무관)
@@ -2030,8 +2030,8 @@ const BooklibApp = (() => {
   /* CSV 임포트 UI 진입점 — 학습 현황 탭 드롭존에서 호출 */
   // ★ XLSX/CSV 모두 지원 (XLSX 우선)
   async function importCsv(file) {
-    if (!_st.matrixClassId || !_st.matrixBookId) {
-      _toast('⚠️ 반과 교재를 먼저 선택해주세요'); return;
+    if (!_st.matrixBookId) {
+      _toast('⚠️ 교재를 먼저 선택해주세요'); return;
     }
     if (!window.XLSX) { _toast('⚠️ XLSX 라이브러리 로딩 중...', 'error'); return; }
     const ov = _showLoading(document.getElementById('bl-cnt'));
