@@ -332,6 +332,74 @@ const BookLibDB = (() => {
 
   // ★ 면제 학생 저장/로드 (localStorage, classId 기준)
   const _EXEMPT_KEY = classId => 'bl_class_exempt_' + classId;
+
+  /* ★ 교재별 독립 저장 — 키: bl_exempt_{classId}_{bookId}
+   *   Firebase: hakwon10/exempts/{classId}/{bookId}
+   *   { "홍길동": { items:[], useAlias:false, alias:'' }, ... }
+   */
+  const _BOOK_EXEMPT_KEY = (classId, bookId) => `bl_exempt_${classId}_${bookId}`;
+
+  async function saveBookExempts(classId, bookId, exempts) {
+    /* 로컬 */
+    try { localStorage.setItem(_BOOK_EXEMPT_KEY(classId, bookId), JSON.stringify(exempts)); } catch(e) {}
+    /* Firebase — 교재별 경로 */
+    try {
+      if (typeof FireDB !== 'undefined' && FireDB.ready())
+        await FireDB.set(`hakwon10/exempts/${classId}/${bookId}`, exempts);
+    } catch(e) { console.warn('[BookLibDB] saveBookExempts', e); }
+  }
+
+  async function loadBookExempts(classId, bookId) {
+    try {
+      if (typeof FireDB !== 'undefined' && FireDB.ready()) {
+        const data = await FireDB.get(`hakwon10/exempts/${classId}/${bookId}`);
+        if (data) {
+          localStorage.setItem(_BOOK_EXEMPT_KEY(classId, bookId), JSON.stringify(data));
+          return data;
+        }
+      }
+    } catch(e) {}
+    try {
+      const local = localStorage.getItem(_BOOK_EXEMPT_KEY(classId, bookId));
+      if (local) return JSON.parse(local);
+    } catch(e) {}
+
+    /* ★ 하위호환: 구 포맷(classId 기준 flat dict)에서 이 bookId에 해당하는 항목 이관 */
+    const legacy = await _loadLegacyExempts(classId, bookId);
+    if (legacy && Object.keys(legacy).length) {
+      /* 이관 후 새 포맷으로 저장 */
+      await saveBookExempts(classId, bookId, legacy);
+    }
+    return legacy || {};
+  }
+
+  /* 구 포맷에서 특정 bookId 항목 추출 */
+  async function _loadLegacyExempts(classId, bookId) {
+    try {
+      const raw = await loadClassExempts(classId);
+      const result = {};
+      for (const [name, val] of Object.entries(raw || {})) {
+        if (!val.bookId || val.bookId === bookId) {
+          result[name] = { items: val.items || [], useAlias: val.useAlias || false, alias: val.alias || '' };
+        }
+      }
+      return result;
+    } catch(e) { return {}; }
+  }
+
+  /* 같은 반 다른 교재의 최신 예외 설정 반환 (신규 교재 진입 시 제안용) */
+  async function loadSiblingExempts(classId, excludeBookId) {
+    const books = getBooksForClass(classId);
+    for (const bk of books) {
+      if (bk.id === excludeBookId) continue;
+      try {
+        const data = await loadBookExempts(classId, bk.id);
+        if (data && Object.keys(data).length) return { bookName: bk.name, data };
+      } catch(e) {}
+    }
+    return null;
+  }
+
   async function saveClassExempts(classId, exempts) {
     try { localStorage.setItem(_EXEMPT_KEY(classId), JSON.stringify(exempts)); } catch(e) {}
     try {
@@ -388,6 +456,7 @@ const BookLibDB = (() => {
     detectChapterType, getSubtaskOptions, SUBTASKS,
     _parseCheck, _serCheck,
     saveClassExempts, loadClassExempts,
+    saveBookExempts, loadBookExempts, loadSiblingExempts,
     saveMemo, loadMemo,
   };
 })();

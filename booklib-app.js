@@ -2366,16 +2366,34 @@ const BooklibApp = (() => {
   function _exemptKey() {
     return 'bl_exempt_' + _st.matrixClassId + '_' + _st.matrixBookId;
   }
-  // ★ 면제 항목 LocalStorage 영구 저장
+  // ★ 면제 항목 LocalStorage 영구 저장 (교재별 독립)
   function _saveExempts(excs) {
     try { localStorage.setItem(_exemptKey(), JSON.stringify(excs)); } catch(e) {}
     _csvImportState.exceptions = excs;
+    /* 캐시 업데이트 */
+    if (_st.matrixClassId && _st.matrixBookId)
+      BooklibApp._exemptCache
+        ? (BooklibApp._exemptCache[`${_st.matrixClassId}_${_st.matrixBookId}`] = excs)
+        : null;
   }
-  // ★ 면제 항목 로드 (반/교재 전환 시 자동 복원)
+  // ★ 면제 항목 로드 — 교재별 독립 경로 우선, 없으면 구 포맷 fallback
   function _loadExempts() {
+    const key = _exemptKey();
     try {
-      const saved = localStorage.getItem(_exemptKey());
-      _csvImportState.exceptions = saved ? JSON.parse(saved) : {};
+      const saved = localStorage.getItem(key);
+      if (saved) { _csvImportState.exceptions = JSON.parse(saved); return; }
+    } catch(e) {}
+    /* 구 포맷 fallback: classId 기준 flat dict에서 이 bookId 항목만 추출 */
+    try {
+      const legacyKey = 'bl_class_exempt_' + _st.matrixClassId;
+      const legacy = JSON.parse(localStorage.getItem(legacyKey) || '{}');
+      const bkId = _st.matrixBookId;
+      const result = {};
+      for (const [name, val] of Object.entries(legacy)) {
+        if (!val.bookId || val.bookId === bkId)
+          result[name] = Array.isArray(val) ? val : (val.items || []);
+      }
+      _csvImportState.exceptions = result;
     } catch(e) { _csvImportState.exceptions = {}; }
   }
 
@@ -2509,12 +2527,16 @@ const BooklibApp = (() => {
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:flex;align-items:flex-end;justify-content:center';
     // ★ 기존 면제 설정 로드 (반 기준 영구 저장된 값)
     _loadExempts();
-    // DB에서 더 상세한 정보(enabled 포함) 로드
+    // ★ 교재별 독립 면제 설정 로드 (신규 per-book 방식 우선)
+    _loadExempts(); // localStorage 기반 빠른 로드
     let _dbExcs = {};
-    if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.loadClassExempts) {
-      _dbExcs = await BookLibDB.loadClassExempts(_st.matrixClassId) || {};
+    if (_st.matrixClassId && _st.matrixBookId && typeof BookLibDB!=='undefined' && BookLibDB.loadBookExempts) {
+      _dbExcs = await BookLibDB.loadBookExempts(_st.matrixClassId, _st.matrixBookId) || {};
       if (Object.keys(_dbExcs).length) {
-        const simpleExcs = Object.fromEntries(Object.entries(_dbExcs).map(([n,v])=>[n, Array.isArray(v)?v:(v.items||[])]));
+        /* { name: { items:[], ... } } 형식 → { name: items[] } 형식으로 변환 */
+        const simpleExcs = Object.fromEntries(
+          Object.entries(_dbExcs).map(([n,v]) => [n, Array.isArray(v) ? v : (v.items || [])])
+        );
         _csvImportState.exceptions = simpleExcs;
       }
     }
@@ -3133,16 +3155,36 @@ const BooklibApp = (() => {
   }
 
   async function _loadExemptMgrList(clsId, bkId, listWrap, modal){
-    if(!clsId||!bkId){listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">반과 교재를 선택하세요</div>';return;}
+    if(!clsId||!bkId){
+      listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">반과 교재를 선택하세요</div>';
+      return;
+    }
     listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:20px">로드 중...</div>';
-    const exempts=await BookLibDB.loadClassExempts(clsId)||{};
+
+    /* ★ 교재별 독립 데이터 로드 */
+    const bkExempts = await BookLibDB.loadBookExempts(clsId, bkId) || {};
     listWrap.innerHTML='';
-    // bookId별 필터링
-    const bkExempts=Object.entries(exempts).filter(([k,v])=>!v.bookId||v.bookId===bkId);
-    if(!bkExempts.length){
-      listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:16px">등록된 예외 학생이 없습니다</div>';
+
+    const entries = Object.entries(bkExempts);
+    if (entries.length) {
+      /* 이 교재에 저장된 데이터가 있으면 그대로 표시 */
+      entries.forEach(([name, v]) => _addExemptRow(clsId, bkId, listWrap, modal, { name, data: v }));
     } else {
-      bkExempts.forEach(([name,v])=>_addExemptRow(clsId,bkId,listWrap,modal,{name,data:v}));
+      /* ★ 한 번도 등록 안 된 신규 교재 → 같은 반의 다른 교재 설정을 제안 */
+      const sibling = await BookLibDB.loadSiblingExempts(clsId, bkId);
+      if (sibling && Object.keys(sibling.data).length) {
+        /* 제안 배너 표시 */
+        const banner = document.createElement('div');
+        banner.style.cssText='background:rgba(99,102,241,.08);border:1.5px dashed rgba(99,102,241,.3);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:11px;color:var(--a);line-height:1.7';
+        banner.innerHTML=`💡 <b>${_e(sibling.bookName)}</b>의 예외 설정을 참고용으로 불러왔습니다.<br>
+          수정 후 저장 시 <b>이 교재에만</b> 적용됩니다. 원본 교재에는 영향 없습니다.`;
+        listWrap.appendChild(banner);
+        Object.entries(sibling.data).forEach(([name, v]) =>
+          _addExemptRow(clsId, bkId, listWrap, modal, { name, data: v })
+        );
+      } else {
+        listWrap.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:16px">등록된 예외 학생이 없습니다</div>';
+      }
     }
   }
 
@@ -3182,22 +3224,32 @@ const BooklibApp = (() => {
   async function _saveExemptMgr(clsId, bkId, listWrap, modal){
     if(!clsId||!bkId){_toast('⚠️ 반과 교재를 선택하세요','error');return;}
     const rows=[...listWrap.querySelectorAll('div[style*=position]')];
-    const existing=await BookLibDB.loadClassExempts(clsId)||{};
-    // 현재 bkId에 해당하는 기존 항목 제거
-    Object.keys(existing).forEach(k=>{ if(!existing[k].bookId||existing[k].bookId===bkId) delete existing[k]; });
-    // 새 항목 추가
+
+    /* ★ 이 교재만의 독립 데이터 구성 — 다른 교재 데이터는 절대 건드리지 않음 */
+    const newExempts = {};
     rows.forEach(row=>{
       const nm=row.querySelector('.em-name')?.value?.trim();
       if(!nm) return;
       const items=[...row.querySelectorAll('.em-item:checked')].map(c=>c.value);
       const useAlias=row.querySelector('.em-alias-ck')?.checked||false;
       const alias=row.querySelector('.em-alias')?.value?.trim()||'';
-      existing[nm]={items, useAlias, alias:alias||null, bookId:bkId};
+      /* ★ bookId 필드 없음 — 경로 자체가 clsId/bkId로 구분되므로 불필요 */
+      newExempts[nm] = { items, useAlias, alias: alias||null };
     });
-    await BookLibDB.saveClassExempts(clsId, existing);
-    _toast('✅ 예외 설정 저장 완료','success');
+
+    /* ★ 이 교재에만 저장 (saveBookExempts) */
+    await BookLibDB.saveBookExempts(clsId, bkId, newExempts);
+
+    /* 메모리 캐시도 이 교재 키로만 업데이트 */
+    const memKey = `${clsId}_${bkId}`;
+    _exemptCache[memKey] = newExempts;
+
+    _toast('✅ 예외 설정 저장 완료 (이 교재에만 적용)','success');
     modal.remove();
   }
+
+  /* ★ 메모리 캐시 — 교재 전환 시 재로드 없이 빠른 접근 */
+  const _exemptCache = {};
   // ★★★ 예외 학생 관리 끝 ★★★
 
   
