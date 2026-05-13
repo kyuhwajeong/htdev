@@ -3279,16 +3279,36 @@ const BooklibApp = (() => {
     modal.appendChild(sheet);
     document.body.appendChild(modal);
 
-    // 모든 반의 예외 로드
-    const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
-    const allBks=BookLibDB.getBooks().filter(b=>!b.archived);
-    const items=[];
+    // ★ 신규 per-book 구조에서 로드 (hakwon10/bookExempts)
+    const allCls  = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
+    const allBks  = BookLibDB.getBooks().filter(b => !b.archived);
+    const items   = [];
 
-    for(const cls of allCls){
-      const exempts=await BookLibDB.loadClassExempts(cls.id)||{};
-      Object.entries(exempts).forEach(([name,v])=>{
-        const bk=allBks.find(b=>b.id===v.bookId)||null;
-        items.push({cls, bk, name, data:v});
+    /* 1. 신규 포맷: loadAllBookExempts */
+    const newData = await BookLibDB.loadAllBookExempts();
+    newData.forEach(({ classId, bookId, students }) => {
+      const cls = allCls.find(c => c.id === classId);
+      const bk  = allBks.find(b => b.id === bookId);
+      if (!cls) return;
+      Object.entries(students || {}).forEach(([name, v]) => {
+        items.push({ cls, bk: bk || null, name, data: { items: Array.isArray(v) ? v : (v.items || []), alias: v?.alias || '', useAlias: v?.useAlias || false } });
+      });
+    });
+
+    /* 2. 구 포맷 fallback (신규에 없는 데이터) */
+    for (const cls of allCls) {
+      const exempts = await BookLibDB.loadClassExempts(cls.id) || {};
+      Object.entries(exempts).forEach(([name, v]) => {
+        /* 구 포맷 항목만 (신규 포맷 bookId 키는 객체이므로 items 없음) */
+        if (typeof v !== 'object' || Array.isArray(v) || !v) return;
+        const hasItems = 'items' in v;
+        if (!hasItems) return; /* bookId 키로 들어간 잘못된 데이터 무시 */
+        const bkId = v.bookId || null;
+        const bk   = bkId ? allBks.find(b => b.id === bkId) || null : null;
+        /* 이미 신규 포맷에 있으면 skip */
+        const alreadyNew = items.some(it => it.cls.id === cls.id && it.bk?.id === bkId && it.name === name);
+        if (!alreadyNew)
+          items.push({ cls, bk, name, data: { items: v.items || [], alias: v.alias || '', useAlias: v.useAlias || false } });
       });
     }
 

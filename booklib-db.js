@@ -333,26 +333,25 @@ const BookLibDB = (() => {
   // ★ 면제 학생 저장/로드 (localStorage, classId 기준)
   const _EXEMPT_KEY = classId => 'bl_class_exempt_' + classId;
 
-  /* ★ 교재별 독립 저장 — 키: bl_exempt_{classId}_{bookId}
-   *   Firebase: hakwon10/exempts/{classId}/{bookId}
+  /* ★ 교재별 독립 저장 — 기존 exempts 경로와 충돌 방지를 위해 별도 경로 사용
+   *   Firebase: hakwon10/bookExempts/{classId}/{bookId}   ← exempts와 다른 루트
+   *   localStorage: bl_bkexempt_{classId}_{bookId}
    *   { "홍길동": { items:[], useAlias:false, alias:'' }, ... }
    */
-  const _BOOK_EXEMPT_KEY = (classId, bookId) => `bl_exempt_${classId}_${bookId}`;
+  const _BOOK_EXEMPT_KEY = (classId, bookId) => `bl_bkexempt_${classId}_${bookId}`;
 
   async function saveBookExempts(classId, bookId, exempts) {
-    /* 로컬 */
     try { localStorage.setItem(_BOOK_EXEMPT_KEY(classId, bookId), JSON.stringify(exempts)); } catch(e) {}
-    /* Firebase — 교재별 경로 */
     try {
       if (typeof FireDB !== 'undefined' && FireDB.ready())
-        await FireDB.set(`hakwon10/exempts/${classId}/${bookId}`, exempts);
+        await FireDB.set(`hakwon10/bookExempts/${classId}/${bookId}`, exempts);
     } catch(e) { console.warn('[BookLibDB] saveBookExempts', e); }
   }
 
   async function loadBookExempts(classId, bookId) {
     try {
       if (typeof FireDB !== 'undefined' && FireDB.ready()) {
-        const data = await FireDB.get(`hakwon10/exempts/${classId}/${bookId}`);
+        const data = await FireDB.get(`hakwon10/bookExempts/${classId}/${bookId}`);
         if (data) {
           localStorage.setItem(_BOOK_EXEMPT_KEY(classId, bookId), JSON.stringify(data));
           return data;
@@ -367,27 +366,12 @@ const BookLibDB = (() => {
     /* ★ 하위호환: 구 포맷(classId 기준 flat dict)에서 이 bookId에 해당하는 항목 이관 */
     const legacy = await _loadLegacyExempts(classId, bookId);
     if (legacy && Object.keys(legacy).length) {
-      /* 이관 후 새 포맷으로 저장 */
       await saveBookExempts(classId, bookId, legacy);
     }
     return legacy || {};
   }
 
-  /* 구 포맷에서 특정 bookId 항목 추출 */
-  async function _loadLegacyExempts(classId, bookId) {
-    try {
-      const raw = await loadClassExempts(classId);
-      const result = {};
-      for (const [name, val] of Object.entries(raw || {})) {
-        if (!val.bookId || val.bookId === bookId) {
-          result[name] = { items: val.items || [], useAlias: val.useAlias || false, alias: val.alias || '' };
-        }
-      }
-      return result;
-    } catch(e) { return {}; }
-  }
-
-  /* 같은 반 다른 교재의 최신 예외 설정 반환 (신규 교재 진입 시 제안용) */
+  /* 같은 반의 다른 교재 예외설정 반환 (신규 교재 진입 시 제안용) */
   async function loadSiblingExempts(classId, excludeBookId) {
     const books = getBooksForClass(classId);
     for (const bk of books) {
@@ -398,6 +382,61 @@ const BookLibDB = (() => {
       } catch(e) {}
     }
     return null;
+  }
+
+  /* 모든 반의 교재별 예외 목록 (openExemptList용) */
+  async function loadAllBookExempts() {
+    const result = []; // [{ classId, bookId, students:{name:{items,...}} }]
+    try {
+      if (typeof FireDB !== 'undefined' && FireDB.ready()) {
+        const allData = await FireDB.get('hakwon10/bookExempts');
+        if (allData) {
+          for (const [cid, byBook] of Object.entries(allData)) {
+            if (byBook && typeof byBook === 'object') {
+              for (const [bid, students] of Object.entries(byBook)) {
+                if (students && typeof students === 'object' && !Array.isArray(students)) {
+                  result.push({ classId: cid, bookId: bid, students });
+                }
+              }
+            }
+          }
+          return result;
+        }
+      }
+    } catch(e) {}
+    /* localStorage fallback */
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('bl_bkexempt_')) {
+        try {
+          const rest = key.slice('bl_bkexempt_'.length);
+          /* key = bl_bkexempt_{classId}_{bookId} — bookId는 _nid() 형식(영숫자 ~8자) */
+          const students = JSON.parse(localStorage.getItem(key));
+          /* classId와 bookId 분리: 마지막 _ 구분자 사용 (nid는 _ 없음) */
+          const lastUnderscore = rest.lastIndexOf('_');
+          if (lastUnderscore > 0) {
+            result.push({ classId: rest.slice(0, lastUnderscore), bookId: rest.slice(lastUnderscore + 1), students });
+          }
+        } catch(e) {}
+      }
+    }
+    return result;
+  }
+
+  /* 구 포맷에서 특정 bookId 항목 추출 (하위호환) */
+  async function _loadLegacyExempts(classId, bookId) {
+    try {
+      const raw = await loadClassExempts(classId);
+      const result = {};
+      for (const [name, val] of Object.entries(raw || {})) {
+        if (typeof val === 'object' && !Array.isArray(val) && val !== null) {
+          /* 구 포맷: { name: { items, bookId, ... } } */
+          if (!val.bookId || val.bookId === bookId) {
+            result[name] = { items: val.items || [], useAlias: val.useAlias || false, alias: val.alias || '' };
+          }
+        }
+      }
+      return result;
+    } catch(e) { return {}; }
   }
 
   async function saveClassExempts(classId, exempts) {
@@ -456,7 +495,7 @@ const BookLibDB = (() => {
     detectChapterType, getSubtaskOptions, SUBTASKS,
     _parseCheck, _serCheck,
     saveClassExempts, loadClassExempts,
-    saveBookExempts, loadBookExempts, loadSiblingExempts,
+    saveBookExempts, loadBookExempts, loadSiblingExempts, loadAllBookExempts,
     saveMemo, loadMemo,
   };
 })();
