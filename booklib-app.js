@@ -167,8 +167,12 @@ const BooklibApp = (() => {
 .bl-ch-ts{display:inline-flex;align-items:center;gap:3px;padding:2px 5px 2px 7px;border-radius:5px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);font-size:9px;font-weight:700;color:#d97706;text-align:right;}
 .dark .bl-ch-ts{background:rgba(245,158,11,.1);color:#fbbf24;}
 .bl-ch-ts-t{font-variant-numeric:tabular-nums;letter-spacing:.2px;}
-.bl-mtbl.ch-collapsed .bl-ch-cell,.bl-mtbl.ch-collapsed .bl-batch-hdr,.bl-mtbl.ch-collapsed .bl-ch-hdr{min-width:32px;width:32px;max-width:32px;padding:4px 2px;}
-.bl-mtbl.ch-collapsed .bl-ch-t,.bl-mtbl.ch-collapsed .bl-ch-ts-row{display:none;}
+.bl-mtbl.ch-collapsed .bl-ch-cell,.bl-mtbl.ch-collapsed .bl-batch-hdr,.bl-mtbl.ch-collapsed .bl-ch-hdr{min-width:30px!important;width:30px!important;max-width:30px!important;padding:3px 2px!important;overflow:hidden!important;box-sizing:border-box!important;}
+.bl-mtbl.ch-collapsed .bl-ch-t,.bl-mtbl.ch-collapsed .bl-ch-ts-row{display:none!important;}
+/* 헤더 내부 버튼 그룹도 숨기고 토글 버튼만 표시 */
+.bl-mtbl.ch-collapsed .bl-ch-hdr .ch-hdr-controls{display:none!important;}
+.bl-mtbl.ch-collapsed .bl-ch-hdr .bl-collapse-btn{display:flex!important;margin:0 auto;}
+.bl-mtbl.ch-collapsed .bl-ch-hdr{justify-content:center!important;gap:0!important;}
 .bl-cc{border:1px solid var(--bdr);vertical-align:top;cursor:pointer;transition:background .1s;-webkit-user-select:none;user-select:none;width:var(--stu-w);min-width:var(--stu-w);padding:0;}
 .bl-cc:active{opacity:.6;}
 .bl-chrow.in-eval .bl-cc:not(.undone){background:rgba(5,150,105,.07);}
@@ -1689,7 +1693,21 @@ const BooklibApp = (() => {
     if(actEl)actEl.textContent=uc?'📤':'';
   }
 
-  function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
+  function _chWider(){
+    if (_st.chCollapsed) { _toggleCollapse(); return; }
+    _st.chColWidth = Math.min(MAX_CH_W, _st.chColWidth + 20);
+    localStorage.setItem(LS_CH_W, _st.chColWidth);
+    const tbl = document.getElementById('bl-mtbl');
+    if (tbl) {
+      tbl.style.setProperty('--ch-w', _st.chColWidth + 'px');
+      tbl.querySelectorAll('.bl-ch-hdr, .bl-ch-cell, .bl-batch-hdr').forEach(el => {
+        el.style.minWidth = _st.chColWidth + 'px';
+        el.style.width    = _st.chColWidth + 'px';
+        el.style.maxWidth = _st.chColWidth + 'px';
+      });
+    }
+    _updWLbl();
+  }
   function _mtblFontSize(delta){
     const tbl=document.getElementById('bl-mtbl'); if(!tbl) return;
     const LS_FONT='bl_mtbl_fontsize';
@@ -1849,8 +1867,55 @@ const BooklibApp = (() => {
     }
   }
 
-    function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
-  function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
+  function _chNarrow(){
+    if (_st.chColWidth <= MIN_CH_W + 10) { _toggleCollapse(); return; }
+    _st.chColWidth = Math.max(MIN_CH_W, _st.chColWidth - 20);
+    localStorage.setItem(LS_CH_W, _st.chColWidth);
+    const tbl = document.getElementById('bl-mtbl');
+    if (tbl) {
+      tbl.style.setProperty('--ch-w', _st.chColWidth + 'px');
+      tbl.querySelectorAll('.bl-ch-hdr, .bl-ch-cell, .bl-batch-hdr').forEach(el => {
+        el.style.minWidth = _st.chColWidth + 'px';
+        el.style.width    = _st.chColWidth + 'px';
+        el.style.maxWidth = _st.chColWidth + 'px';
+      });
+    }
+    _updWLbl();
+  }
+  function _toggleCollapse(){
+    _st.chCollapsed = !_st.chCollapsed;
+    const tbl = document.getElementById('bl-mtbl');
+    const btn = document.getElementById('bl-collapse-btn');
+    /* ★ 접힘: "1." 숫자만 보일 최소 너비 / 펼침: 저장된 챕터 너비 */
+    const NARROW = 28;
+    const w = _st.chCollapsed ? NARROW : _st.chColWidth;
+
+    if (tbl) {
+      tbl.classList.toggle('ch-collapsed', _st.chCollapsed);
+      tbl.style.setProperty('--ch-w', w + 'px');
+
+      /* ★ 핵심 수정: JS로 모든 챕터 컬럼 셀 너비 직접 강제 지정
+       *   table-layout:auto 환경에서는 CSS 단독으로 width가 무시되므로
+       *   style 속성으로 덮어써야 함 */
+      tbl.querySelectorAll('.bl-ch-hdr, .bl-ch-cell, .bl-batch-hdr').forEach(el => {
+        el.style.minWidth = w + 'px';
+        el.style.width    = w + 'px';
+        el.style.maxWidth = w + 'px';
+        el.style.overflow = 'hidden';
+      });
+
+      /* 챕터명 텍스트 + 타임스탬프 행 표시/숨김 */
+      tbl.querySelectorAll('.bl-ch-t, .bl-ch-ts-row').forEach(el => {
+        el.style.display = _st.chCollapsed ? 'none' : '';
+      });
+      /* 챕터 헤더 컨트롤 (너비 라벨 등) */
+      tbl.querySelectorAll('.ch-hdr-controls').forEach(el => {
+        el.style.display = _st.chCollapsed ? 'none' : '';
+      });
+    }
+    if (btn) btn.textContent = _st.chCollapsed ? '▶' : '◀';
+    _updWLbl();
+  }
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
 
   function _setupDrag(){
