@@ -3319,6 +3319,13 @@ const BooklibApp = (() => {
 
   
   // ★ 예외 학생 전체 목록 조회
+  /* ★ 캐러셀 슬라이드 상태 — 모듈 레벨로 관리 (openExemptList 클로저 문제 해결) */
+  let _elCarousel = { idx:0, total:0, goSlide: null };
+
+  function _elSlide(delta) {
+    if (_elCarousel.goSlide) _elCarousel.goSlide(_elCarousel.idx + delta);
+  }
+
   async function openExemptList(){
     document.getElementById('bl-exempt-list')?.remove();
 
@@ -3334,6 +3341,239 @@ const BooklibApp = (() => {
       overflow:hidden;`;
     modal.appendChild(sheet);
     document.body.appendChild(modal);
+
+    sheet.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 10px;flex-shrink:0">
+        <div>
+          <div style="font-size:16px;font-weight:800">📋 예외 학생 전체 목록</div>
+          <div style="font-size:11px;color:var(--tx3);margin-top:2px">반별 슬라이드 · 좌우로 이동하세요</div>
+        </div>
+        <button onclick="document.getElementById('bl-exempt-list').remove()"
+          style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>
+      </div>
+      <div style="padding:0 18px 10px;flex-shrink:0">
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--tx3)">🔍</span>
+          <input id="el-search" type="text" placeholder="학생명·교재명 검색 → 해당 반 슬라이드로 이동"
+            style="width:100%;box-sizing:border-box;padding:8px 12px 8px 32px;border-radius:10px;
+                   border:1.5px solid var(--bdr2);font-size:13px;font-family:var(--font);
+                   outline:none;background:var(--surf2);color:var(--tx)">
+        </div>
+      </div>
+      <div id="el-tab-nav" style="display:flex;gap:6px;padding:0 18px 8px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
+      <div id="el-slide-area" style="flex:1;overflow:hidden;position:relative;min-height:200px">
+        <div id="el-loading" style="text-align:center;color:var(--tx3);font-size:12px;padding:32px">로드 중…</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;padding:10px 18px 14px;flex-shrink:0;border-top:1px solid var(--bdr)">
+        <button id="el-prev"
+          onclick="BooklibApp._elSlide(-1);this.blur()"
+          style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--bdr2);background:var(--surf2);font-size:20px;cursor:pointer;line-height:1;padding:0">‹</button>
+        <div id="el-dots" style="display:flex;gap:5px;align-items:center"></div>
+        <button id="el-next"
+          onclick="BooklibApp._elSlide(1);this.blur()"
+          style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--bdr2);background:var(--surf2);font-size:20px;cursor:pointer;line-height:1;padding:0">›</button>
+      </div>`;
+
+    /* 스와이프 */
+    let _tx0 = 0;
+    sheet.addEventListener('touchstart', e => { _tx0 = e.touches[0].clientX; }, {passive:true});
+    sheet.addEventListener('touchend',   e => {
+      const dx = e.changedTouches[0].clientX - _tx0;
+      if (Math.abs(dx) > 50) BooklibApp._elSlide(dx < 0 ? 1 : -1);
+    }, {passive:true});
+
+    /* ── 데이터 로드 ── */
+    const allCls = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
+    const allBks = BookLibDB.getBooks().filter(b => !b.archived);
+    const items  = [];
+
+    const newData = await BookLibDB.loadAllBookExempts();
+    newData.forEach(({ classId, bookId, students }) => {
+      const cls = allCls.find(c => c.id === classId);
+      const bk  = allBks.find(b => b.id === bookId);
+      if (!cls || !bk) return;
+      Object.entries(students || {}).forEach(([name, v]) => {
+        items.push({ cls, bk, name,
+          data: { items: Array.isArray(v)?v:(v.items||[]), alias:v?.alias||'', useAlias:v?.useAlias||false } });
+      });
+    });
+    for (const cls of allCls) {
+      const ex = await BookLibDB.loadClassExempts(cls.id) || {};
+      Object.entries(ex).forEach(([name, v]) => {
+        if (typeof v !== 'object' || Array.isArray(v) || !v || !('items' in v)) return;
+        const bk = v.bookId ? allBks.find(b=>b.id===v.bookId)||null : null;
+        if (!bk) return;
+        if (!items.some(it=>it.cls.id===cls.id&&it.bk?.id===bk.id&&it.name===name))
+          items.push({ cls, bk, name, data:{ items:v.items||[], alias:v.alias||'', useAlias:v.useAlias||false } });
+      });
+    }
+
+    const loading = document.getElementById('el-loading');
+    if (!items.length) {
+      loading.innerHTML = '<div style="padding:32px;text-align:center;color:var(--tx3);font-size:13px">등록된 예외 학생이 없습니다<br><span style="font-size:11px">⚙️ 예외 설정 버튼으로 등록하세요</span></div>';
+      return;
+    }
+    loading.remove();
+
+    /* ── 반별 그룹 ── */
+    const byClass = {};
+    items.forEach(it => {
+      const cid = it.cls.id;
+      if (!byClass[cid]) byClass[cid] = { cls:it.cls, books:{} };
+      const bid = it.bk.id;
+      if (!byClass[cid].books[bid]) byClass[cid].books[bid] = { bk:it.bk, students:[] };
+      byClass[cid].books[bid].students.push(it);
+    });
+    const groups = Object.values(byClass)
+      .sort((a,b) => (a.cls.name||'').localeCompare(b.cls.name||'','ko'));
+
+    /* ── 모듈 레벨 상태 초기화 ── */
+    _elCarousel.idx   = 0;
+    _elCarousel.total = groups.length;
+
+    const _slideArea = document.getElementById('el-slide-area');
+    const _dots      = document.getElementById('el-dots');
+    const _tabNav    = document.getElementById('el-tab-nav');
+
+    /* 탭 + 닷 생성 */
+    groups.forEach((g, i) => {
+      const tab = document.createElement('button');
+      tab.id = `el-tab-${i}`;
+      tab.textContent = `${g.cls.name}반`;
+      tab.style.cssText = `padding:5px 16px;border-radius:20px;font-size:12px;font-weight:700;
+        cursor:pointer;font-family:var(--font);white-space:nowrap;transition:all .2s;flex-shrink:0;
+        border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3)`;
+      tab.onclick = () => { _elCarousel.goSlide(i); tab.blur(); };
+      _tabNav.appendChild(tab);
+
+      const dot = document.createElement('div');
+      dot.id = `el-dot-${i}`;
+      dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:var(--bdr2);cursor:pointer;transition:all .25s;flex-shrink:0';
+      dot.onclick = () => _elCarousel.goSlide(i);
+      _dots.appendChild(dot);
+    });
+
+    /* 슬라이드 트랙 */
+    const _track = document.createElement('div');
+    _track.id = 'el-track';
+    _track.style.cssText = `display:flex;height:100%;transition:transform .3s cubic-bezier(.4,0,.2,1);will-change:transform`;
+    _slideArea.appendChild(_track);
+
+    groups.forEach((g, gi) => {
+      const panel = document.createElement('div');
+      panel.dataset.slideIdx = gi;
+      panel.style.cssText = 'min-width:100%;width:100%;height:100%;overflow-y:auto;padding:4px 18px 8px;box-sizing:border-box;flex-shrink:0;scrollbar-width:thin';
+
+      Object.values(g.books)
+        .sort((a,b) => (a.bk.name||'').localeCompare(b.bk.name||'','ko'))
+        .forEach(({ bk, students }) => {
+          const bkCard = document.createElement('div');
+          bkCard.style.cssText = `background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;margin-bottom:10px;overflow:hidden`;
+          const bkHdr = document.createElement('div');
+          bkHdr.style.cssText = `display:flex;align-items:center;justify-content:space-between;
+            padding:9px 12px;background:rgba(139,92,246,.07);border-bottom:1px solid var(--bdr)`;
+          bkHdr.innerHTML = `
+            <span style="font-size:12px;font-weight:800;color:#7c3aed">📖 ${_e(bk.name)}</span>
+            <button onclick="BooklibApp.openExemptMgr_cls('${g.cls.id}','${bk.id}')"
+              style="font-size:10px;padding:3px 10px;border-radius:7px;background:var(--a10);
+                     border:1px solid var(--a40);color:var(--a);cursor:pointer;font-weight:700">✏️ 수정</button>`;
+          bkCard.appendChild(bkHdr);
+          const bkBody = document.createElement('div');
+          bkBody.style.cssText = 'padding:8px 10px';
+          students.forEach(it => {
+            const row = document.createElement('div');
+            row.className = 'ex-row';
+            row.dataset.name = it.name.toLowerCase();
+            row.dataset.bk   = bk.name.toLowerCase();
+            row.style.cssText = `display:flex;align-items:center;gap:8px;padding:7px 8px;
+              background:var(--card);border-radius:8px;margin-bottom:5px;border:1px solid var(--bdr)`;
+            const alias    = it.data.useAlias && it.data.alias
+              ? `<span style="font-size:10px;color:#d97706;margin-left:3px">(${_e(it.data.alias)})</span>` : '';
+            const badges   = (it.data.items||[]).length
+              ? it.data.items.map(i=>`<span style="font-size:9px;padding:1px 5px;border-radius:5px;
+                  background:rgba(99,102,241,.1);color:var(--a);border:1px solid var(--a40);
+                  font-weight:700">${_e(i)}</span>`).join('')
+              : `<span style="font-size:10px;color:var(--tx3)">없음</span>`;
+            row.innerHTML = `
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">
+                  <span style="font-size:13px;font-weight:700">${_e(it.name)}</span>${alias}
+                </div>
+                <div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${badges}</div>
+              </div>
+              <button onclick="BooklibApp._deleteExemptItem('${g.cls.id}','${bk.id}','${_e(it.name)}',this)"
+                style="width:28px;height:28px;border-radius:8px;background:rgba(220,38,38,.06);
+                       border:1px solid rgba(220,38,38,.2);color:#ef4444;cursor:pointer;font-size:13px;flex-shrink:0">🗑</button>`;
+            bkBody.appendChild(row);
+          });
+          bkCard.appendChild(bkBody);
+          panel.appendChild(bkCard);
+        });
+      _track.appendChild(panel);
+    });
+
+    /* ── goSlide — 모듈 레벨 state 사용 ── */
+    _elCarousel.goSlide = function(idx) {
+      /* ★ 범위 엄격 보정 */
+      _elCarousel.idx = Math.max(0, Math.min(Math.round(idx), _elCarousel.total - 1));
+      const cur = _elCarousel.idx;
+
+      /* 트랙 이동 */
+      const track = document.getElementById('el-track');
+      if (track) track.style.transform = `translateX(-${cur * 100}%)`;
+
+      /* 탭 하이라이트 */
+      for (let i = 0; i < groups.length; i++) {
+        const t = document.getElementById(`el-tab-${i}`);
+        if (!t) continue;
+        const on = i === cur;
+        t.style.borderColor = on ? 'var(--a)' : 'var(--bdr2)';
+        t.style.background  = on ? 'var(--a)' : 'var(--surf2)';
+        t.style.color       = on ? '#fff'     : 'var(--tx3)';
+        if (on) t.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+      }
+
+      /* 닷 */
+      for (let i = 0; i < groups.length; i++) {
+        const d = document.getElementById(`el-dot-${i}`);
+        if (!d) continue;
+        const on = i === cur;
+        d.style.background   = on ? 'var(--a)' : 'var(--bdr2)';
+        d.style.width        = on ? '20px' : '7px';
+        d.style.borderRadius = on ? '4px'  : '50%';
+      }
+
+      /* ‹ › 버튼 opacity */
+      const prev = document.getElementById('el-prev');
+      const next = document.getElementById('el-next');
+      if (prev) prev.style.opacity = cur === 0 ? '.3' : '1';
+      if (next) next.style.opacity = cur === _elCarousel.total - 1 ? '.3' : '1';
+    };
+
+    _elCarousel.goSlide(0); // 초기화
+
+    /* ── 퀵서치 ── */
+    const searchEl = document.getElementById('el-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', function() {
+        const q = this.value.toLowerCase().trim();
+        if (!q) { _elCarousel.goSlide(_elCarousel.idx); return; }
+        let firstMatch = -1;
+        document.querySelectorAll('[data-slide-idx]').forEach(panel => {
+          const gi = Number(panel.dataset.slideIdx);
+          let found = false;
+          panel.querySelectorAll('.ex-row').forEach(row => {
+            const hit = (row.dataset.name||'').includes(q) || (row.dataset.bk||'').includes(q);
+            row.style.background  = hit ? 'rgba(99,102,241,.08)' : '';
+            row.style.borderColor = hit ? 'var(--a40)' : 'var(--bdr)';
+            if (hit) found = true;
+          });
+          if (found && firstMatch < 0) firstMatch = gi;
+        });
+        if (firstMatch >= 0) _elCarousel.goSlide(firstMatch);
+      });
+    }
+  }
 
     sheet.innerHTML = `
       <!-- 타이틀 -->
@@ -3370,199 +3610,6 @@ const BooklibApp = (() => {
           style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--bdr2);background:var(--surf2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
       </div>`;
 
-    /* 터치 스와이프 */
-    let _tx0 = 0;
-    sheet.addEventListener('touchstart', e => { _tx0 = e.touches[0].clientX; }, {passive:true});
-    sheet.addEventListener('touchend',   e => {
-      const dx = e.changedTouches[0].clientX - _tx0;
-      if (Math.abs(dx) > 50) BooklibApp._elSlide(dx < 0 ? 1 : -1);
-    }, {passive:true});
-
-    /* ── 데이터 로드 ── */
-    const allCls = typeof DB !== 'undefined' ? DB.getActiveClasses() : [];
-    const allBks = BookLibDB.getBooks().filter(b => !b.archived);
-    const items  = [];
-
-    const newData = await BookLibDB.loadAllBookExempts();
-    newData.forEach(({ classId, bookId, students }) => {
-      const cls = allCls.find(c => c.id === classId);
-      const bk  = allBks.find(b => b.id === bookId);
-      if (!cls || !bk) return;
-      Object.entries(students || {}).forEach(([name, v]) => {
-        items.push({ cls, bk, name,
-          data: { items: Array.isArray(v)?v:(v.items||[]), alias:v?.alias||'', useAlias:v?.useAlias||false } });
-      });
-    });
-
-    /* 구 포맷 fallback */
-    for (const cls of allCls) {
-      const ex = await BookLibDB.loadClassExempts(cls.id) || {};
-      Object.entries(ex).forEach(([name, v]) => {
-        if (typeof v !== 'object' || Array.isArray(v) || !v || !('items' in v)) return;
-        const bk = v.bookId ? allBks.find(b=>b.id===v.bookId)||null : null;
-        if (!bk) return;
-        if (!items.some(it=>it.cls.id===cls.id&&it.bk?.id===bk.id&&it.name===name))
-          items.push({ cls, bk, name, data:{ items:v.items||[], alias:v.alias||'', useAlias:v.useAlias||false } });
-      });
-    }
-
-    const loading = document.getElementById('el-loading');
-
-    if (!items.length) {
-      loading.innerHTML = '<div style="padding:32px;text-align:center;color:var(--tx3);font-size:13px">등록된 예외 학생이 없습니다<br><span style="font-size:11px">⚙️ 예외 설정 버튼으로 등록하세요</span></div>';
-      return;
-    }
-    loading.remove();
-
-    /* ── 반별 그룹 ── */
-    const byClass = {};
-    items.forEach(it => {
-      const cid = it.cls.id;
-      if (!byClass[cid]) byClass[cid] = { cls:it.cls, books:{} };
-      const bid = it.bk.id;
-      if (!byClass[cid].books[bid]) byClass[cid].books[bid] = { bk:it.bk, students:[] };
-      byClass[cid].books[bid].students.push(it);
-    });
-    const groups = Object.values(byClass).sort((a,b)=>(a.cls.name||'').localeCompare(b.cls.name||'','ko'));
-
-    /* ── 슬라이드 상태 ── */
-    let _curIdx = 0;
-    const _slideArea = document.getElementById('el-slide-area');
-    const _dots      = document.getElementById('el-dots');
-    const _tabNav    = document.getElementById('el-tab-nav');
-
-    /* 탭 버튼 */
-    groups.forEach((g, i) => {
-      const tab = document.createElement('button');
-      tab.id = `el-tab-${i}`;
-      tab.dataset.idx = i;
-      tab.textContent = `${g.cls.name}반`;
-      tab.style.cssText = `padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;
-        cursor:pointer;font-family:var(--font);white-space:nowrap;transition:all .15s;flex-shrink:0;
-        border:1.5px solid var(--bdr2);background:var(--surf2);color:var(--tx3)`;
-      tab.onclick = () => _goSlide(i);
-      _tabNav.appendChild(tab);
-
-      const dot = document.createElement('div');
-      dot.id = `el-dot-${i}`;
-      dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:var(--bdr2);cursor:pointer;transition:all .2s';
-      dot.onclick = () => _goSlide(i);
-      _dots.appendChild(dot);
-    });
-
-    /* 슬라이드 패널 생성 */
-    const _track = document.createElement('div');
-    _track.style.cssText = `display:flex;height:100%;transition:transform .3s cubic-bezier(.4,0,.2,1);will-change:transform`;
-    _slideArea.appendChild(_track);
-
-    groups.forEach((g, gi) => {
-      const panel = document.createElement('div');
-      panel.dataset.slideIdx = gi;
-      panel.style.cssText = 'min-width:100%;width:100%;height:100%;overflow-y:auto;padding:4px 18px 8px;box-sizing:border-box;flex-shrink:0';
-      panel.style.scrollbarWidth = 'thin';
-
-      /* 교재별 서브카드 */
-      const sortedBooks = Object.values(g.books).sort((a,b)=>(a.bk.name||'').localeCompare(b.bk.name||'','ko'));
-      sortedBooks.forEach(({ bk, students }) => {
-        const bkCard = document.createElement('div');
-        bkCard.style.cssText = `background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;
-          margin-bottom:10px;overflow:hidden`;
-
-        const bkHdr = document.createElement('div');
-        bkHdr.style.cssText = `display:flex;align-items:center;justify-content:space-between;
-          padding:9px 12px;background:rgba(139,92,246,.07);border-bottom:1px solid var(--bdr)`;
-        bkHdr.innerHTML = `
-          <span style="font-size:12px;font-weight:800;color:#7c3aed">📖 ${_e(bk.name)}</span>
-          <button onclick="BooklibApp.openExemptMgr_cls('${g.cls.id}','${bk.id}')"
-            style="font-size:10px;padding:3px 9px;border-radius:7px;background:var(--a10);
-                   border:1px solid var(--a40);color:var(--a);cursor:pointer;font-weight:700">✏️ 수정</button>`;
-        bkCard.appendChild(bkHdr);
-
-        const bkBody = document.createElement('div');
-        bkBody.style.cssText = 'padding:8px 10px';
-        students.forEach(it => {
-          const row = document.createElement('div');
-          row.className = 'ex-row';
-          row.dataset.name = it.name.toLowerCase();
-          row.dataset.bk   = bk.name.toLowerCase();
-          row.style.cssText = `display:flex;align-items:center;gap:8px;padding:7px 8px;
-            background:var(--card);border-radius:8px;margin-bottom:5px;
-            border:1px solid var(--bdr)`;
-          const alias    = it.data.useAlias && it.data.alias
-            ? `<span style="font-size:10px;color:#d97706;margin-left:4px">(가명: ${_e(it.data.alias)})</span>` : '';
-          const itemsStr = (it.data.items||[]).join(' · ') || '없음';
-          const itemBadges = (it.data.items||[]).length
-            ? it.data.items.map(i=>`<span style="font-size:9px;padding:1px 5px;border-radius:5px;
-                background:rgba(99,102,241,.1);color:var(--a);border:1px solid var(--a40);
-                font-weight:700">${_e(i)}</span>`).join('')
-            : `<span style="font-size:10px;color:var(--tx3)">없음</span>`;
-          row.innerHTML = `
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-                <span style="font-size:13px;font-weight:700">${_e(it.name)}</span>${alias}
-              </div>
-              <div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${itemBadges}</div>
-            </div>
-            <button onclick="BooklibApp._deleteExemptItem('${g.cls.id}','${bk.id}','${_e(it.name)}',this)"
-              style="width:28px;height:28px;border-radius:8px;background:rgba(220,38,38,.06);
-                     border:1px solid rgba(220,38,38,.2);color:#ef4444;cursor:pointer;
-                     font-size:13px;flex-shrink:0">🗑</button>`;
-          bkBody.appendChild(row);
-        });
-        bkCard.appendChild(bkBody);
-        panel.appendChild(bkCard);
-      });
-      _track.appendChild(panel);
-    });
-
-    /* ── 슬라이드 이동 함수 ── */
-    function _goSlide(idx) {
-      _curIdx = Math.max(0, Math.min(idx, groups.length-1));
-      _track.style.transform = `translateX(-${_curIdx*100}%)`;
-      /* 탭·닷 업데이트 */
-      document.querySelectorAll('[id^="el-tab-"]').forEach((t,i) => {
-        const on = i === _curIdx;
-        t.style.borderColor  = on ? 'var(--a)' : 'var(--bdr2)';
-        t.style.background   = on ? 'var(--a)' : 'var(--surf2)';
-        t.style.color        = on ? '#fff'     : 'var(--tx3)';
-        if(on) t.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
-      });
-      document.querySelectorAll('[id^="el-dot-"]').forEach((d,i) => {
-        const on = i === _curIdx;
-        d.style.background = on ? 'var(--a)' : 'var(--bdr2)';
-        d.style.width      = on ? '20px'    : '7px';
-        d.style.borderRadius = on ? '4px' : '50%';
-      });
-      document.getElementById('el-prev').style.opacity = _curIdx===0 ? '.3' : '1';
-      document.getElementById('el-next').style.opacity = _curIdx===groups.length-1 ? '.3' : '1';
-    }
-    _goSlide(0); // 초기화
-
-    /* 전역 등록 */
-    BooklibApp._elSlide = delta => _goSlide(_curIdx + delta);
-
-    /* ── 퀵서치 ── */
-    document.getElementById('el-search').addEventListener('input', function() {
-      const q = this.value.toLowerCase().trim();
-      if (!q) { _goSlide(_curIdx); return; }
-      /* 검색어 매칭 슬라이드 찾기 */
-      let firstMatch = -1;
-      document.querySelectorAll('[data-slide-idx]').forEach(panel => {
-        const gi = Number(panel.dataset.slideIdx);
-        let found = false;
-        panel.querySelectorAll('.ex-row').forEach(row => {
-          const nm  = row.dataset.name || '';
-          const bkn = row.dataset.bk   || '';
-          const hit = nm.includes(q) || bkn.includes(q);
-          row.style.background = hit && q ? 'rgba(99,102,241,.08)' : '';
-          row.style.border     = hit && q ? '1.5px solid var(--a40)' : '1px solid var(--bdr)';
-          if (hit) found = true;
-        });
-        if (found && firstMatch < 0) firstMatch = gi;
-      });
-      if (firstMatch >= 0) _goSlide(firstMatch);
-    });
-  }
 
   async function _deleteExemptItem(clsId, bookId, studentName, btnEl){
     if (!confirm('"'+studentName+'" 예외 설정을 삭제하시겠습니까?')) return;
