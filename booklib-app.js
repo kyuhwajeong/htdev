@@ -3575,67 +3575,6 @@ const BooklibApp = (() => {
     }
   }
 
-    sheet.innerHTML = `
-      <!-- 타이틀 -->
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 10px;flex-shrink:0">
-        <div>
-          <div style="font-size:16px;font-weight:800">📋 예외 학생 전체 목록</div>
-          <div style="font-size:11px;color:var(--tx3);margin-top:2px">반별 슬라이드 · 좌우로 이동하세요</div>
-        </div>
-        <button onclick="document.getElementById('bl-exempt-list').remove()"
-          style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>
-      </div>
-      <!-- 퀵서치 -->
-      <div style="padding:0 18px 10px;flex-shrink:0">
-        <div style="position:relative">
-          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--tx3)">🔍</span>
-          <input id="el-search" type="text" placeholder="학생명·교재명 검색 → 해당 반 슬라이드로 이동"
-            style="width:100%;box-sizing:border-box;padding:8px 12px 8px 32px;border-radius:10px;
-                   border:1.5px solid var(--bdr2);font-size:13px;font-family:var(--font);
-                   outline:none;background:var(--surf2);color:var(--tx)">
-        </div>
-      </div>
-      <!-- 반 탭 네비 -->
-      <div id="el-tab-nav" style="display:flex;gap:6px;padding:0 18px 8px;overflow-x:auto;flex-shrink:0;scrollbar-width:none"></div>
-      <!-- 슬라이드 영역 -->
-      <div id="el-slide-area" style="flex:1;overflow:hidden;position:relative;min-height:200px">
-        <div id="el-loading" style="text-align:center;color:var(--tx3);font-size:12px;padding:32px">로드 중…</div>
-      </div>
-      <!-- 좌우 화살표 + 인디케이터 -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 18px 14px;flex-shrink:0;border-top:1px solid var(--bdr)">
-        <button id="el-prev" onclick="BooklibApp._elSlide(-1)"
-          style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--bdr2);background:var(--surf2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
-        <div id="el-dots" style="display:flex;gap:5px;align-items:center"></div>
-        <button id="el-next" onclick="BooklibApp._elSlide(1)"
-          style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--bdr2);background:var(--surf2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
-      </div>`;
-
-
-  async function _deleteExemptItem(clsId, bookId, studentName, btnEl){
-    if (!confirm('"'+studentName+'" 예외 설정을 삭제하시겠습니까?')) return;
-    /* ★ 교재별 독립 저장에서 해당 학생만 삭제 */
-    const exempts = await BookLibDB.loadBookExempts(clsId, bookId) || {};
-    delete exempts[studentName];
-    await BookLibDB.saveBookExempts(clsId, bookId, exempts);
-    /* UI: 해당 행 제거 */
-    const row = btnEl?.closest('.ex-row');
-    row?.remove();
-    _toast('🗑 삭제 완료', 'success');
-  }
-
-  function openExemptMgr_cls(clsId, bkId){
-    document.getElementById('bl-exempt-list')?.remove();
-    openExemptMgr(); // 이미 정의된 openExemptMgr 호출
-    // 선택값 자동 설정
-    setTimeout(()=>{
-      const clsSel=document.querySelector('#bl-exempt-mgr select:first-of-type');
-      const bkSel=document.querySelector('#bl-exempt-mgr select:last-of-type');
-      if(clsSel){ clsSel.value=clsId; clsSel.dispatchEvent(new Event('change')); }
-      if(bkSel&&bkId) setTimeout(()=>{bkSel.value=bkId;bkSel.dispatchEvent(new Event('change'));},100);
-    },50);
-  }
-
-    /* ══ PUBLIC ══ */
   return{
     init,render,switchTab,
     _addExcRow,
