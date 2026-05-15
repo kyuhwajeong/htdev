@@ -5,17 +5,17 @@
  *
  * 챕터 타입 판별 규칙 (v3.1)
  *   1. [단어] 대괄호 있으면 → word
- *   2. [문장] 대괄호 있으면 → sentence
+ *   2. [문장] 대괄호 있으면 → sentence 
  *   3. 대괄호 없이 '단어' 포함 → word
  *   4. 대괄호 없이 '문장' 포함 → sentence
  *   5. 그 외 → none
- *
+ * 
  * 세부미수행 옵션
  *   word:     암기/리콜/스펠/스피킹/매칭/테스트
  *   sentence: 암기/리콜/스펠/스피킹/스크램블/테스트
  *
  * 체크값: "YYYY-MM-DD[:task1,task2]"
- * 스탬프: "YYYY-MM-DD HH:MM"
+ * 스탬프: "YYYY-MM-DD HH:MM" 
  */
 const BookLibDB = (() => {
   const LS_BOOKS  = 'hk10b_booklib';
