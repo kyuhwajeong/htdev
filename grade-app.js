@@ -2655,9 +2655,17 @@ const GradeApp = (() => {
   // ── 모든 교재 데이터 수집 (완결 포함) ──
   function _getAllBooksForCls(clsId) {
     if (typeof BookLibDB === 'undefined') return [];
-    return BookLibDB.getBooks().filter(b =>
+    // ★ getAllBooks()로 완결(archived) 교재 포함 전체 조회
+    const allBks = typeof BookLibDB.getAllBooks === 'function'
+      ? BookLibDB.getAllBooks()
+      : BookLibDB.getBooks(); // 폴백
+    return allBks.filter(b =>
       (b.classIds||[]).includes(clsId)
-    ).sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||''));
+    ).sort((a,b) => {
+      // 비완결 먼저, 같으면 생성일 순
+      if (!!a.archived !== !!b.archived) return a.archived ? 1 : -1;
+      return (a.createdAt||'').localeCompare(b.createdAt||'');
+    });
   }
 
   // ── 학생별 특정 교재 성취 데이터 ──
