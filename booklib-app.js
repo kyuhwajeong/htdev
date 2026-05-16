@@ -3410,72 +3410,92 @@ const BooklibApp = (() => {
   function _normStr(s){ return String(s||'').replace(/[\s　]+/g,'').toLowerCase(); }
 
   function _matchFileToTarget(fname){
-    // 파일명 예:
-    //   "04.[T2] 단어가 된다 2_전체평가표_20260516.xlsx"  → 반 매칭
-    //   "01.[나현] 파닉스 몬스터 3_20260516.xlsx"          → 학생명 매칭 (반 미배정)
-    //   "03.[서우,혜온] 초등 천일문_20260516.xlsx"         → 복수 학생명 매칭
+    // 파일명 패턴:
+    //   "04.[T2] 단어가 된다 2_20260516.xlsx"    → 반(T2) + 교재명 매칭
+    //   "01.[나현] 파닉스 몬스터 3_20260516.xlsx" → 교재명(나현 포함) 매칭
+    //   "03.[서우,혜온] 초등 천일문_20260516.xlsx" → 교재명(서우 또는 혜온 포함) 매칭
     const allCls  = typeof DB!=='undefined'?DB.getActiveClasses():[];
     const allBks  = BookLibDB.getBooks().filter(b=>!b.archived);
     const fnNorm  = _normStr(fname);
 
-    // ── 브라켓 내용 추출 ──
+    // ── 브라켓 내용 추출: 예) "[나현]" → "나현", "[T2]" → "T2"
     const bracketMatch = fname.match(/\[([^\]]+)\]/);
-    const bracketRaw   = bracketMatch ? bracketMatch[1] : '';
+    const bracketRaw   = bracketMatch ? bracketMatch[1].trim() : '';
+    const bracketNorm  = _normStr(bracketRaw);
 
-    // ── 반 매칭 ──
+    // ── 반 매칭: 브라켓 내용 기준 우선 (false positive 방지)
+    // 브라켓 안의 텍스트와 클래스 이름을 정확히(exact) 또는 포함으로 비교
     let matchedCls = null;
-    for(const cls of allCls){
-      if(fnNorm.includes(_normStr(cls.name))){
-        if(!matchedCls || cls.name.length > matchedCls.name.length)
-          matchedCls = cls;
+    if(bracketNorm){
+      for(const cls of allCls){
+        const clsNorm = _normStr(cls.name);
+        if(!clsNorm) continue;
+        // 브라켓 내용이 클래스 이름과 정확히 일치하거나 포함
+        if(bracketNorm===clsNorm || bracketNorm.startsWith(clsNorm+',') || bracketNorm.endsWith(','+clsNorm)){
+          if(!matchedCls || cls.name.length > matchedCls.name.length) matchedCls = cls;
+        }
+      }
+    }
+    // 브라켓에서 못 찾은 경우: 파일명 전체에서 매칭하되 길이 2 이상만 허용
+    // (단일 문자 클래스는 '.xlsx' 같은 확장자 안의 문자와 오매칭될 수 있어 제외)
+    if(!matchedCls){
+      for(const cls of allCls){
+        const clsNorm = _normStr(cls.name);
+        if(clsNorm.length < 2) continue; // ★ 단일 문자 false-positive 방지
+        if(fnNorm.includes(clsNorm)){
+          if(!matchedCls || cls.name.length > matchedCls.name.length) matchedCls = cls;
+        }
       }
     }
 
-    // ── 교재명 매칭 ──
+    // ── 교재명 매칭: 파일명에 교재명(공백제거)이 포함되는지
     let matchedBk = null;
     for(const bk of allBks){
       const bkNorm = _normStr(bk.name);
       if(bkNorm.length>=2 && fnNorm.includes(bkNorm)){
-        if(!matchedBk || bk.name.length > matchedBk.name.length)
-          matchedBk = bk;
+        if(!matchedBk || bk.name.length > matchedBk.name.length) matchedBk = bk;
       }
     }
 
-    // ── 반+교재 모두 매칭 → 기존 처리 ──
+    // ── 반+교재 모두 매칭 → 기존 처리
     if(matchedCls && matchedBk){
       const assigned = (matchedBk.classIds||[]).includes(matchedCls.id);
       return {cls:matchedCls, bk:matchedBk, assigned};
     }
 
-    // ── 반 미매칭 → 학생명 기반 반 미배정 교재 검색 ──
+    // ── 반 미매칭 → 학생명 기반 교재 매칭
+    // 브라켓 안의 한글 이름으로 교재명에 학생이름이 포함된 반 미배정 교재를 탐색
     if(!matchedCls && bracketRaw){
-      // 이름 분리: 콤마, 중간점 등으로 구분
-      const stuNames = bracketRaw.split(/[,，·、]+/).map(s=>s.trim()).filter(Boolean);
-      // 한글 이름이 1개 이상 포함된 경우만 학생명으로 간주
-      const isLikelyStu = stuNames.some(n=>/[가-힣]{1,}/.test(n));
+      const stuNames = bracketRaw.split(/[,，·、]+/).map(s=>s.trim()).filter(s=>/[가-힣]/.test(s));
 
-      if(isLikelyStu){
-        const allStus = typeof StudentDB!=='undefined' ? StudentDB.getAll() : [];
+      if(stuNames.length){
         const noClsBks = allBks.filter(b=>!(b.classIds&&b.classIds.length));
 
-        // 1순위: 교재명도 매칭되고, 그 교재가 반 미배정, 학생도 매칭
-        if(matchedBk && !(matchedBk.classIds&&matchedBk.classIds.length)){
-          const bkStus = (matchedBk.studentIds||[])
-            .map(id=>allStus.find(s=>s.id===id)).filter(Boolean);
-          const stuHit = stuNames.some(qn=>
-            bkStus.some(s=>(s.name||'').includes(qn)||qn.includes(s.name||'')));
-          if(stuHit) return {cls:null, bk:matchedBk, assigned:true, stuNames};
+        // ★ 1순위: 교재명 안에 학생이름이 포함된 경우
+        // 예) "파닉스 몬스터 3(나현)" → 이름 "나현" 포함 → 파일명에서 "파닉스몬스터3" 매칭 확인
+        for(const bk of noClsBks){
+          const bkNameContainsStu = stuNames.some(sn=>bk.name.includes(sn));
+          if(!bkNameContainsStu) continue;
+
+          // 교재명에서 학생이름과 괄호를 제거한 기본명이 파일명에 포함되는지 확인
+          let baseName = bk.name;
+          stuNames.forEach(sn => { baseName = baseName.replace(new RegExp(sn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'), ''); });
+          baseName = baseName.replace(/[(（）)[\]【】,·]+/g,' ').trim();
+          const baseNorm = _normStr(baseName);
+
+          if(baseNorm.length >= 2 && fnNorm.includes(baseNorm)){
+            return {cls:null, bk, assigned:true, stuNames};
+          }
         }
 
-        // 2순위: 교재명 무관, 반 미배정 교재 전체에서 교재명+학생명 동시 탐색
+        // ★ 2순위: 교재명엔 이름 없지만 studentIds에 해당 학생이 등록된 경우
+        // (교재명 기반 파일명 매칭도 함께 확인)
+        const allStus = typeof StudentDB!=='undefined' ? StudentDB.getAll() : [];
         for(const bk of noClsBks){
-          if(matchedBk && bk.id===matchedBk.id) continue;
           const bkNorm = _normStr(bk.name);
           if(bkNorm.length<2 || !fnNorm.includes(bkNorm)) continue;
-          const bkStus = (bk.studentIds||[])
-            .map(id=>allStus.find(s=>s.id===id)).filter(Boolean);
-          const stuHit = stuNames.some(qn=>
-            bkStus.some(s=>(s.name||'').includes(qn)||qn.includes(s.name||'')));
+          const bkStus = (bk.studentIds||[]).map(id=>allStus.find(s=>s.id===id)).filter(Boolean);
+          const stuHit = stuNames.some(qn=>bkStus.some(s=>(s.name||'').includes(qn)||qn.includes(s.name||'')));
           if(stuHit) return {cls:null, bk, assigned:true, stuNames};
         }
       }
