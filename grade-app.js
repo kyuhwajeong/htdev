@@ -2513,22 +2513,9 @@ const GradeApp = (() => {
     _st.classId=clsId||null; _st.bookId=null; _st.studentId=null;
     _st.data={}; _st.dirty.clear(); _st.sortCol=null;
     _fillBooks();
-
-    // ★ 반 선택 시 첫 번째 교재 자동 선택
-    if (clsId) {
-      const books = typeof BookLibDB!=='undefined'
-        ? BookLibDB.getBooksForClass(clsId).filter(b=>!b.archived) : [];
-      if (books.length) {
-        _st.bookId = books[0].id;
-        const bsel = document.getElementById('gr-bsel');
-        if (bsel) bsel.value = _st.bookId;
-      }
-    }
-
     _renderStudents(); _renderContent(); _updateRptBtn(); _updateSub();
     _refreshToolbar();
     const bsel=document.getElementById('gr-bsel'); if(bsel)bsel.disabled=false;
-    if (_st.bookId) requestAnimationFrame(()=>_updateChart());
   }
   async function _onBk(bkId) {
     if (_st.dirty.size > 0) {
