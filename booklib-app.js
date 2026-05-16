@@ -337,7 +337,7 @@ const BooklibApp = (() => {
       const _arcAllCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
       const _arcClsNames=(b.classIds||[]).map(cid=>{const c=_arcAllCls.find(x=>x.id===cid);return c?c.name:'?';}).filter(Boolean);
       const _arcStuNames=(b.studentIds||[]).length&&typeof StudentDB!=='undefined'?StudentDB.getAll().filter(s=>(b.studentIds||[]).includes(s.id)).map(s=>s.name).slice(0,3):[]; 
-      const _arcBadge=_arcClsNames.length?'<span style="background:var(--a10);color:var(--a);border:1px solid var(--a40);border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">'+_arcClsNames.join('·')+'반</span>':(_arcStuNames.length?'<span style="background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.3);border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">👤 '+_arcStuNames.join('·')+(((b.studentIds||[]).length>3)?' 외':'')+' </span>':'');
+      const _arcBadge=_arcClsNames.length?'<span style="background:var(--a10);color:var(--a);border:1px solid var(--a40);border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">'+_arcClsNames.join('·')+'반</span>':(_arcStuNames.length?'<span style="background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.3);border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">🐱 '+_arcStuNames.join('·')+(((b.studentIds||[]).length>3)?' 외':'')+' </span>':'');
       info.innerHTML='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_e(b.name)+'</div><div style="display:flex;align-items:center;gap:6px;margin-top:3px">'+_arcBadge+'<span style="font-size:11px;color:var(--tx3)">'+(b.archivedAt?b.archivedAt.slice(0,10):'')+'</span></div>';
       row.appendChild(info);
       if(isAdm){
@@ -462,7 +462,7 @@ const BooklibApp = (() => {
     // 학생배정/미배정 버튼
     if(hasStu){
       const btn=document.createElement('button');
-      btn.textContent='👤 학생배정';
+      btn.textContent='🐱 학생배정';
       const isActive=_libFilterCls==='__stu__';
       btn.style.cssText='padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;'+(isActive?'background:var(--a);color:#fff;border:none;':'background:var(--card);color:var(--tx3);border:1px solid var(--bdr2);');
       btn.onclick=()=>{_libFilterCls=(_libFilterCls==='__stu__')?null:'__stu__';_rerenderBookGroups(books,isAdmin);_renderClsFilterBtns(books,isAdmin);if(_libFilterCls){setTimeout(()=>{const sec=document.querySelector('.bl-cls-section[data-cls-id="__stu__"]');if(sec)sec.scrollIntoView({behavior:'smooth',block:'start'});},50);}};
@@ -553,7 +553,7 @@ const BooklibApp = (() => {
       const booksHTML = stuOnly.map(b=>_bookCardHTML(b,isAdmin)).join('');
       sections.push(`<div class="bl-cls-section" data-cls-id="__stu__" style="${filterId&&filterId!=='__stu__'?'display:none;':''}">
         <div class="bl-cls-section-hdr">
-          <span style="background:rgba(99,102,241,.6);color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">👤 학생 배정</span>
+          <span style="background:rgba(99,102,241,.6);color:#fff;padding:2px 10px;border-radius:20px;font-size:12px">🐱 학생 배정</span>
           <span style="font-size:11px;color:var(--tx3);font-weight:400">${stuOnly.length}개</span>
         </div>
         <div class="${wrapClass}">${booksHTML}</div>
@@ -689,7 +689,7 @@ const BooklibApp = (() => {
           <div class="bl-book-title" ondblclick="event.stopPropagation();BooklibApp._inlineRenameBook('${b.id}',this)" title="더블클릭하여 교재명 변경">${_e(b.name)}</div>
           <div class="bl-book-meta">
             <span class="bl-badge" style="${chLabelStyle}">${chLabel}</span>
-            ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:(b.studentIds&&b.studentIds.length?(()=>{const _aS=typeof StudentDB!=="undefined"?StudentDB.getAll():[];const _nms=(b.studentIds||[]).slice(0,3).map(id=>(_aS.find(s=>s.id===id)||{}).name||"").filter(Boolean);return _nms.length?`<span class="bl-badge" style="background:var(--a10);color:var(--a);border:1px solid var(--a40)">👤 ${_nms.join(" · ")}${(b.studentIds||[]).length>3?" 외 "+((b.studentIds||[]).length-3)+"명":""}</span>`:"";})():"")}
+            ${clsNames?`<span class="bl-badge hi">🏫 ${_e(clsNames)}</span>`:(b.studentIds&&b.studentIds.length?(()=>{const _aS=typeof StudentDB!=="undefined"?StudentDB.getAll():[];const _nms=(b.studentIds||[]).slice(0,3).map(id=>(_aS.find(s=>s.id===id)||{}).name||"").filter(Boolean);return _nms.length?`<span class="bl-badge" style="background:var(--a10);color:var(--a);border:1px solid var(--a40)">🐱 ${_nms.join(" · ")}${(b.studentIds||[]).length>3?" 외 "+((b.studentIds||[]).length-3)+"명":""}</span>`:"";})():"")}
             ${isArchived?`<span class="bl-badge" style="color:var(--tx3)">📦 완결 ${b.archivedAt?b.archivedAt.slice(0,10):''}</span>`:''}
           </div>
         </div>
@@ -2321,7 +2321,7 @@ const BooklibApp = (() => {
     const undone=evalChs.filter(ch=>_checks[`${sid}__${ch.id}`]),done=evalChs.filter(ch=>!_checks[`${sid}__${ch.id}`]);
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
     const undoneLines=undone.map(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${sid}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';return`  ${ch.title}`;});
-    const text=[`📚 ${book.name} 학습 현황`,`👤 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
+    const text=[`📚 ${book.name} 학습 현황`,`🐱 ${cls.name}반`,lastCh?`📍 진도 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:'',`📅 ${today}`,'',undone.length?`⬜ 미수행 (${undone.length}개)\n${undoneLines.join('\n')}`:'🎉 완료!',done.length&&undone.length?`\n✅ 수행 (${done.length}개)`:''].filter(l=>l!==undefined).join('\n').trim();
     return{text,undone,done,total:evalChs.length};
   }
 
@@ -2926,7 +2926,7 @@ const BooklibApp = (() => {
           : '<span style="font-size:11px;color:var(--tx3)">항목 없음</span>';
         entry.innerHTML=`
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:800;color:var(--tx);margin-bottom:5px">👤 ${_e(stuName)}</div>
+            <div style="font-size:13px;font-weight:800;color:var(--tx);margin-bottom:5px">🐱 ${_e(stuName)}</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap">${itemBadges}</div>
           </div>
           <button data-name="${_e(stuName)}" class="pf-del-btn"
@@ -3355,14 +3355,28 @@ const BooklibApp = (() => {
   
   
   async function _confirmCsvImport() {
-    // ★ 학생별 예외 항목 수집 + DB 저장 (반 기준)
-    // ★ exceptions에 alias 정보 포함 버전으로 수집
+    // 예외 항목 수집
     _csvImportState.exceptions = _collectExceptions();
     _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length > 0;
-    const fullExcs = _collectExceptionsForSave();
-    if (_st.matrixClassId && typeof BookLibDB!=='undefined' && BookLibDB.saveClassExempts) {
-      BookLibDB.saveClassExempts(_st.matrixClassId, fullExcs);
+
+    // ★★★ 핵심 수정: 신구조 {bookId:{학생명:{...}}}로 저장 ★★★
+    // 기존 저장 방식(_collectExceptionsForSave 결과를 그대로 저장)은
+    // bookId가 없는 구버전 구조로 저장되어, 다음 로드 시 마이그레이션에서
+    // bookId를 찾지 못해 {} 반환 → 예외 목록이 사라지는 버그 발생
+    if (_st.matrixClassId && _st.matrixBookId &&
+        typeof BookLibDB !== 'undefined' && BookLibDB.saveClassExempts) {
+      const collected = _collectExceptionsForSave();
+      // 기존 DB 데이터를 신구조로 읽어온 뒤 해당 bookId만 교체 (다른 교재 보존)
+      const rawExisting = await BookLibDB.loadClassExempts(_st.matrixClassId) || {};
+      const existing    = _migrateExemptsIfNeeded(rawExisting);
+      if (Object.keys(collected).length) {
+        existing[_st.matrixBookId] = collected;
+      } else {
+        delete existing[_st.matrixBookId];  // 빈 경우 키 제거
+      }
+      await BookLibDB.saveClassExempts(_st.matrixClassId, existing);
     }
+
     document.getElementById('bl-csv-modal')?.remove();
     const file = _csvImportState._pendingFile;
     if (file) await importCsv(file);
@@ -3617,7 +3631,7 @@ const BooklibApp = (() => {
       const clsText = match.cls
         ? `<span style="background:var(--a10);color:var(--a);padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">${match.cls.name}반</span>`
         : match.stuNames
-          ? `<span style="background:rgba(99,102,241,.1);color:#6366f1;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">👤 ${match.stuNames.join('·')}</span>`
+          ? `<span style="background:rgba(99,102,241,.1);color:#6366f1;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">🐱 ${match.stuNames.join('·')}</span>`
           : `<span style="color:#dc2626;font-size:11px">반 미매칭</span>`;
       const bkText   = match.bk?`<span style="font-size:11px;color:var(--tx2)">${match.bk.name}</span>`:`<span style="color:#dc2626;font-size:11px">교재 미매칭</span>`;
       const warnText = warn?`<span style="font-size:10px;color:#d97706">⚠ 반에 미배정 교재</span>`:'';
@@ -3702,7 +3716,7 @@ const BooklibApp = (() => {
         // ★ 결과 레이블: 반명 또는 학생명
         const targetLabel = match.cls
           ? `${match.cls.name}반`
-          : match.stuNames ? `👤 ${match.stuNames.join('·')}` : '(미배정)';
+          : match.stuNames ? `🐱 ${match.stuNames.join('·')}` : '(미배정)';
         results.push({name:f.name, ok:true,
           msg:`✅ ${targetLabel} · ${match.bk.name} — 미수행 ${res.undone}건, 수행 ${res.done}건${res.stampTitle?' | 📍'+res.stampTitle:''}` });
 
