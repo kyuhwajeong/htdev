@@ -889,11 +889,12 @@ const GradeApp = (() => {
     const chartWrap = document.getElementById('gr-chart-wrap');
     if (chartWrap) {
       const isExcel = _st.viewMode === 'excel';
-      const hasData = !!(_st.bookId); // ★ 반 미선택도 저장 가능
+      const hasData = !!(_st.bookId);
       const hasScore = sts.some(s => {
         const r = GradeDB.getLatest(_st.classId||'__noclass__', s.id, _st.bookId);
         return r?.word?.pass != null && r?.word?.totalQ > 0;
       });
+      // 엑셀 뷰 + 데이터 있을 때만 표시, 리포트·카드 뷰에서는 항상 숨김
       chartWrap.style.display = (isExcel && hasData && hasScore) ? '' : 'none';
     }
     _renderChart(sts, revs);
@@ -2536,6 +2537,9 @@ const GradeApp = (() => {
     // ★ 리포트 탭 고정 버튼 표시/숨김
     const fixedBtns = document.getElementById('gr-rpt-fixed-btns');
     if (fixedBtns) fixedBtns.style.display = mode==='report' ? 'flex' : 'none';
+    // ★ 리포트 뷰에서는 하단 차트 영역 완전 숨김
+    const chartWrap = document.getElementById('gr-chart-wrap');
+    if (chartWrap) chartWrap.style.display = 'none';
     document.querySelectorAll('.gr-vbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
     _renderStudents(); _renderContent(); _refreshToolbar();
   }
