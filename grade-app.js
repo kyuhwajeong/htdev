@@ -1589,7 +1589,7 @@ const GradeApp = (() => {
     if (preview) preview.style.fontWeight = on ? '700' : '400';
   }
 
-  // ── 📲 전달: 캡처 → 공유 ──
+  // ── 📲 전달: 캡처 → 클립보드 복사 + 공유 ──
   async function _deliverReport() {
     const el = document.getElementById('gr-rpt-preview'); if(!el){ _toast('⚠️ 리포트를 먼저 열어주세요'); return; }
     const s  = _getStudents().find(st=>st.id===_st.studentId) || _getStudents()[0];
@@ -1598,52 +1598,121 @@ const GradeApp = (() => {
 
     _toast('📸 이미지 생성 중...', 'success');
     try {
-      const canvas = await html2canvas(el, { scale:2, useCORS:true, backgroundColor: _st.rptBg||'#ffffff', logging:false });
+      const canvas = await html2canvas(el, {
+        scale: 2, useCORS: true,
+        backgroundColor: _st.rptBg || '#ffffff',
+        logging: false,
+      });
+
       canvas.toBlob(async blob => {
         if (!blob) { _toast('⚠️ 캡처 실패'); return; }
-        const file = new File([blob], `${title}.png`, { type:'image/png' });
-        // ① Web Share API (카카오톡, 문자 등 앱 공유)
-        if (navigator.share && navigator.canShare({ files:[file] })) {
+
+        // ① 클립보드에 PNG 복사 (PC 카카오톡 Ctrl+V 붙여넣기용)
+        let clipped = false;
+        if (navigator.clipboard && window.ClipboardItem) {
           try {
-            await navigator.share({ title, text: title, files:[file] });
-            _toast('📲 전달 완료', 'success');
-            return;
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            clipped = true;
           } catch(e) {
-            if (e.name === 'AbortError') return; // 사용자 취소
+            console.warn('[전달] clipboard.write 실패:', e.name, e.message);
           }
         }
-        // ② 폴백: 이미지 저장 + 공유 모달
-        const url = URL.createObjectURL(blob);
-        _showDeliverModal(url, title, canvas);
+
+        // ② 모바일: Web Share API (카카오톡·문자 앱 선택 시트)
+        //    클립보드 실패 시에만 시도 (모바일에서는 clipboard가 주로 실패)
+        if (!clipped) {
+          const file = new File([blob], `${title}.png`, { type:'image/png' });
+          if (navigator.share && navigator.canShare({ files:[file] })) {
+            try {
+              await navigator.share({ title, text: title, files:[file] });
+              _toast('📲 전달 완료', 'success');
+              return;
+            } catch(e) {
+              if (e.name === 'AbortError') return; // 사용자 취소
+            }
+          }
+        }
+
+        // ③ 결과 모달 표시
+        const blobUrl = URL.createObjectURL(blob);
+        _showDeliverModal(blobUrl, title, blob, clipped);
       }, 'image/png');
     } catch(e) {
       console.error(e);
-      _toast('⚠️ 캡처 오류: '+e.message, 'error');
+      _toast('⚠️ 캡처 오류: ' + e.message, 'error');
     }
   }
 
-  function _showDeliverModal(blobUrl, title, canvas) {
+  function _showDeliverModal(blobUrl, title, blob, clipped) {
     document.getElementById('gr-deliver-modal')?.remove();
     const modal = document.createElement('div');
     modal.id = 'gr-deliver-modal';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+
+    // 클립보드 성공 배너
+    const clipBanner = clipped ? `
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:12px;margin-bottom:14px">
+        <span style="font-size:24px">📋</span>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:#fff">클립보드에 복사됐습니다!</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.85);margin-top:2px">카카오톡 채팅창을 열고 <strong>Ctrl + V</strong> 로 바로 붙여넣으세요</div>
+        </div>
+      </div>` : `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:10px;margin-bottom:14px">
+        <span style="font-size:18px">⚠️</span>
+        <div style="font-size:11px;color:#92400e;line-height:1.6">클립보드 복사가 지원되지 않는 환경입니다.<br>이미지를 저장 후 카카오톡에서 직접 첨부하세요.</div>
+      </div>`;
+
+    // Ctrl+V 단계 안내
+    const steps = clipped ? `
+      <div style="background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.7px;margin-bottom:8px">PC 카카오톡 전달 순서</div>
+        ${[
+          ['1','카카오톡을 열고 원하는 채팅방 선택'],
+          ['2','채팅 입력창 클릭'],
+          ['3','Ctrl + V 붙여넣기'],
+          ['4','Enter 전송'],
+        ].map(([n,t])=>`
+          <div style="display:flex;align-items:center;gap:9px;padding:5px 0${n!=='4'?';border-bottom:1px solid var(--bdr)':''}">
+            <span style="width:20px;height:20px;border-radius:50%;background:var(--a);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${n}</span>
+            <span style="font-size:12px;color:var(--tx2)">${t}</span>
+          </div>`).join('')}
+      </div>` : '';
+
     modal.innerHTML = `
-      <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 20px 36px;box-shadow:var(--sh2)" onclick="event.stopPropagation()">
+      <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 20px 36px;box-shadow:var(--sh2);max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
         <div style="width:40px;height:4px;border-radius:2px;background:var(--bdr2);margin:0 auto 16px"></div>
-        <div style="font-size:16px;font-weight:800;color:var(--tx);margin-bottom:4px">📲 리포트 전달</div>
-        <div style="font-size:12px;color:var(--tx3);margin-bottom:14px">이미지로 캡처됐습니다. 저장 후 카카오톡에서 직접 전송하세요.</div>
-        <img src="${blobUrl}" style="width:100%;border-radius:10px;border:1px solid var(--bdr);margin-bottom:14px;display:block">
+        <div style="font-size:16px;font-weight:800;color:var(--tx);margin-bottom:14px">📲 리포트 전달</div>
+        ${clipBanner}
+        ${steps}
+        <img src="${blobUrl}" style="width:100%;border-radius:10px;border:1px solid var(--bdr);margin-bottom:14px;display:block;cursor:pointer" title="이미지 클릭 시 새 탭으로 열기" onclick="window.open('${blobUrl}','_blank')">
         <div style="display:flex;flex-direction:column;gap:8px">
+          ${clipped ? `
+          <button onclick="(async()=>{try{const r=await fetch('${blobUrl}');const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);GradeApp._toast('📋 다시 복사됨!','success');}catch(e){GradeApp._toast('⚠️ 복사 실패','error');}})()"
+            style="padding:13px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);box-shadow:0 3px 10px var(--a40)">
+            📋 다시 복사 (Ctrl+V 용)
+          </button>` : ''}
           <a href="${blobUrl}" download="${title}.png"
-            style="display:block;text-align:center;padding:13px;border-radius:10px;background:var(--a);color:#fff;font-size:14px;font-weight:800;text-decoration:none;box-shadow:0 3px 10px var(--a40)">
+            style="display:block;text-align:center;padding:12px;border-radius:10px;background:rgba(5,150,105,.1);color:var(--green);border:1px solid rgba(5,150,105,.3);font-size:13px;font-weight:700;text-decoration:none">
             📥 이미지 저장
           </a>
           <button onclick="document.getElementById('gr-deliver-modal').remove()"
-            style="padding:12px;border-radius:10px;background:var(--surf2);color:var(--tx3);border:1px solid var(--bdr);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">닫기</button>
+            style="padding:11px;border-radius:10px;background:var(--surf2);color:var(--tx3);border:1px solid var(--bdr);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">닫기</button>
         </div>
       </div>`;
-    modal.addEventListener('click', ()=>modal.remove());
+
+    modal.addEventListener('click', () => modal.remove());
     document.body.appendChild(modal);
+
+    // 클립보드 성공 시 자동으로 3초 후 toast 재알림 (사용자가 모달 닫고 카카오톡 여는 동안)
+    if (clipped) {
+      setTimeout(() => {
+        if (document.getElementById('gr-deliver-modal')) return; // 모달 아직 열려있으면 skip
+        _toast('💡 카카오톡 채팅창에서 Ctrl+V 하세요', 'success');
+      }, 500);
+    }
   }
 
   function _setRptBg(color){
