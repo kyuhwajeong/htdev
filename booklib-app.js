@@ -1270,12 +1270,11 @@ const BooklibApp = (() => {
       <div class="bl-editor-body" id="bl-editor-body">
         ${_editorTab==='chapters'?_edChaptersHTML(book,chs,allCls,allStus,isAdmin):_edEvalHTML(cfg,isAdmin)}
       </div>
-      <div class="sh-acts">
-        <button class="btn-x" onclick="BooklibApp.closeEditor()">취소</button>
+      <div class="sh-acts" style="flex-wrap:nowrap;gap:8px">
+        ${isAdmin?`<button id="bl-ed-del-btn"
+          style="flex:1;padding:13px;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);border-radius:var(--rs);color:#dc2626;font-size:var(--fz);font-weight:700;cursor:pointer;font-family:var(--font)">🗑 교재 삭제</button>`:''}
         ${isAdmin?`<button class="btn-ok" onclick="BooklibApp.saveEditor()">저장</button>`:''}
-      ${isAdmin?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
-        <button id="bl-ed-del-btn" style="width:100%;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.25);color:#dc2626;font-size:12px;font-weight:700;cursor:pointer">🗑 이 교재 삭제</button>
-      </div>`:''}
+        <button class="btn-x" onclick="BooklibApp.closeEditor()">취소</button>
       </div>`;
     if(isAdmin&&_editorTab==='chapters')_bindDrop('bl-ch-drop',book.id,_importChFile);
     // 학생 검색 이벤트
@@ -3411,23 +3410,28 @@ const BooklibApp = (() => {
   function _normStr(s){ return String(s||'').replace(/[\s　]+/g,'').toLowerCase(); }
 
   function _matchFileToTarget(fname){
-    // 파일명 예: "04.[T2] 단어가 된다 2_전체평가표_2026-05-07.xlsx"
-    // 반: T2, 교재: 단어가 된다 2
+    // 파일명 예:
+    //   "04.[T2] 단어가 된다 2_전체평가표_20260516.xlsx"  → 반 매칭
+    //   "01.[나현] 파닉스 몬스터 3_20260516.xlsx"          → 학생명 매칭 (반 미배정)
+    //   "03.[서우,혜온] 초등 천일문_20260516.xlsx"         → 복수 학생명 매칭
     const allCls  = typeof DB!=='undefined'?DB.getActiveClasses():[];
     const allBks  = BookLibDB.getBooks().filter(b=>!b.archived);
     const fnNorm  = _normStr(fname);
 
-    // 반 매칭: 반 이름이 파일명에 포함되어 있는지
+    // ── 브라켓 내용 추출 ──
+    const bracketMatch = fname.match(/\[([^\]]+)\]/);
+    const bracketRaw   = bracketMatch ? bracketMatch[1] : '';
+
+    // ── 반 매칭 ──
     let matchedCls = null;
     for(const cls of allCls){
       if(fnNorm.includes(_normStr(cls.name))){
-        // 더 긴 이름이 매칭되면 우선 (예: T2 vs T20 충돌 방지)
         if(!matchedCls || cls.name.length > matchedCls.name.length)
           matchedCls = cls;
       }
     }
 
-    // 교재 매칭: 교재명(공백제거)이 파일명에 포함
+    // ── 교재명 매칭 ──
     let matchedBk = null;
     for(const bk of allBks){
       const bkNorm = _normStr(bk.name);
@@ -3437,11 +3441,46 @@ const BooklibApp = (() => {
       }
     }
 
-    // 추가: 교재가 해당 반에 배정됐는지 확인
+    // ── 반+교재 모두 매칭 → 기존 처리 ──
     if(matchedCls && matchedBk){
       const assigned = (matchedBk.classIds||[]).includes(matchedCls.id);
       return {cls:matchedCls, bk:matchedBk, assigned};
     }
+
+    // ── 반 미매칭 → 학생명 기반 반 미배정 교재 검색 ──
+    if(!matchedCls && bracketRaw){
+      // 이름 분리: 콤마, 중간점 등으로 구분
+      const stuNames = bracketRaw.split(/[,，·、]+/).map(s=>s.trim()).filter(Boolean);
+      // 한글 이름이 1개 이상 포함된 경우만 학생명으로 간주
+      const isLikelyStu = stuNames.some(n=>/[가-힣]{1,}/.test(n));
+
+      if(isLikelyStu){
+        const allStus = typeof StudentDB!=='undefined' ? StudentDB.getAll() : [];
+        const noClsBks = allBks.filter(b=>!(b.classIds&&b.classIds.length));
+
+        // 1순위: 교재명도 매칭되고, 그 교재가 반 미배정, 학생도 매칭
+        if(matchedBk && !(matchedBk.classIds&&matchedBk.classIds.length)){
+          const bkStus = (matchedBk.studentIds||[])
+            .map(id=>allStus.find(s=>s.id===id)).filter(Boolean);
+          const stuHit = stuNames.some(qn=>
+            bkStus.some(s=>(s.name||'').includes(qn)||qn.includes(s.name||'')));
+          if(stuHit) return {cls:null, bk:matchedBk, assigned:true, stuNames};
+        }
+
+        // 2순위: 교재명 무관, 반 미배정 교재 전체에서 교재명+학생명 동시 탐색
+        for(const bk of noClsBks){
+          if(matchedBk && bk.id===matchedBk.id) continue;
+          const bkNorm = _normStr(bk.name);
+          if(bkNorm.length<2 || !fnNorm.includes(bkNorm)) continue;
+          const bkStus = (bk.studentIds||[])
+            .map(id=>allStus.find(s=>s.id===id)).filter(Boolean);
+          const stuHit = stuNames.some(qn=>
+            bkStus.some(s=>(s.name||'').includes(qn)||qn.includes(s.name||'')));
+          if(stuHit) return {cls:null, bk, assigned:true, stuNames};
+        }
+      }
+    }
+
     return {cls:matchedCls, bk:matchedBk, assigned:false};
   }
 
@@ -3545,15 +3584,21 @@ const BooklibApp = (() => {
 
     files.forEach((f,idx)=>{
       const match = _matchFileToTarget(f.name);
-      const ok  = match.cls && match.bk;
-      const warn= ok && !match.assigned;
+      // ★ 학생명 매칭도 유효한 매칭으로 처리
+      const ok  = match.bk && (match.cls || match.stuNames);
+      const warn= ok && !match.assigned && match.cls; // 반 있을 때만 미배정 경고
       if(!ok) hasError=true;
 
       const row = document.createElement('div');
       row.style.cssText = `display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:${ok?'var(--surf2)':'rgba(239,68,68,.07)'};border:1px solid ${ok?(warn?'rgba(245,158,11,.4)':'var(--bdr)'):'rgba(239,68,68,.3)'}`;
 
       const icon = ok?(warn?'⚠️':'✅'):'❌';
-      const clsText  = match.cls?`<span style="background:var(--a10);color:var(--a);padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">${match.cls.name}반</span>`:`<span style="color:#dc2626;font-size:11px">반 미매칭</span>`;
+      // ★ 반 또는 학생명 표시
+      const clsText = match.cls
+        ? `<span style="background:var(--a10);color:var(--a);padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">${match.cls.name}반</span>`
+        : match.stuNames
+          ? `<span style="background:rgba(99,102,241,.1);color:#6366f1;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700">👤 ${match.stuNames.join('·')}</span>`
+          : `<span style="color:#dc2626;font-size:11px">반 미매칭</span>`;
       const bkText   = match.bk?`<span style="font-size:11px;color:var(--tx2)">${match.bk.name}</span>`:`<span style="color:#dc2626;font-size:11px">교재 미매칭</span>`;
       const warnText = warn?`<span style="font-size:10px;color:#d97706">⚠ 반에 미배정 교재</span>`:'';
 
@@ -3567,7 +3612,8 @@ const BooklibApp = (() => {
     });
 
     if(runBtn){
-      const canRun = files.some(f=>{ const m=_matchFileToTarget(f.name); return m.cls&&m.bk; });
+      // ★ 학생명 매칭도 실행 가능으로 처리
+      const canRun = files.some(f=>{ const m=_matchFileToTarget(f.name); return m.bk&&(m.cls||m.stuNames); });
       runBtn.disabled = !canRun;
       runBtn.style.opacity = canRun?'1':'.4';
       runBtn.style.cursor  = canRun?'pointer':'not-allowed';
@@ -3593,20 +3639,24 @@ const BooklibApp = (() => {
     const results = [];
     for(const f of files){
       const match = _matchFileToTarget(f.name);
-      if(!match.cls||!match.bk){
+      // ★ 반 미매칭 + 학생명 매칭인 경우도 처리 (cls:null, stuNames:[...])
+      if(!match.bk || (!match.cls && !match.stuNames)){
         results.push({name:f.name, ok:false, msg:'반/교재 매칭 실패 - 건너뜀'});
         continue;
       }
       try{
         // 이전 상태 백업 및 임시 설정
         const prevCls = _st.matrixClassId, prevBk = _st.matrixBookId;
-        _st.matrixClassId = match.cls.id;
+        // ★ cls가 null인 경우 (학생 배정 교재): matrixClassId = null
+        _st.matrixClassId = match.cls ? match.cls.id : null;
         _st.matrixBookId  = match.bk.id;
-        _checks = BookLibDB.getMatrixChecks(match.cls.id, match.bk.id);
-        _stamps = BookLibDB.getStamps(match.cls.id, match.bk.id);
+        const _cid = _st.matrixClassId || '__noclass__';
+        _checks = BookLibDB.getMatrixChecks(_cid, match.bk.id);
+        _stamps = BookLibDB.getStamps(_cid, match.bk.id);
 
         // ★ 해당 반+교재의 저장된 예외 설정 로드 (신구조: {bookId:{studentName:{...}}})
-        const rawExempts = await BookLibDB.loadClassExempts(match.cls.id)||{};
+        const exemptClsId = match.cls ? match.cls.id : null;
+        const rawExempts = await BookLibDB.loadClassExempts(exemptClsId)||{};
         const exemptsByBook = _migrateExemptsIfNeeded(rawExempts);
         const bkExempts = exemptsByBook[match.bk.id] || {};
         _csvImportState.exceptions = Object.fromEntries(
@@ -3628,12 +3678,18 @@ const BooklibApp = (() => {
 
         await _syncChaptersFromXlsx(rows, match.bk.id);
         const res = await _processCsv(rows);
+
+        // ★ 결과 레이블: 반명 또는 학생명
+        const targetLabel = match.cls
+          ? `${match.cls.name}반`
+          : match.stuNames ? `👤 ${match.stuNames.join('·')}` : '(미배정)';
         results.push({name:f.name, ok:true,
-          msg:`✅ ${match.cls.name}반 · ${match.bk.name} — 미수행 ${res.undone}건, 수행 ${res.done}건${res.stampTitle?' | 📍'+res.stampTitle:''}` });
+          msg:`✅ ${targetLabel} · ${match.bk.name} — 미수행 ${res.undone}건, 수행 ${res.done}건${res.stampTitle?' | 📍'+res.stampTitle:''}` });
 
         // 현재 화면 반영 (현재 선택된 반+교재이면 새로고침)
+        const matchClsId = match.cls ? match.cls.id : null;
         _st.matrixClassId = prevCls; _st.matrixBookId = prevBk;
-        if(prevCls===match.cls.id && prevBk===match.bk.id) _refreshBody();
+        if(prevCls===matchClsId && prevBk===match.bk.id) _refreshBody();
       } catch(err){
         results.push({name:f.name, ok:false, msg:'❌ 오류: '+err.message});
       }
