@@ -2097,10 +2097,15 @@ const BooklibApp = (() => {
 
   function _refreshStatsBar(){
     const bar=document.getElementById('bl-mstats');if(!bar||!_st.matrixBookId)return;
-    const book=BookLibDB.getBookById(_st.matrixBookId);if(!book)return;const chs=book.chapters||[];const cls=_getCls(_st.matrixClassId);if(!cls)return;
-    const sts=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];
+    const book=BookLibDB.getBookById(_st.matrixBookId);if(!book)return;
+    const chs=book.chapters||[];
+    const cls=_getCls(_st.matrixClassId);
+    // ★ 반 미배정 교재: cls null 허용, 학생은 book.studentIds 기반
+    const sts=cls
+      ?(typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[])
+      :((book.studentIds||[]).length&&typeof StudentDB!=='undefined'
+          ?StudentDB.getAll().filter(s=>(book.studentIds||[]).includes(s.id)):[]);
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
-    // ★ 후처리 필터 적용 통계
     const pf=_loadPf(_st.matrixClassId,_st.matrixBookId);
     let undone=0;
     sts.forEach(s=>{
@@ -2121,7 +2126,9 @@ const BooklibApp = (() => {
   }
   function _refreshStuHdr(sid,cid,bid){
     const th=document.querySelector(`.bl-shdr[data-sid="${sid}"]`);if(!th)return;
-    const book=BookLibDB.getBookById(bid);if(!book)return;const chs=book.chapters||[];const cls=_getCls(cid);if(!cls)return;
+    const book=BookLibDB.getBookById(bid);if(!book)return;
+    const chs=book.chapters||[];
+    // ★ cls null 허용
     const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     // ★ 후처리 필터 적용 - 학생 이름 필요
     const pf=_loadPf(cid,bid);
@@ -2327,7 +2334,9 @@ const BooklibApp = (() => {
     if(document.querySelector(`.bl-shdr[data-sid="${sid}"]`)?._dragging)return;
     const ov=document.getElementById('bl-share-ov'),sh=document.getElementById('bl-share-sh');if(!ov||!sh)return;
     const student=typeof StudentDB!=='undefined'?StudentDB.getAll().find(s=>s.id===sid):null;
-    const book=BookLibDB.getBookById(bookId),cls=_getCls(classId);if(!book||!cls)return;
+    const book=BookLibDB.getBookById(bookId);if(!book)return;
+    // ★ 반 미배정 교재: cls가 없어도 동작 (학생 직접 배정)
+    const cls=_getCls(classId)||{id:'',name:student?.name||'학생'};
     const{text,undone,done,total}=_buildShareData(sid,book,cls);
     _st.shareText=text;const pct=total?Math.round(done.length/total*100):100;
     sh.innerHTML=`<div class="sh-handle"></div>
@@ -2357,12 +2366,20 @@ const BooklibApp = (() => {
 
   function openClassReport(){
     const ov=document.getElementById('bl-report-ov'),sh=document.getElementById('bl-report-sh');
-    if(!ov||!sh||!_st.matrixClassId||!_st.matrixBookId){_toast('⚠️ 반과 교재를 먼저 선택해주세요');return;}
-    const book=BookLibDB.getBookById(_st.matrixBookId),cls=_getCls(_st.matrixClassId);if(!book||!cls)return;
+    if(!ov||!sh||!_st.matrixBookId){_toast('⚠️ 교재를 먼저 선택해주세요');return;}
+    const book=BookLibDB.getBookById(_st.matrixBookId);if(!book)return;
+    // ★ 반 미배정 교재: cls null 허용, 학생은 book.studentIds 기반
+    const cls=_getCls(_st.matrixClassId)||null;
+    const clsName=cls?cls.name:'(학생배정)';
     const chs=book.chapters||[];const lastStamp=_getLastStamp(chs,_stamps);const evalChs=lastStamp?chs.filter(ch=>ch.order<=lastStamp.order):chs;
     const today=new Date().toLocaleDateString('ko-KR');const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
-    const allStu=typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[];const students=_getOrderedStu(allStu);
-    const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${cls.name}반 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
+    // 학생 목록: 반 선택 시 반 학생, 미선택 시 교재 직접 배정 학생
+    const allStu = cls
+      ? (typeof StudentDB!=='undefined'?StudentDB.getFiltered({classCode:cls.name,status:'재원'}):[])
+      : ((book.studentIds||[]).length&&typeof StudentDB!=='undefined'
+          ?StudentDB.getAll().filter(s=>(book.studentIds||[]).includes(s.id)):[]);
+    const students=_getOrderedStu(allStu);
+    const lines=[`════════════════════════`,`📚 ${book.name}`,`🏫 ${clsName} 미수행 현황`,lastCh?`📍 기준: ${lastCh.title} (${_fmtStamp(_stamps[lastStamp.chId])})`:`📍 기준: 미설정`,`📅 ${today}`,`════════════════════════`,''];
     let hasAny=false;
     students.forEach(s=>{const undone=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]);if(undone.length){hasAny=true;(()=>{const _A=['🐶','🐱','🐹','🐰','🐻','🦊','🐼','🐨','🐸','🐯'];let _h=0;for(let _i=0;_i<s.name.length;_i++)_h=(_h*31+s.name.charCodeAt(_i))&0xffff;lines.push(`${_A[_h%10]} ${s.name}  (${undone.length}/${evalChs.length})`);})();undone.forEach(ch=>{const parsed=BookLibDB._parseCheck(_checks[`${s.id}__${ch.id}`]);const ts=parsed.tasks.length?` [${parsed.tasks.join('/')}]`:'';lines.push(`  ${ch.title}`);});lines.push('');}});
     if(!hasAny)lines.push('🎉 모든 학생이 완료했습니다!');
@@ -2370,7 +2387,7 @@ const BooklibApp = (() => {
     const summaryRows=students.map(s=>{const uc=evalChs.filter(ch=>_checks[`${s.id}__${ch.id}`]).length;const pct=evalChs.length?Math.round((evalChs.length-uc)/evalChs.length*100):100;return`<tr><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);font-weight:700">${_e(s.name)}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr);color:${uc?'#ea580c':'var(--green)'}">${uc?`⬜ ${uc}개`:'✅'}</td><td style="padding:6px 10px;border-bottom:1px solid var(--bdr)"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:${pct}%;background:${uc?'#f97316':'#10b981'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--tx3)">${pct}%</span></div></td></tr>`;}).join('');
     sh.innerHTML=`<div class="sh-handle"></div>
       <div class="sh-title">📋 전체 미수행 현황</div>
-      <div class="sh-sub">${_e(cls.name)}반 · ${_e(book.name)}</div>
+      <div class="sh-sub">${_e(clsName)} · ${_e(book.name)}</div>
       <!-- ★ 출력 항목 선택 체크박스 -->
       <div style="background:var(--surf2);border-radius:10px;padding:10px 14px;margin:6px 0 10px;border:1px solid var(--bdr)">
         <div style="font-size:11px;font-weight:800;color:var(--tx3);margin-bottom:8px">🖨️ 출력할 항목 선택</div>
@@ -2407,8 +2424,10 @@ const BooklibApp = (() => {
     ov.classList.remove('hidden');history.pushState({pg:'booklib',modal:'report'},'');
   }
   function _printReport(){
-    const book=BookLibDB.getBookById(_st.matrixBookId),cls=_getCls(_st.matrixClassId);
-    if(!book||!cls){_toast('⚠️ 반과 교재를 선택해주세요','error');return;}
+    const book=BookLibDB.getBookById(_st.matrixBookId);
+    if(!book){_toast('⚠️ 교재를 선택해주세요','error');return;}
+    const cls=_getCls(_st.matrixClassId);
+    const clsName=cls?cls.name:'(학생배정)';
 
     const prn1=document.getElementById('bl-prn-ck1')?.checked!==false;
     const prn2=document.getElementById('bl-prn-ck2')?.checked!==false;
@@ -2417,7 +2436,7 @@ const BooklibApp = (() => {
 
     const today=new Date().toLocaleDateString('ko-KR');
     let body='';
-    if(prn1) body+='<div class="ph"><h1>📋 '+_e(cls.name)+'반 · '+_e(book.name)+' — 미수행 현황</h1><p>출력일: '+today+'</p></div>';
+    if(prn1) body+='<div class="ph"><h1>📋 '+_e(clsName)+' · '+_e(book.name)+' — 미수행 현황</h1><p>출력일: '+today+'</p></div>';
     if(prn2) body+='<h2>학생별 요약</h2>'+(document.getElementById('bl-rpt-summary-tbl')?.outerHTML||'');
     if(prn3) body+='<h2>상세 미수행 항목</h2><pre>'+_e(_st.reportText||'')+'</pre>';
 
@@ -3454,6 +3473,7 @@ const BooklibApp = (() => {
   // ★ 정규화: 공백·언더스코어·하이픈 제거 후 소문자 변환
   // '워드 중등 기본_1' → '워드중등기본1'
   function _normStr(s){ return String(s||'').replace(/[\s　_\-]+/g,'').toLowerCase(); }
+
 
   function _matchFileToTarget(fname){
     // 파일명 패턴:
