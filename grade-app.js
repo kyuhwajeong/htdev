@@ -415,6 +415,7 @@ const GradeApp = (() => {
         <button class="gr-rpt-fab" onclick="GradeApp._deliverReport()" title="전달"><span class="gr-rpt-fab-ico">📲</span><span class="gr-rpt-fab-lbl">전달</span></button>
         <button class="gr-rpt-fab" onclick="GradeApp._printReport()" title="PDF"><span class="gr-rpt-fab-ico">🖨️</span><span class="gr-rpt-fab-lbl">PDF</span></button>
         <button class="gr-rpt-fab" onclick="GradeApp._captureReport()" title="캡처"><span class="gr-rpt-fab-ico">📸</span><span class="gr-rpt-fab-lbl">캡처</span></button>
+        <button class="gr-rpt-fab" onclick="GradeApp._captureAllReports()" title="전체 캡처 저장" style="background:linear-gradient(135deg,var(--a10),rgba(99,102,241,.2));border-color:var(--a40)"><span class="gr-rpt-fab-ico">📂</span><span class="gr-rpt-fab-lbl" style="color:var(--a);font-weight:800">전체</span></button>
       </div>
       <!-- 성적표 모달 -->
       <div id="gr-rpt-ov" class="ov hidden" onclick="if(event.target.id==='gr-rpt-ov')GradeApp.closeReport()">
@@ -2218,7 +2219,6 @@ const GradeApp = (() => {
 
   async function _captureReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
-    /* 파일명: 반이름_교재명_학생명_Report_날짜_시간.png */
     const cls=_st.classId?_getCls(_st.classId):null;
     const book = typeof BookLibDB!=='undefined' ? BookLibDB.getBookById(_st.bookId) : null;
     const stu  = _getStudents().find(s=>s.id===_st.studentId) || _getStudents()[0];
@@ -2228,7 +2228,7 @@ const GradeApp = (() => {
     const safe = s => (s||'').replace(/[\\/:"*?<>|]/g,'').replace(/\s+/g,'_');
     const fname= `${safe(cls?.name)}_${safe(book?.name)}_${safe(stu?.name)}_Report_${ymd}_${hms}.png`;
     if(typeof html2canvas!=='undefined'){
-      const c=await html2canvas(el,{scale:2,backgroundColor:'#fff'});
+      const c=await html2canvas(el,{scale:2,backgroundColor:_st.rptBg||'#fff',useCORS:true,logging:false});
       const a=document.createElement('a');
       a.href=c.toDataURL('image/png');
       a.download=fname;
@@ -2237,6 +2237,91 @@ const GradeApp = (() => {
     } else {
       _toast('⚠️ html2canvas 라이브러리가 필요합니다');
     }
+  }
+
+  // ★ 전체 학생 일괄 캡처 저장
+  async function _captureAllReports(){
+    if(typeof html2canvas==='undefined'){_toast('⚠️ html2canvas 라이브러리가 필요합니다');return;}
+    const students=_getStudents();
+    if(!students.length){_toast('⚠️ 학생이 없습니다');return;}
+
+    const cls  = _st.classId?_getCls(_st.classId):null;
+    const book = typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;
+    const safe = s=>(s||'').replace(/[\\/:"*?<>|]/g,'').replace(/\s+/g,'_');
+    const now  = new Date();
+    const ymd  = now.toISOString().slice(0,10).replace(/-/g,'');
+
+    // ── 진행 모달 ──
+    const prog=document.createElement('div');
+    prog.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+    prog.innerHTML=`<div style="background:var(--card);border-radius:16px;padding:24px 28px;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center">
+      <div style="font-size:28px;margin-bottom:10px">📸</div>
+      <div style="font-size:15px;font-weight:800;color:var(--tx);margin-bottom:6px">일괄 캡처 저장 중</div>
+      <div id="gr-cap-status" style="font-size:12px;color:var(--tx3);margin-bottom:14px">준비 중...</div>
+      <div style="height:6px;background:var(--surf2);border-radius:3px;overflow:hidden">
+        <div id="gr-cap-bar" style="height:100%;width:0%;background:var(--a);border-radius:3px;transition:width .3s"></div>
+      </div>
+      <div id="gr-cap-frac" style="font-size:11px;color:var(--tx3);margin-top:6px">0 / ${students.length}</div>
+    </div>`;
+    document.body.appendChild(prog);
+
+    const prevStu=_st.studentId;
+    const prevView=_st.viewMode;
+    if(_st.viewMode!=='report'){ _st.viewMode='report'; }
+
+    // 임시 렌더 컨테이너 (화면 밖)
+    const offWrap=document.createElement('div');
+    offWrap.style.cssText='position:fixed;left:-9999px;top:0;width:794px;pointer-events:none;z-index:-1;background:#fff';
+    document.body.appendChild(offWrap);
+
+    let success=0,fail=0;
+    for(let i=0;i<students.length;i++){
+      const s=students[i];
+      const statusEl=document.getElementById('gr-cap-status');
+      const barEl=document.getElementById('gr-cap-bar');
+      const fracEl=document.getElementById('gr-cap-frac');
+      if(statusEl) statusEl.textContent=`${s.name} 캡처 중...`;
+      if(barEl)    barEl.style.width=`${Math.round(i/students.length*100)}%`;
+      if(fracEl)   fracEl.textContent=`${i} / ${students.length}`;
+
+      try{
+        // 리포트 HTML 빌드 (DOM에 넣어서 렌더)
+        _st.studentId=s.id;
+        const rptHtml=_buildReport(s);
+        offWrap.innerHTML=`<div class="rpt-wrap" style="background:${_st.rptBg||'#ffffff'};font-size:${_st.reportBodySize}px;width:100%;padding:20px 24px;font-family:'${_st.fontFamily||"Noto Sans KR"}',sans-serif;font-weight:${_st.reportBold?'700':'400'}">${rptHtml}</div>`;
+        // 렌더 완료까지 대기
+        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+        const canvas=await html2canvas(offWrap.firstChild,{
+          scale:2,backgroundColor:_st.rptBg||'#ffffff',useCORS:true,logging:false,
+          width:offWrap.offsetWidth,
+        });
+
+        const fname=`${safe(cls?.name||'개인')}_${safe(book?.name)}_${safe(s.name)}_Report_${ymd}.png`;
+        const a=document.createElement('a');
+        a.href=canvas.toDataURL('image/png');
+        a.download=fname;
+        a.click();
+        success++;
+        // 브라우저 다운로드 대화상자 간격 확보
+        await new Promise(r=>setTimeout(r,400));
+      }catch(e){
+        console.error('[일괄캡처]',s.name,e);
+        fail++;
+      }
+    }
+
+    // 완료 처리
+    offWrap.remove();
+    _st.studentId=prevStu;
+    _st.viewMode=prevView;
+
+    prog.remove();
+
+    const msg=fail
+      ?`📸 ${success}명 캡처 완료 (${fail}명 실패)`
+      :`📸 전체 ${success}명 캡처 저장 완료!`;
+    _toast(msg,'success');
   }
 
   /* ════════════════════════════════════
@@ -3426,7 +3511,7 @@ const GradeApp = (() => {
     _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _openFloatCfg, _setReportBold, _deliverReport, _setRptBg,
     _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
     _setGraphStyleMode, _fixStickyHeaderTops,
-    _copyReport, _shareReport, _printReport, _captureReport, _showShareModal, _showDeliverModal,
+    _copyReport, _shareReport, _printReport, _captureReport, _captureAllReports, _showShareModal, _showDeliverModal,
     openReport, closeReport, _copy, _shr,
     // ★ Overview
     _ovToggleDir, _ovSelStu, _ovSelBk, _openOvFloatCfg, _setOvCfg, _deliverOverview, _toast,
