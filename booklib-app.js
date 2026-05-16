@@ -3451,7 +3451,9 @@ const BooklibApp = (() => {
 
   // ★★★ 일괄 xlsx 반영 ★★★
   // 파일명에서 반 이름과 교재명 추출하여 매칭
-  function _normStr(s){ return String(s||'').replace(/[\s　]+/g,'').toLowerCase(); }
+  // ★ 정규화: 공백·언더스코어·하이픈 제거 후 소문자 변환
+  // '워드 중등 기본_1' → '워드중등기본1'
+  function _normStr(s){ return String(s||'').replace(/[\s　_\-]+/g,'').toLowerCase(); }
 
   function _matchFileToTarget(fname){
     // 파일명 패턴:
@@ -3492,11 +3494,28 @@ const BooklibApp = (() => {
       }
     }
 
-    // ── 교재명 매칭: 파일명에 교재명(공백제거)이 포함되는지
+    // ── 파일명 제목 부분 추출 후 정규화 (공백·언더스코어·하이픈 제거)
+    // "09.[S] 워드 중등 실력_20260516.xlsx" → "워드중등실력"
+    const rawTitle = fname
+      .replace(/^\d+[.\-_)]*\s*/,'')
+      .replace(/\[[^\]]*\]\s*/g,'')
+      .replace(/[_\-]\d{6,}.*$/,'')
+      .replace(/\.(xlsx|xls|csv|txt)$/i,'')
+      .trim();
+    const fnTitleNorm = _normStr(rawTitle);
+
+    // ── 교재명 매칭 (★ 양방향 포함 + 공백·언더스코어 무시)
+    // A) 파일제목 ⊃ 교재명: fnTitleNorm.includes(bkNorm)
+    // B) 교재명 ⊃ 파일제목: bkNorm.includes(fnTitleNorm)  (교재명이 더 길 때)
+    // C) 파일명 전체 ⊃ 교재명: fnNorm.includes(bkNorm)  (기존 방식 호환)
     let matchedBk = null;
     for(const bk of allBks){
       const bkNorm = _normStr(bk.name);
-      if(bkNorm.length>=2 && fnNorm.includes(bkNorm)){
+      if(bkNorm.length < 2) continue;
+      const inTitle = fnTitleNorm.length >= 2 && fnTitleNorm.includes(bkNorm);
+      const inBook  = fnTitleNorm.length >= 2 && bkNorm.includes(fnTitleNorm);
+      const inFull  = fnNorm.includes(bkNorm);
+      if(inTitle || inBook || inFull){
         if(!matchedBk || bk.name.length > matchedBk.name.length) matchedBk = bk;
       }
     }
