@@ -2151,16 +2151,22 @@ const BooklibApp = (() => {
     if(actEl)actEl.textContent=uc?'📤':'';
   }
 
+  function _applyChWidth(w){
+    const tbl=document.getElementById('bl-mtbl');
+    if(!tbl||_st.chCollapsed) return;
+    const wPx=w+'px';
+    tbl.style.setProperty('--ch-w',wPx);
+    const fc=tbl.querySelector('colgroup col:first-child');
+    if(fc) fc.style.width=wPx;
+    tbl.querySelectorAll('.bl-ch-hdr,.bl-ch-cell,.bl-batch-hdr').forEach(el=>{
+      el.style.width=wPx; el.style.minWidth=wPx; el.style.maxWidth=wPx;
+    });
+  }
   function _chWider(){
     if(_st.chCollapsed){_toggleCollapse();return;}
     _st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);
     localStorage.setItem(LS_CH_W,_st.chColWidth);
-    const tbl=document.getElementById('bl-mtbl');
-    if(tbl&&!_st.chCollapsed){
-      tbl.style.setProperty('--ch-w',_st.chColWidth+'px');
-      const fc=tbl.querySelector('colgroup col:first-child');
-      if(fc) fc.style.width=_st.chColWidth+'px';
-    }
+    _applyChWidth(_st.chColWidth);
     _updWLbl();
   }
   function _mtblFontSize(delta){
@@ -2326,12 +2332,7 @@ const BooklibApp = (() => {
     if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}
     _st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);
     localStorage.setItem(LS_CH_W,_st.chColWidth);
-    const tbl=document.getElementById('bl-mtbl');
-    if(tbl&&!_st.chCollapsed){
-      tbl.style.setProperty('--ch-w',_st.chColWidth+'px');
-      const fc=tbl.querySelector('colgroup col:first-child');
-      if(fc) fc.style.width=_st.chColWidth+'px';
-    }
+    _applyChWidth(_st.chColWidth);
     _updWLbl();
   }
   function _toggleCollapse(){
@@ -2342,14 +2343,25 @@ const BooklibApp = (() => {
     if(tbl){
       tbl.classList.toggle('ch-collapsed',_st.chCollapsed);
       tbl.style.setProperty('--ch-w',w+'px');
-      // ★ colgroup의 첫 번째 <col>도 반드시 업데이트 (col이 실제 열 너비를 결정)
+      // ★ colgroup col 업데이트
       const firstCol=tbl.querySelector('colgroup col:first-child');
       if(firstCol) firstCol.style.width=w+'px';
+      // ★ CSS 변수로 안 되는 경우를 대비해 직접 인라인 스타일 적용
+      //   (min-width 하드코딩이 CSS 변수를 무력화하는 경우 대응)
+      const wPx=w+'px';
+      tbl.querySelectorAll('.bl-ch-hdr,.bl-ch-cell,.bl-batch-hdr').forEach(el=>{
+        el.style.width=wPx;
+        el.style.minWidth=wPx;
+        el.style.maxWidth=wPx;
+      });
     }
-    if(btn) btn.textContent=_st.chCollapsed?'▶':'◀';
-    // ★ 챕터/학생 라벨 표시/숨김
+    if(btn){
+      btn.textContent=_st.chCollapsed?'▶':'◀';
+      btn.title=_st.chCollapsed?'챕터 펼치기':'챕터 접기';
+    }
+    // 챕터/학생 라벨 표시/숨김
     const lbl=document.getElementById('bl-ch-hdr-lbl');
-    if(lbl) lbl.style.display=_st.chCollapsed?'none':'block';
+    if(lbl) lbl.style.display=_st.chCollapsed?'none':'flex';
     _updWLbl();
   }
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
@@ -4419,7 +4431,7 @@ const BooklibApp = (() => {
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
     _saveSubTasks,_closeSubPopup,
-    _chWider,_chNarrow,_mtblFontSize,_applyFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
+    _chWider,_chNarrow,_applyChWidth,_mtblFontSize,_applyFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
