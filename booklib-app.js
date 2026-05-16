@@ -8,7 +8,7 @@
  *   - 리딩 체크 → 활성화 시 총 문제 수 + Review 컬럼 설정
  *   - Review: 기본 4개, 컬럼명 편집 가능, 개별 체크(성적표 표시 여부)
  *   - + 버튼으로 Review 추가 가능
- * · 나머지 기능 동일 (스탬프·체크·드래그·공유·출력)   
+ * · 나머지 기능 동일 (스탬프·체크·드래그·공유·출력)
  */
 const BooklibApp = (() => {
   const LS_COL_PFX = 'hk10b_col_';
@@ -1880,11 +1880,9 @@ const BooklibApp = (() => {
         <colgroup><col style="width:${w}px">${students.map(()=>`<col ${stuColW?`style="${stuColW}"`:''}>`).join('')}</colgroup>
         <thead>
           <tr style="position:sticky;top:0;z-index:6;background:var(--surf)">
-            <th class="bl-ch-hdr" style="flex-direction:column;align-items:center;justify-content:space-between;gap:4px">
-              <span id="bl-ch-hdr-lbl" style="font-size:12px;font-weight:800;color:var(--tx2);line-height:1.4;text-align:center;writing-mode:horizontal-tb;display:${_st.chCollapsed?'none':'flex'};flex-direction:column;align-items:center;gap:0">
-                <span>챕터</span><span style="font-size:10px;color:var(--tx3)">/</span><span>학생</span>
-              </span>
-              <button class="bl-collapse-btn" id="bl-collapse-btn" onclick="BooklibApp._toggleCollapse()" title="${_st.chCollapsed?'챕터 펼치기':'챕터 접기'}" style="width:26px;height:26px;font-size:11px">${_st.chCollapsed?'▶':'◀'}</button>
+            <th class="bl-ch-hdr">
+              ${!_st.chCollapsed?`<span style="font-size:9px;font-weight:800;color:var(--tx3)">챕터 / 학생</span>`:''}
+              <button class="bl-collapse-btn" id="bl-collapse-btn" onclick="BooklibApp._toggleCollapse()">${_st.chCollapsed?'▶':'◀'}</button>
             </th>
             ${students.map((s,i)=>{const uc=doneByS[s.id];return`<th class="bl-shdr" draggable="true" data-idx="${i}" data-sid="${s.id}" onclick="BooklibApp.openShare('${s.id}','${_st.matrixClassId}','${_st.matrixBookId}')">
               <div class="bl-shdr-name">${_e(s.name)}${s.nickname?`<span style="font-size:9px;font-weight:600;color:var(--tx3);display:block">(${_e(s.nickname)})</span>`:''}</div>
@@ -2151,24 +2149,7 @@ const BooklibApp = (() => {
     if(actEl)actEl.textContent=uc?'📤':'';
   }
 
-  function _applyChWidth(w){
-    const tbl=document.getElementById('bl-mtbl');
-    if(!tbl||_st.chCollapsed) return;
-    const wPx=w+'px';
-    tbl.style.setProperty('--ch-w',wPx);
-    const fc=tbl.querySelector('colgroup col:first-child');
-    if(fc) fc.style.width=wPx;
-    tbl.querySelectorAll('.bl-ch-hdr,.bl-ch-cell,.bl-batch-hdr').forEach(el=>{
-      el.style.width=wPx; el.style.minWidth=wPx; el.style.maxWidth=wPx;
-    });
-  }
-  function _chWider(){
-    if(_st.chCollapsed){_toggleCollapse();return;}
-    _st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);
-    localStorage.setItem(LS_CH_W,_st.chColWidth);
-    _applyChWidth(_st.chColWidth);
-    _updWLbl();
-  }
+  function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
   function _mtblFontSize(delta){
     const tbl=document.getElementById('bl-mtbl'); if(!tbl) return;
     const LS_FONT='bl_mtbl_fontsize';
@@ -2328,42 +2309,8 @@ const BooklibApp = (() => {
     }
   }
 
-  function _chNarrow(){
-    if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}
-    _st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);
-    localStorage.setItem(LS_CH_W,_st.chColWidth);
-    _applyChWidth(_st.chColWidth);
-    _updWLbl();
-  }
-  function _toggleCollapse(){
-    _st.chCollapsed=!_st.chCollapsed;
-    const tbl=document.getElementById('bl-mtbl');
-    const btn=document.getElementById('bl-collapse-btn');
-    const w=_st.chCollapsed?32:_st.chColWidth;
-    if(tbl){
-      tbl.classList.toggle('ch-collapsed',_st.chCollapsed);
-      tbl.style.setProperty('--ch-w',w+'px');
-      // ★ colgroup col 업데이트
-      const firstCol=tbl.querySelector('colgroup col:first-child');
-      if(firstCol) firstCol.style.width=w+'px';
-      // ★ CSS 변수로 안 되는 경우를 대비해 직접 인라인 스타일 적용
-      //   (min-width 하드코딩이 CSS 변수를 무력화하는 경우 대응)
-      const wPx=w+'px';
-      tbl.querySelectorAll('.bl-ch-hdr,.bl-ch-cell,.bl-batch-hdr').forEach(el=>{
-        el.style.width=wPx;
-        el.style.minWidth=wPx;
-        el.style.maxWidth=wPx;
-      });
-    }
-    if(btn){
-      btn.textContent=_st.chCollapsed?'▶':'◀';
-      btn.title=_st.chCollapsed?'챕터 펼치기':'챕터 접기';
-    }
-    // 챕터/학생 라벨 표시/숨김
-    const lbl=document.getElementById('bl-ch-hdr-lbl');
-    if(lbl) lbl.style.display=_st.chCollapsed?'none':'flex';
-    _updWLbl();
-  }
+    function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
+  function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
 
   function _setupDrag(){
@@ -4431,7 +4378,7 @@ const BooklibApp = (() => {
     _onClsChange,_onBkChange,
     _toggleStamp,_toggleCheck,_batchToggle,
     _saveSubTasks,_closeSubPopup,
-    _chWider,_chNarrow,_applyChWidth,_mtblFontSize,_applyFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
+    _chWider,_chNarrow,_mtblFontSize,_applyFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
     importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx,
