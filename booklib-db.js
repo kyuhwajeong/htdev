@@ -319,48 +319,6 @@ const BookLibDB = (() => {
     if (_fb()) await FireDB.remove(`${FB_STAMPS}/${ck}/${chapterId}`).catch(console.warn);
   }
 
-  /* ══ STAMP INFO — 스탬프 생성 당시 미수행 통계 ══
-   * localStorage: hk10b_sinfo
-   * Firebase:     hakwon10/stampInfo/{classId}_{bookId}/{chapterId}
-   */
-  const LS_SINFO = 'hk10b_sinfo';
-  let _sinfo = null;
-  const _siCk = (cid,bid) => `${cid}_${bid}`;
-
-  async function _initSinfo(){
-    if(_sinfo) return;
-    _sinfo = _lg(LS_SINFO)||{};
-    if(!_fb()) return;
-    try{ const s=await FireDB.get('hakwon10/stampInfo'); if(s){_sinfo=s;_ls(LS_SINFO,_sinfo);} }catch(e){}
-  }
-
-  async function setStampInfo(cid,bid,chId,info){
-    await _initSinfo();
-    const k=_siCk(cid,bid);
-    if(!_sinfo[k]) _sinfo[k]={};
-    _sinfo[k][chId]=info; _ls(LS_SINFO,_sinfo);
-    if(_fb()) FireDB.set(`hakwon10/stampInfo/${k}/${chId}`,info).catch(console.warn);
-  }
-
-  function getStampInfo(cid,bid,chId){
-    if(!_sinfo) return null;
-    return (_sinfo[_siCk(cid,bid)]||{})[chId]||null;
-  }
-
-  async function removeStampInfo(cid,bid,chId){
-    await _initSinfo();
-    const k=_siCk(cid,bid);
-    if(_sinfo[k]){delete _sinfo[k][chId];_ls(LS_SINFO,_sinfo);}
-    if(_fb()) FireDB.remove(`hakwon10/stampInfo/${k}/${chId}`).catch(console.warn);
-  }
-
-  async function removeAllStampInfo(cid,bid){
-    await _initSinfo();
-    const k=_siCk(cid,bid);
-    delete _sinfo[k]; _ls(LS_SINFO,_sinfo);
-    if(_fb()) FireDB.remove(`hakwon10/stampInfo/${k}`).catch(console.warn);
-  }
-
   function listenStamps(classId, bookId, cb) {
     const ck = _ck(classId,bookId);
     if (_slsn[ck]) { _slsn[ck](); delete _slsn[ck]; }
@@ -427,7 +385,6 @@ const BookLibDB = (() => {
     getMatrixChecks, getRawCheck, isChecked, getCheckParsed, getSubTasks,
     setCheck, setSubTasks, listenMatrix,
     getStamps, setStamp, removeStamp, listenStamps,
-    setStampInfo, getStampInfo, removeStampInfo, removeAllStampInfo,
     detectChapterType, getSubtaskOptions, SUBTASKS,
     _parseCheck, _serCheck,
     saveClassExempts, loadClassExempts,
