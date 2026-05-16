@@ -151,8 +151,12 @@ const GradeApp = (() => {
 
 /* comment */
 .gs-cm-cell{width:40%;min-width:220px;}
-.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
+.gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;color:var(--tx);font-family:var(--font);resize:none;height:42px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
+.gr-ai-cmt-btn{position:absolute;bottom:4px;right:5px;padding:2px 8px;border-radius:6px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:10px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:3px;opacity:.75;transition:opacity .15s,transform .1s;font-family:var(--font);letter-spacing:.3px;}
+.gr-ai-cmt-btn:hover{opacity:1;transform:scale(1.05);}
+.gr-ai-cmt-btn.loading{opacity:.5;pointer-events:none;animation:ai-pulse .8s ease-in-out infinite alternate;}
+@keyframes ai-pulse{from{opacity:.4}to{opacity:.8}}
 
 /* average row */
 .gr-avg-row td{background:var(--surf2)!important;}
@@ -676,9 +680,14 @@ const GradeApp = (() => {
           <span class="gs-val">${achW!==''?achW+'%':'—'}</span>
         </td>
         ${rdCells}
-        <td class="gs-td inp-cell gs-cm-cell">
-          <textarea class="gs-cm-inp" id="gr-cmt-${s.id}"
-            oninput="GradeApp._excelComment('${s.id}',this.value)">${_e(d.comment||'')}</textarea>
+        <td class="gs-td inp-cell gs-cm-cell" style="padding:0;vertical-align:top">
+          <div style="display:flex;flex-direction:column;height:100%;position:relative">
+            <textarea class="gs-cm-inp" id="gr-cmt-${s.id}"
+              oninput="GradeApp._excelComment('${s.id}',this.value)">${_e(d.comment||'')}</textarea>
+            <button class="gr-ai-cmt-btn" onclick="GradeApp._aiComment('${s.id}')" title="AI 코멘트 생성">
+              <span class="gr-ai-ico">✨</span> AI
+            </button>
+          </div>
         </td>
       </tr>`;
   }
@@ -3170,7 +3179,109 @@ const GradeApp = (() => {
   }
 
   /* ════════════════════════════════════════════════════ */
-  /* ══ 전체 성적표 ══ */
+  /* ════════════════════════════════════════════════
+   * ★ AI Teacher's Comment 자동 생성
+   * ════════════════════════════════════════════════ */
+  async function _aiComment(sid) {
+    const btn = document.querySelector(`.gr-ai-cmt-btn[onclick*="${sid}"]`);
+    const ta  = document.getElementById(`gr-cmt-${sid}`);
+    if (!ta) return;
+
+    // 학생 정보
+    const stu  = _getStudents().find(s => s.id === sid);
+    const cls  = _st.classId ? _getCls(_st.classId) : null;
+    const book = typeof BookLibDB !== 'undefined' ? BookLibDB.getBookById(_st.bookId) : null;
+    if (!stu || !book) { _toast('⚠️ 학생·교재 정보가 없습니다', 'error'); return; }
+
+    // 성취 데이터 수집
+    const d         = _st.data[sid] || {};
+    const rec       = GradeDB.getLatest(_st.classId||'__noclass__', sid, _st.bookId) || {};
+    const config    = GradeDB.getReportConfig(_st.bookId);
+    const actRevs   = GradeDB.getActiveReviews(_st.bookId);
+
+    // 단어 성취율
+    const wordData  = d.word?.totalQ > 0 ? d.word : rec.word;
+    const totalQ    = wordData?.totalQ || 0;
+    const pass      = wordData?.pass   || 0;
+    const retake    = wordData?.retake || 0;
+    const achW      = totalQ > 0 ? Math.round(pass / totalQ * 100) : null;
+
+    // 리딩 성취율
+    const rdData    = Object.keys(d.reading||{}).length ? d.reading : (rec.reading||{});
+    const rdScore   = (config.reading?.enabled && actRevs.length)
+      ? _calcRdN(rdData, actRevs) : null;
+
+    // 반 평균 (비교용)
+    const students  = _getSorted();
+    const clsAchWs  = students.map(s => {
+      const wd = _st.data[s.id]?.word || GradeDB.getLatest(_st.classId||'__noclass__',s.id,_st.bookId)?.word;
+      return wd?.totalQ > 0 ? Math.round(wd.pass / wd.totalQ * 100) : null;
+    }).filter(v => v != null);
+    const clsAvgW   = clsAchWs.length ? Math.round(clsAchWs.reduce((a,b)=>a+b,0)/clsAchWs.length) : null;
+
+    // AI 프롬프트 구성
+    const dataLines = [
+      `학생: ${stu.name}${stu.nickname ? ` (${stu.nickname})` : ''}`,
+      `반: ${cls?.name || '개인 교재'}`,
+      `교재: ${book.name}`,
+      totalQ > 0
+        ? `단어 테스트: 전체 ${totalQ}문항 / 재시험 ${retake}개 / 통과 ${pass}개 / 성취율 ${achW}%`
+        : '단어 테스트: 미응시',
+      clsAvgW != null ? `반 평균 단어 성취율: ${clsAvgW}%` : '',
+      rdScore != null ? `리딩 성취율 평균: ${Math.round(rdScore)}%` : '',
+      rec.comment ? `이전 코멘트: ${rec.comment}` : '',
+    ].filter(Boolean).join('\n');
+
+    if (btn) { btn.classList.add('loading'); btn.textContent = '⏳'; }
+    ta.style.opacity = '.5';
+
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `당신은 영어학원 선생님입니다. 학생의 성취 데이터를 바탕으로 학부모에게 전달할 따뜻하고 구체적인 코멘트를 한국어로 작성합니다.
+규칙:
+- 2~3문장으로 간결하게
+- 칭찬과 개선점을 균형 있게
+- 구체적인 수치 언급 (성취율, 반 평균 대비 등)
+- 따뜻하고 격려적인 톤
+- 앞으로의 목표나 방향 제시
+- 이모지 사용 금지
+- 코멘트 텍스트만 출력 (설명·따옴표 없이)`,
+          messages: [{
+            role: 'user',
+            content: `다음 학생의 성취 데이터를 바탕으로 Teacher's Comment를 작성해 주세요.\n\n${dataLines}`,
+          }],
+        }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+      }
+
+      const data    = await resp.json();
+      const comment = data.content?.find(b => b.type === 'text')?.text?.trim() || '';
+      if (!comment) throw new Error('빈 응답');
+
+      ta.value = comment;
+      _ensureData(sid);
+      _st.data[sid].comment = comment;
+      _st.dirty.add(sid);
+      _refreshDirtyUI();
+      _toast('✨ AI 코멘트 생성 완료', 'success');
+
+    } catch (e) {
+      console.error('[AI Comment]', e);
+      _toast(`⚠️ AI 오류: ${e.message}`, 'error');
+    } finally {
+      if (btn) { btn.classList.remove('loading'); btn.innerHTML = '<span class="gr-ai-ico">✨</span> AI'; }
+      ta.style.opacity = '1';
+    }
+  }
   function openReport() {
     if(!_st.classId||!_st.bookId){_toast('⚠️ 반과 교재를 선택해주세요');return;}
     const ov=document.getElementById('gr-rpt-ov'),sh=document.getElementById('gr-rpt-sh');if(!ov||!sh)return;
@@ -3510,7 +3621,7 @@ const GradeApp = (() => {
     _cardWordInput, _cardRdInput, _cardComment,
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
-    saveOne, saveAll, resetOne,
+    saveOne, saveAll, resetOne, _aiComment,
     _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _openFloatCfg, _setReportBold, _deliverReport, _setRptBg,
     _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
     _setGraphStyleMode, _fixStickyHeaderTops,
