@@ -154,6 +154,7 @@ const GradeApp = (() => {
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
+
 /* average row */
 .gr-avg-row td{background:var(--surf2)!important;}
 .gr-avg-row .gs-fix{color:var(--a);font-weight:800;font-size:12px;}
@@ -228,7 +229,9 @@ const GradeApp = (() => {
 .gr-card-save-btn:active{opacity:.85;}
 
 /* ══ REPORT ══ */
-.gr-report-panel{padding:0 0 80px;display:flex;flex-direction:column;height:100%;}
+.gr-report-panel{padding:0;display:flex;flex-direction:column;height:100%;overflow:hidden;}
+/* 리포트 뷰에서 차트 영역 완전 제거 */
+#page-grade.report-active .gr-chart-wrap{display:none!important;height:0!important;padding:0!important;border:none!important;margin:0!important;overflow:hidden!important;}
 .gr-rpt-preview{background:var(--surf2);flex:1;min-height:0;display:flex;justify-content:center;padding:20px 12px;overflow:auto;}
 
 /* ── 플로팅 설정 패널 ── */
@@ -2646,11 +2649,12 @@ const GradeApp = (() => {
     // ★ 리포트 탭 고정 버튼 표시/숨김
     const fixedBtns = document.getElementById('gr-rpt-fixed-btns');
     if (fixedBtns) fixedBtns.style.display = mode==='report' ? 'flex' : 'none';
+    // ★ page-grade에 report-active 클래스 → CSS로 하단 여백·차트 완전 제거
+    document.getElementById('page-grade')?.classList.toggle('report-active', mode==='report');
     // ★ 리포트 뷰에서는 하단 차트 영역 + 모달 바텀시트 완전 숨김
     const chartWrap = document.getElementById('gr-chart-wrap');
     if (chartWrap) chartWrap.style.display = 'none';
     // ★ 뷰 전환 시 항상 전체 성적표 바텀시트 모달 닫기
-    //    openReport()가 이전에 호출되어 gr-rpt-ov에서 hidden이 제거된 경우 복원
     document.getElementById('gr-rpt-ov')?.classList.add('hidden');
     // ★ 리포트 뷰에서는 📋 전체성적표 버튼 불필요 → 숨김
     const rptBtn = document.getElementById('gr-rpt-btn');
@@ -3167,7 +3171,9 @@ const GradeApp = (() => {
   }
 
   /* ════════════════════════════════════════════════════ */
-  /* ══ 전체 성적표 ══ */
+
+  /* ════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════
   function openReport() {
     if(!_st.classId||!_st.bookId){_toast('⚠️ 반과 교재를 선택해주세요');return;}
     const ov=document.getElementById('gr-rpt-ov'),sh=document.getElementById('gr-rpt-sh');if(!ov||!sh)return;
