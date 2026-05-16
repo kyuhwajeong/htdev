@@ -2537,13 +2537,19 @@ const GradeApp = (() => {
     // ★ 리포트 탭 고정 버튼 표시/숨김
     const fixedBtns = document.getElementById('gr-rpt-fixed-btns');
     if (fixedBtns) fixedBtns.style.display = mode==='report' ? 'flex' : 'none';
-    // ★ 리포트 뷰에서는 하단 차트 영역 완전 숨김
+    // ★ 리포트 뷰에서는 하단 차트 영역 + 모달 바텀시트 완전 숨김
     const chartWrap = document.getElementById('gr-chart-wrap');
     if (chartWrap) chartWrap.style.display = 'none';
+    // ★ 뷰 전환 시 항상 전체 성적표 바텀시트 모달 닫기
+    //    openReport()가 이전에 호출되어 gr-rpt-ov에서 hidden이 제거된 경우 복원
+    document.getElementById('gr-rpt-ov')?.classList.add('hidden');
+    // ★ 리포트 뷰에서는 📋 전체성적표 버튼 불필요 → 숨김
+    const rptBtn = document.getElementById('gr-rpt-btn');
+    if (rptBtn) rptBtn.style.display = mode==='report' ? 'none' : '';
     document.querySelectorAll('.gr-vbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
     _renderStudents(); _renderContent(); _refreshToolbar();
   }
-  function _updateRptBtn(){const btn=document.getElementById('gr-rpt-btn');if(btn)btn.style.display=(_st.classId&&_st.bookId)?'':'none';}
+  function _updateRptBtn(){const btn=document.getElementById('gr-rpt-btn');if(btn)btn.style.display=(_st.classId&&_st.bookId&&_st.viewMode!=='report')?'':'none';}
   function _updateSub(){const sub=document.getElementById('gr-sub');if(!sub)return;const cls=_st.classId?_getCls(_st.classId):null;const bk=_st.bookId&&typeof BookLibDB!=='undefined'?BookLibDB.getBookById(_st.bookId):null;sub.textContent=cls&&bk?`${cls?.name||'학생배정'}반 · ${bk.name}`:cls?`${cls?.name||'학생배정'}반`:'반 · 교재를 선택하세요';}
   function _refreshDirtyUI(){
     const el=document.getElementById('gr-dirty-cnt');
