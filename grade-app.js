@@ -153,9 +153,10 @@ const GradeApp = (() => {
 .gs-cm-cell{width:40%;min-width:220px;}
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;color:var(--tx);font-family:var(--font);resize:none;height:42px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
-.gr-ai-cmt-btn{position:absolute;bottom:4px;right:5px;padding:2px 8px;border-radius:6px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:10px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:3px;opacity:.75;transition:opacity .15s,transform .1s;font-family:var(--font);letter-spacing:.3px;}
+.gr-ai-cmt-btn{position:relative;padding:2px 8px;border-radius:6px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:10px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:3px;opacity:.75;transition:opacity .15s,transform .1s;font-family:var(--font);letter-spacing:.3px;}
 .gr-ai-cmt-btn:hover{opacity:1;transform:scale(1.05);}
 .gr-ai-cmt-btn.loading{opacity:.5;pointer-events:none;animation:ai-pulse .8s ease-in-out infinite alternate;}
+.gr-spell-btn{background:linear-gradient(135deg,#0891b2,#0ea5e9);}
 @keyframes ai-pulse{from{opacity:.4}to{opacity:.8}}
 
 /* average row */
@@ -684,9 +685,10 @@ const GradeApp = (() => {
           <div style="display:flex;flex-direction:column;height:100%;position:relative">
             <textarea class="gs-cm-inp" id="gr-cmt-${s.id}"
               oninput="GradeApp._excelComment('${s.id}',this.value)">${_e(d.comment||'')}</textarea>
-            <button class="gr-ai-cmt-btn" onclick="GradeApp._aiComment('${s.id}')" title="AI 코멘트 생성">
-              <span class="gr-ai-ico">✨</span> AI
-            </button>
+            <div style="position:absolute;bottom:4px;right:5px;display:flex;gap:4px">
+              <button class="gr-ai-cmt-btn gr-spell-btn" onclick="GradeApp._spellCheck('${s.id}')" title="맞춤법·띄어쓰기 교정">🔤 교정</button>
+              <button class="gr-ai-cmt-btn" onclick="GradeApp._aiComment('${s.id}')" title="AI 코멘트 생성">✨ AI</button>
+            </div>
           </div>
         </td>
       </tr>`;
@@ -3282,6 +3284,92 @@ const GradeApp = (() => {
       ta.style.opacity = '1';
     }
   }
+  /* ════════════════════════════════════════════════
+   * ★ 맞춤법·띄어쓰기 교정
+   * ════════════════════════════════════════════════ */
+  async function _spellCheck(sid) {
+    const btn = document.querySelector(`.gr-spell-btn[onclick*="${sid}"]`);
+    const ta  = document.getElementById(`gr-cmt-${sid}`);
+    if (!ta) return;
+    const original = ta.value.trim();
+    if (!original) { _toast('⚠️ 교정할 내용이 없습니다', 'error'); return; }
+    if (btn) { btn.classList.add('loading'); btn.textContent = '⏳'; }
+    ta.style.opacity = '.5';
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `당신은 한국어 맞춤법 교정 전문가입니다.
+입력된 텍스트의 맞춤법, 띄어쓰기, 문장부호를 교정하여 반환합니다.
+규칙:
+- 교정된 텍스트만 출력합니다 (설명, 따옴표, 번호 없이)
+- 내용·의미·문체는 절대 바꾸지 않습니다
+- 오류가 없으면 원문 그대로 반환합니다`,
+          messages: [{ role: 'user', content: `다음 텍스트의 맞춤법과 띄어쓰기를 교정해 주세요:\n\n${original}` }],
+        }),
+      });
+      if (!resp.ok) { const err=await resp.json().catch(()=>({})); throw new Error(err?.error?.message||`HTTP ${resp.status}`); }
+      const data=await resp.json();
+      const corrected=data.content?.find(b=>b.type==='text')?.text?.trim()||'';
+      if (!corrected) throw new Error('빈 응답');
+      if (corrected === original) { _toast('✅ 맞춤법 오류가 없습니다','success'); }
+      else { _showSpellDiff(sid, original, corrected); }
+    } catch(e) {
+      console.error('[SpellCheck]',e); _toast(`⚠️ 교정 오류: ${e.message}`,'error');
+    } finally {
+      if(btn){btn.classList.remove('loading');btn.textContent='🔤 교정';}
+      ta.style.opacity='1';
+    }
+  }
+
+  function _showSpellDiff(sid, original, corrected) {
+    document.getElementById('gr-spell-diff')?.remove();
+    const modal=document.createElement('div');
+    modal.id='gr-spell-diff';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)';
+    modal.onclick=e=>{if(e.target===modal)modal.remove();};
+    function _hlDiff(orig,corr){
+      const oW=orig.split(/([\s]+)/),cW=corr.split(/([\s]+)/);
+      return cW.map((cw,i)=>cw!==(oW[i]||'')?`<mark style="background:rgba(99,102,241,.2);border-radius:3px;padding:0 2px;color:var(--a);font-weight:700">${_e(cw)}</mark>`:_e(cw)).join('');
+    }
+    modal.innerHTML=`
+      <div style="background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:560px;padding:0;box-shadow:0 -4px 24px rgba(0,0,0,.2);overflow:hidden;max-height:90vh;display:flex;flex-direction:column">
+        <div style="padding:18px 20px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div><div style="font-size:16px;font-weight:800">🔤 맞춤법 교정 결과</div><div style="font-size:11px;color:var(--tx3);margin-top:3px">변경된 부분을 확인 후 적용하세요</div></div>
+            <button onclick="document.getElementById('gr-spell-diff').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:var(--tx3);letter-spacing:.7px;margin-bottom:7px">원문</div>
+            <div style="padding:10px 12px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;font-size:13px;color:var(--tx2);line-height:1.7">${_e(original)}</div>
+          </div>
+          <div style="text-align:center;font-size:20px;color:var(--tx3)">↓</div>
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+              <div style="font-size:10px;font-weight:800;color:var(--a);letter-spacing:.7px">교정된 텍스트</div>
+              <span style="font-size:10px;background:rgba(99,102,241,.15);color:var(--a);padding:1px 7px;border-radius:4px;font-weight:700">변경 부분 표시</span>
+            </div>
+            <div style="padding:10px 12px;background:rgba(99,102,241,.05);border:1.5px solid var(--a40);border-radius:10px;font-size:13px;line-height:1.7">${_hlDiff(original,corrected)}</div>
+          </div>
+        </div>
+        <div style="padding:14px 20px 28px;border-top:1px solid var(--bdr);display:flex;gap:8px;flex-shrink:0">
+          <button onclick="document.getElementById('gr-spell-diff').remove()" style="flex:1;padding:12px;border-radius:10px;background:var(--surf2);border:1px solid var(--bdr);color:var(--tx3);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">취소</button>
+          <button id="gr-spell-apply" style="flex:2;padding:12px;border-radius:10px;background:linear-gradient(135deg,#0891b2,#0ea5e9);color:#fff;border:none;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--font);box-shadow:0 3px 10px rgba(8,145,178,.3)">✅ 교정 내용 적용</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('gr-spell-apply').onclick=()=>{
+      const ta2=document.getElementById(`gr-cmt-${sid}`);
+      if(ta2){ta2.value=corrected;_ensureData(sid);_st.data[sid].comment=corrected;_st.dirty.add(sid);_refreshDirtyUI();_toast('✅ 교정 내용 적용','success');}
+      modal.remove();
+    };
+  }
+
   function openReport() {
     if(!_st.classId||!_st.bookId){_toast('⚠️ 반과 교재를 선택해주세요');return;}
     const ov=document.getElementById('gr-rpt-ov'),sh=document.getElementById('gr-rpt-sh');if(!ov||!sh)return;
@@ -3621,7 +3709,7 @@ const GradeApp = (() => {
     _cardWordInput, _cardRdInput, _cardComment,
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
-    saveOne, saveAll, resetOne, _aiComment,
+    saveOne, saveAll, resetOne, _aiComment, _spellCheck, _showSpellDiff,
     _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _openFloatCfg, _setReportBold, _deliverReport, _setRptBg,
     _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
     _setGraphStyleMode, _fixStickyHeaderTops,
