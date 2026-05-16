@@ -119,16 +119,16 @@ const GradeApp = (() => {
 .gr-sheet thead tr:nth-child(3) .gs-fix{top:68px;z-index:7;}
 
 /* header */
-.gs-th{background:var(--surf2);border:1px solid var(--bdr);padding:5px 6px;font-size:12px;font-weight:800;color:var(--tx2);text-align:center;white-space:nowrap;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;}
-.gs-th.sec-w{background:var(--a10);color:var(--a);font-size:11px;}
-.gs-th.sec-r{background:rgba(139,92,246,.1);color:#8b5cf6;font-size:11px;}
+.gs-th{background:var(--surf2);border:1px solid var(--bdr);padding:5px 4px;font-size:11px;font-weight:800;color:var(--tx2);text-align:center;white-space:nowrap;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;}
+.gs-th.sec-w{background:var(--a10);color:var(--a);font-size:10px;}
+.gs-th.sec-r{background:rgba(139,92,246,.1);color:#8b5cf6;font-size:10px;}
 .gs-th.sec-c{background:rgba(5,150,105,.08);color:var(--green);font-size:11px;}
 .gs-th.sortable{cursor:pointer;user-select:none;}
 .gs-th.sortable:hover{background:var(--a20);}
 .gs-th.sort-on{color:var(--a);background:var(--a10);}
 
 /* data cells */
-.gs-td{border:1px solid var(--bdr);text-align:center;padding:0;vertical-align:middle;min-width:52px;}
+.gs-td{border:1px solid var(--bdr);text-align:center;padding:0;vertical-align:middle;min-width:28px;}
 /* 계산값 (읽기 전용) - 연한 배경으로 구분 */
 .gs-td.ro{background:var(--surf2);}
 .gs-td.ro .gs-val{padding:5px 6px;font-size:13px;font-weight:700;display:block;}
@@ -145,12 +145,12 @@ const GradeApp = (() => {
 .gr-sheet tbody tr.sel-row .gs-fix{background:var(--a20)!important;}
 
 /* number input */
-.gs-inp{width:100%;min-width:54px;padding:6px 4px;border:none;outline:none;background:transparent;font-size:13px;font-weight:700;color:var(--a);text-align:center;font-family:var(--font);-moz-appearance:textfield;cursor:text;}
+.gs-inp{width:100%;min-width:28px;padding:4px 2px;border:none;outline:none;background:transparent;font-size:12px;font-weight:700;color:var(--a);text-align:center;font-family:var(--font);-moz-appearance:textfield;cursor:text;}
 .gs-inp::-webkit-outer-spin-button,.gs-inp::-webkit-inner-spin-button{-webkit-appearance:none;}
 .gs-inp:focus{background:rgba(99,102,241,.08);border-radius:4px;}
 
 /* comment */
-.gs-cm-cell{width:22%;min-width:160px;}
+.gs-cm-cell{width:40%;min-width:220px;}
 .gs-cm-inp{width:100%;padding:5px 8px;border:none;outline:none;background:transparent;font-size:13px;color:var(--tx);font-family:var(--font);resize:none;height:52px;line-height:1.5;cursor:text;box-sizing:border-box;}
 .gs-cm-inp:focus{background:rgba(5,150,105,.05);}
 
@@ -581,7 +581,7 @@ const GradeApp = (() => {
                   onclick="GradeApp._toggleSort('name')">학생 ${nmIcon}</th>
               <th class="gs-th sec-w" colspan="4">🔤 단어 평가</th>
               ${rdSection}
-              <th class="gs-th sec-c" rowspan="3" style="min-width:220px">💬 Teacher's Comment</th>
+              <th class="gs-th sec-c" rowspan="3" style="min-width:300px">💬 Teacher's Comment</th>
             </tr>
             <tr>
               <th class="gs-th" rowspan="2" style="background:var(--a10);color:var(--a);vertical-align:middle">총 테스트<br>(문제) 수</th>

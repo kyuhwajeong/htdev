@@ -1731,7 +1731,18 @@ const BooklibApp = (() => {
   function _renderMatrixTab(){
     const cnt=document.getElementById('bl-cnt');if(!cnt)return;
     const allCls=typeof DB!=='undefined'?DB.getActiveClasses():[];
-    const clsBks=(_st.matrixClassId?BookLibDB.getBooksForClass(_st.matrixClassId):BookLibDB.getBooks()).filter(b=>!b.archived);
+    // ★ 반 미선택 시: 반 미배정이거나 학생만 배정된 교재만 표시 (전체 교재 표시 버그 수정)
+    let clsBks;
+    if(_st.matrixClassId){
+      clsBks=BookLibDB.getBooksForClass(_st.matrixClassId).filter(b=>!b.archived);
+    } else {
+      clsBks=BookLibDB.getBooks().filter(b=>{
+        if(b.archived) return false;
+        const noClass=!(b.classIds&&b.classIds.length>0);
+        const hasStu=(b.studentIds&&b.studentIds.length>0)||(b.assignedStudents&&b.assignedStudents.length>0);
+        return noClass&&hasStu; // ★ 반 미배정 + 학생 배정된 교재만
+      });
+    }
     cnt.innerHTML=`<div class="bl-msel-bar">
       <div class="bl-msel-item"><span class="bl-msel-lbl">📋 반</span>
         <select id="bl-csel" onchange="BooklibApp._onClsChange(this.value)">
@@ -1786,7 +1797,21 @@ const BooklibApp = (() => {
     const evalChIds = new Set(evalChs.map(ch=>ch.id));
     const lastCh=lastStamp?chs.find(c=>c.id===lastStamp.chId):null;
     const stampNote=lastStamp?`📍 기준: ${_e(lastCh?.title||'')} (${_fmtStamp(_stamps[lastStamp.chId])})`:'📍 챕터 셀 탭 → 진도 스탬프 설정';
-    const w=_st.chCollapsed?32:_st.chColWidth;
+
+    // ★ 챕터명 기반 자동 너비 계산
+    // 가장 긴 챕터명 글자 수 × 7px(한글 기준) + 여백 40px, min/max 제한
+    let w;
+    if (_st.chCollapsed) {
+      w = 32;
+    } else {
+      const maxChLen = chs.reduce((max, ch) => Math.max(max, (ch.title||'').length), 0);
+      const autoW = Math.max(MIN_CH_W, Math.min(MAX_CH_W, maxChLen * 7 + 52));
+      // 사용자가 수동 조절한 경우(localStorage에 저장됨) vs 자동
+      const savedW = parseInt(localStorage.getItem(LS_CH_W));
+      // 학생이 1명일 때는 자동 너비 우선 적용, 여러 명이면 저장값 사용
+      w = (students.length === 1 || !savedW || savedW === DEF_CH_W) ? autoW : _st.chColWidth;
+      _st.chColWidth = w;
+    }
 
     // ★ 후처리 필터 로드
     const _pf=_loadPf(_st.matrixClassId,_st.matrixBookId);
@@ -1821,9 +1846,14 @@ const BooklibApp = (() => {
       doneByS[s.id]=uc;
       undone+=uc;
     });
+    // ★ 학생 수에 따른 열 너비: 1명이면 나머지 공간 전부, 여러 명이면 고정
     const total = students.length * evalChs.length;
     const pct = total ? Math.max(0, Math.round((total-undone)/total*100)) : 100;
     const pfCnt=Object.keys(_pf).length;
+    const stuColStyle = students.length <= 3
+      ? `style="--ch-w:${w}px;--stu-w:auto;table-layout:fixed;width:100%"`
+      : `style="--ch-w:${w}px;--stu-w:${STU_W}px"`;
+    const stuColW = students.length <= 3 ? '' : `width:${STU_W}px`;
     return`<div class="bl-mstats" id="bl-mstats">
       <div class="bl-mstat">⬜ 미수행 <span class="bl-mstat-v">${undone}</span></div>
       <div class="bl-mstat">✅ 수행률 <span class="bl-mstat-v">${pct}%</span></div>
@@ -1846,8 +1876,8 @@ const BooklibApp = (() => {
     </div>
     <div style="font-size:10px;color:var(--tx3);padding:4px 12px;flex-shrink:0;background:var(--surf2);border-bottom:1px solid var(--bdr)">${stampNote}</div>
     <div class="bl-mwrap">
-      <table class="bl-mtbl ${_st.chCollapsed?'ch-collapsed':''}" id="bl-mtbl" style="--ch-w:${w}px;--stu-w:${STU_W}px">
-        <colgroup><col style="width:${w}px">${students.map(()=>`<col style="width:${STU_W}px">`).join('')}</colgroup>
+      <table class="bl-mtbl ${_st.chCollapsed?'ch-collapsed':''}" id="bl-mtbl" ${stuColStyle}>
+        <colgroup><col style="width:${w}px">${students.map(()=>`<col ${stuColW?`style="${stuColW}"`:''}>`).join('')}</colgroup>
         <thead>
           <tr style="position:sticky;top:0;z-index:6;background:var(--surf)">
             <th class="bl-ch-hdr">
