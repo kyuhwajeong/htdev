@@ -1880,9 +1880,11 @@ const BooklibApp = (() => {
         <colgroup><col style="width:${w}px">${students.map(()=>`<col ${stuColW?`style="${stuColW}"`:''}>`).join('')}</colgroup>
         <thead>
           <tr style="position:sticky;top:0;z-index:6;background:var(--surf)">
-            <th class="bl-ch-hdr">
-              ${!_st.chCollapsed?`<span style="font-size:9px;font-weight:800;color:var(--tx3)">챕터 / 학생</span>`:''}
-              <button class="bl-collapse-btn" id="bl-collapse-btn" onclick="BooklibApp._toggleCollapse()">${_st.chCollapsed?'▶':'◀'}</button>
+            <th class="bl-ch-hdr" style="flex-direction:column;align-items:center;justify-content:space-between;gap:4px">
+              <span id="bl-ch-hdr-lbl" style="font-size:12px;font-weight:800;color:var(--tx2);line-height:1.4;text-align:center;writing-mode:horizontal-tb;display:${_st.chCollapsed?'none':'flex'};flex-direction:column;align-items:center;gap:0">
+                <span>챕터</span><span style="font-size:10px;color:var(--tx3)">/</span><span>학생</span>
+              </span>
+              <button class="bl-collapse-btn" id="bl-collapse-btn" onclick="BooklibApp._toggleCollapse()" title="${_st.chCollapsed?'챕터 펼치기':'챕터 접기'}" style="width:26px;height:26px;font-size:11px">${_st.chCollapsed?'▶':'◀'}</button>
             </th>
             ${students.map((s,i)=>{const uc=doneByS[s.id];return`<th class="bl-shdr" draggable="true" data-idx="${i}" data-sid="${s.id}" onclick="BooklibApp.openShare('${s.id}','${_st.matrixClassId}','${_st.matrixBookId}')">
               <div class="bl-shdr-name">${_e(s.name)}${s.nickname?`<span style="font-size:9px;font-weight:600;color:var(--tx3);display:block">(${_e(s.nickname)})</span>`:''}</div>
@@ -2149,7 +2151,18 @@ const BooklibApp = (() => {
     if(actEl)actEl.textContent=uc?'📤':'';
   }
 
-  function _chWider(){if(_st.chCollapsed){_toggleCollapse();return;}_st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
+  function _chWider(){
+    if(_st.chCollapsed){_toggleCollapse();return;}
+    _st.chColWidth=Math.min(MAX_CH_W,_st.chColWidth+20);
+    localStorage.setItem(LS_CH_W,_st.chColWidth);
+    const tbl=document.getElementById('bl-mtbl');
+    if(tbl&&!_st.chCollapsed){
+      tbl.style.setProperty('--ch-w',_st.chColWidth+'px');
+      const fc=tbl.querySelector('colgroup col:first-child');
+      if(fc) fc.style.width=_st.chColWidth+'px';
+    }
+    _updWLbl();
+  }
   function _mtblFontSize(delta){
     const tbl=document.getElementById('bl-mtbl'); if(!tbl) return;
     const LS_FONT='bl_mtbl_fontsize';
@@ -2309,8 +2322,36 @@ const BooklibApp = (() => {
     }
   }
 
-    function _chNarrow(){if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}_st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);localStorage.setItem(LS_CH_W,_st.chColWidth);const tbl=document.getElementById('bl-mtbl');if(tbl&&!_st.chCollapsed)tbl.style.setProperty('--ch-w',_st.chColWidth+'px');_updWLbl();}
-  function _toggleCollapse(){_st.chCollapsed=!_st.chCollapsed;const tbl=document.getElementById('bl-mtbl'),btn=document.getElementById('bl-collapse-btn'),w=_st.chCollapsed?32:_st.chColWidth;if(tbl){tbl.classList.toggle('ch-collapsed',_st.chCollapsed);tbl.style.setProperty('--ch-w',w+'px');}if(btn)btn.textContent=_st.chCollapsed?'▶':'◀';_updWLbl();}
+  function _chNarrow(){
+    if(_st.chColWidth<=MIN_CH_W+10){_toggleCollapse();return;}
+    _st.chColWidth=Math.max(MIN_CH_W,_st.chColWidth-20);
+    localStorage.setItem(LS_CH_W,_st.chColWidth);
+    const tbl=document.getElementById('bl-mtbl');
+    if(tbl&&!_st.chCollapsed){
+      tbl.style.setProperty('--ch-w',_st.chColWidth+'px');
+      const fc=tbl.querySelector('colgroup col:first-child');
+      if(fc) fc.style.width=_st.chColWidth+'px';
+    }
+    _updWLbl();
+  }
+  function _toggleCollapse(){
+    _st.chCollapsed=!_st.chCollapsed;
+    const tbl=document.getElementById('bl-mtbl');
+    const btn=document.getElementById('bl-collapse-btn');
+    const w=_st.chCollapsed?32:_st.chColWidth;
+    if(tbl){
+      tbl.classList.toggle('ch-collapsed',_st.chCollapsed);
+      tbl.style.setProperty('--ch-w',w+'px');
+      // ★ colgroup의 첫 번째 <col>도 반드시 업데이트 (col이 실제 열 너비를 결정)
+      const firstCol=tbl.querySelector('colgroup col:first-child');
+      if(firstCol) firstCol.style.width=w+'px';
+    }
+    if(btn) btn.textContent=_st.chCollapsed?'▶':'◀';
+    // ★ 챕터/학생 라벨 표시/숨김
+    const lbl=document.getElementById('bl-ch-hdr-lbl');
+    if(lbl) lbl.style.display=_st.chCollapsed?'none':'block';
+    _updWLbl();
+  }
   function _updWLbl(){const lbl=document.querySelector('.bl-mstats span[style*="font-size:10px"]');if(lbl)lbl.textContent=_st.chCollapsed?'접힘':_st.chColWidth+'px';}
 
   function _setupDrag(){
@@ -3739,25 +3780,78 @@ const BooklibApp = (() => {
 
     if(runBtn){ runBtn.disabled=true; runBtn.textContent='⏳ 처리 중...'; }
 
+    // ── 진행 오버레이 생성 ──
+    document.getElementById('bl-batch-prog')?.remove();
+    const progOv = document.createElement('div');
+    progOv.id = 'bl-batch-prog';
+    progOv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+    progOv.innerHTML = `
+      <div style="background:var(--card);border-radius:20px;padding:28px 32px;min-width:320px;max-width:90vw;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <span style="font-size:28px;animation:spin 1s linear infinite;display:inline-block">⏳</span>
+          <div>
+            <div style="font-size:15px;font-weight:800;color:var(--tx)">일괄 xlsx 반영 중</div>
+            <div id="bl-bp-sub" style="font-size:11px;color:var(--tx3);margin-top:2px">준비 중...</div>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--surf2);border-radius:4px;overflow:hidden;margin-bottom:10px">
+          <div id="bl-bp-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--a),#7c3aed);border-radius:4px;transition:width .35s cubic-bezier(.4,0,.2,1)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div id="bl-bp-frac" style="font-size:12px;font-weight:700;color:var(--tx3)">0 / ${files.length}</div>
+          <div id="bl-bp-pct" style="font-size:14px;font-weight:900;color:var(--a)">0%</div>
+        </div>
+        <div id="bl-bp-log" style="margin-top:14px;max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin"></div>
+      </div>`;
+    // spin 애니메이션
+    if(!document.getElementById('bl-spin-style')){
+      const st=document.createElement('style');
+      st.id='bl-spin-style';
+      st.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(st);
+    }
+    document.body.appendChild(progOv);
+
+    const _setProgress=(done,total,label,ok)=>{
+      const pct=total?Math.round(done/total*100):0;
+      const bar=document.getElementById('bl-bp-bar');
+      const frac=document.getElementById('bl-bp-frac');
+      const pctEl=document.getElementById('bl-bp-pct');
+      const sub=document.getElementById('bl-bp-sub');
+      const log=document.getElementById('bl-bp-log');
+      if(bar)  bar.style.width=pct+'%';
+      if(frac) frac.textContent=`${done} / ${total}`;
+      if(pctEl)pctEl.textContent=pct+'%';
+      if(sub&&label) sub.textContent=label;
+      if(log&&label){
+        const item=document.createElement('div');
+        item.style.cssText=`display:flex;align-items:flex-start;gap:6px;padding:5px 8px;border-radius:7px;font-size:11px;background:${ok===false?'rgba(239,68,68,.08)':ok===true?'rgba(5,150,105,.07)':'var(--surf2)'}`;
+        item.innerHTML=`<span style="flex-shrink:0;font-size:12px">${ok===false?'❌':ok===true?'✅':'⏳'}</span><span style="color:${ok===false?'#dc2626':ok===true?'var(--green)':'var(--tx3)'};line-height:1.4">${_e(label)}</span>`;
+        log.appendChild(item);
+        log.scrollTop=log.scrollHeight;
+      }
+    };
+
     const results = [];
+    let processed = 0;
     for(const f of files){
+      _setProgress(processed, files.length, `처리 중: ${f.name}`, null);
+
       const match = _matchFileToTarget(f.name);
-      // ★ 반 미매칭 + 학생명 매칭인 경우도 처리 (cls:null, stuNames:[...])
       if(!match.bk || (!match.cls && !match.stuNames)){
         results.push({name:f.name, ok:false, msg:'반/교재 매칭 실패 - 건너뜀'});
+        processed++;
+        _setProgress(processed, files.length, `건너뜀: ${f.name}`, false);
         continue;
       }
       try{
-        // 이전 상태 백업 및 임시 설정
         const prevCls = _st.matrixClassId, prevBk = _st.matrixBookId;
-        // ★ cls가 null인 경우 (학생 배정 교재): matrixClassId = null
         _st.matrixClassId = match.cls ? match.cls.id : null;
         _st.matrixBookId  = match.bk.id;
         const _cid = _st.matrixClassId || '__noclass__';
         _checks = BookLibDB.getMatrixChecks(_cid, match.bk.id);
         _stamps = BookLibDB.getStamps(_cid, match.bk.id);
 
-        // ★ 해당 반+교재의 저장된 예외 설정 로드 (신구조: {bookId:{studentName:{...}}})
         const exemptClsId = match.cls ? match.cls.id : null;
         const rawExempts = await BookLibDB.loadClassExempts(exemptClsId)||{};
         const exemptsByBook = _migrateExemptsIfNeeded(rawExempts);
@@ -3767,7 +3861,6 @@ const BooklibApp = (() => {
         );
         _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length>0;
 
-        // xlsx 처리
         const buf  = await f.arrayBuffer();
         const wb   = XLSX.read(buf,{type:'array'});
         const ws   = wb.Sheets[wb.SheetNames[0]];
@@ -3782,23 +3875,42 @@ const BooklibApp = (() => {
         await _syncChaptersFromXlsx(rows, match.bk.id);
         const res = await _processCsv(rows);
 
-        // ★ 결과 레이블: 반명 또는 학생명
         const targetLabel = match.cls
           ? `${match.cls.name}반`
           : match.stuNames ? `🐱 ${match.stuNames.join('·')}` : '(미배정)';
-        results.push({name:f.name, ok:true,
-          msg:`✅ ${targetLabel} · ${match.bk.name} — 미수행 ${res.undone}건, 수행 ${res.done}건${res.stampTitle?' | 📍'+res.stampTitle:''}` });
+        const resultMsg = `${targetLabel} · ${match.bk.name} — 미수행 ${res.undone}건, 수행 ${res.done}건${res.stampTitle?' | 📍'+res.stampTitle:''}`;
+        results.push({name:f.name, ok:true, msg:'✅ '+resultMsg});
 
-        // 현재 화면 반영 (현재 선택된 반+교재이면 새로고침)
+        processed++;
+        _setProgress(processed, files.length, resultMsg, true);
+
         const matchClsId = match.cls ? match.cls.id : null;
         _st.matrixClassId = prevCls; _st.matrixBookId = prevBk;
+        // ★ 핵심 버그 수정: _checks/_stamps를 현재 화면의 반+교재로 복원
+        //   미복원 시 openShare가 마지막 처리 파일의 데이터를 참조해
+        //   미수행 목록이 비어있는 것처럼 표시되는 문제 발생
+        {
+          const _restoreCid = prevCls || '__noclass__';
+          _checks = prevBk ? BookLibDB.getMatrixChecks(_restoreCid, prevBk) : {};
+          _stamps = prevBk ? BookLibDB.getStamps(_restoreCid, prevBk) : {};
+        }
         if(prevCls===matchClsId && prevBk===match.bk.id) _refreshBody();
       } catch(err){
         results.push({name:f.name, ok:false, msg:'❌ 오류: '+err.message});
+        processed++;
+        _setProgress(processed, files.length, `오류: ${f.name} — ${err.message}`, false);
       }
+      // UI 업데이트 여유
+      await new Promise(r=>setTimeout(r,30));
     }
 
-    // 결과 표시
+    // 완료 표시 후 짧게 대기
+    _setProgress(files.length, files.length, '완료!', true);
+    const bar=document.getElementById('bl-bp-bar');
+    if(bar){ bar.style.background='linear-gradient(90deg,#10b981,#059669)'; }
+    await new Promise(r=>setTimeout(r,600));
+
+    progOv.remove();
     modal.remove();
     _showBatchResult(results);
   }
@@ -3811,21 +3923,41 @@ const BooklibApp = (() => {
     modal.onclick=e=>{if(e.target===modal)modal.remove();};
     const ok  = results.filter(r=>r.ok).length;
     const err = results.filter(r=>!r.ok).length;
-    const rows = results.map(r=>`<div style="padding:10px 12px;border-radius:10px;background:${r.ok?'var(--surf2)':'rgba(239,68,68,.07)'};border:1px solid ${r.ok?'var(--bdr)':'rgba(239,68,68,.3)'};margin-bottom:6px">
-      <div style="font-size:11px;font-weight:700">${r.name}</div>
-      <div style="font-size:11px;margin-top:4px;color:${r.ok?'var(--green)':'#dc2626'}">${r.msg}</div>
-    </div>`).join('');
-    modal.innerHTML=`<div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div>
-          <div style="font-size:16px;font-weight:800">📊 일괄 반영 결과</div>
-          <div style="font-size:12px;color:var(--tx3);margin-top:2px">성공 ${ok}건 / 실패 ${err}건</div>
+    const rows = results.map(r=>`
+      <div style="padding:10px 12px;border-radius:10px;background:${r.ok?'var(--surf2)':'rgba(239,68,68,.07)'};border:1px solid ${r.ok?'var(--bdr)':'rgba(239,68,68,.3)'};margin-bottom:6px;display:flex;gap:8px;align-items:flex-start">
+        <span style="font-size:16px;flex-shrink:0;margin-top:1px">${r.ok?'✅':'❌'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)">${_e(r.name)}</div>
+          <div style="font-size:11px;margin-top:3px;color:${r.ok?'var(--green)':'#dc2626'};line-height:1.5">${r.msg.replace(/^✅\s*/,'')}</div>
         </div>
-        <button onclick="document.getElementById('bl-batch-result').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3)">✕</button>
-      </div>
-      <div style="overflow-y:auto;flex:1">${rows}</div>
-      <button onclick="document.getElementById('bl-batch-result').remove()" style="margin-top:14px;width:100%;padding:12px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">확인</button>
-    </div>`;
+      </div>`).join('');
+    // 상단 통계 바
+    const totalCnt=results.length;
+    const okPct=totalCnt?Math.round(ok/totalCnt*100):0;
+    modal.innerHTML=`
+      <div style="background:var(--card);border-radius:20px 20px 0 0;padding:0;width:100%;max-width:600px;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 -4px 24px rgba(0,0,0,.18);overflow:hidden">
+        <div style="padding:18px 20px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div>
+              <div style="font-size:16px;font-weight:800">📊 일괄 반영 결과</div>
+              <div style="font-size:12px;color:var(--tx3);margin-top:2px">전체 ${totalCnt}건 · 성공 <span style="color:var(--green);font-weight:700">${ok}</span>건 · 실패 <span style="color:#dc2626;font-weight:700">${err}</span>건</div>
+            </div>
+            <button onclick="document.getElementById('bl-batch-result').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx3);padding:4px">✕</button>
+          </div>
+          <!-- 결과 progress bar -->
+          <div style="height:8px;background:var(--surf2);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${okPct}%;background:linear-gradient(90deg,var(--green),#059669);border-radius:4px;transition:width .5s .1s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);margin-top:4px">
+            <span>성공률 ${okPct}%</span>
+            <span>${ok} / ${totalCnt}</span>
+          </div>
+        </div>
+        <div style="overflow-y:auto;flex:1;padding:14px 16px">${rows}</div>
+        <div style="padding:12px 16px 24px;flex-shrink:0;border-top:1px solid var(--bdr)">
+          <button onclick="document.getElementById('bl-batch-result').remove()" style="width:100%;padding:13px;border-radius:10px;background:var(--a);color:#fff;border:none;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--font);box-shadow:0 3px 10px var(--a40)">확인</button>
+        </div>
+      </div>`;
     document.body.appendChild(modal);
   }
   // ★★★ 일괄 반영 끝 ★★★
