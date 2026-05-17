@@ -1672,14 +1672,19 @@ const GradeApp = (() => {
     return {
       scale:           2,
       useCORS:         true,
-      allowTaint:      false,   // allowTaint=true 시 폰트 taint 문제 발생, false 유지
+      allowTaint:      false,
       backgroundColor: bg || _st.rptBg || '#ffffff',
       logging:         false,
       imageTimeout:    0,
       removeContainer: true,
-      // ★ 웹폰트를 인라인으로 포함 (캡처 시 폰트 깨짐 방지)
       onclone: (clonedDoc) => {
-        // 원본 document의 style/link 태그를 복제 문서에 동기화
+        // ★ 복제 DOM에서 transform scale 완전 제거 (배율 설정 무시하고 원본 크기 캡처)
+        const clonedOuter = clonedDoc.getElementById('gr-rpt-outer');
+        if (clonedOuter) {
+          clonedOuter.style.transform = 'none';
+          clonedOuter.style.transformOrigin = '';
+        }
+        // 폰트 링크 동기화
         const links = [...document.querySelectorAll('link[rel="stylesheet"]')];
         links.forEach(lk => {
           const already = clonedDoc.querySelector(`link[href="${lk.href}"]`);
@@ -1689,10 +1694,26 @@ const GradeApp = (() => {
             clonedDoc.head.appendChild(nl);
           }
         });
-        // 현재 폰트 패밀리를 클론 body에 명시
         clonedDoc.body.style.fontFamily = `'${_st.fontFamily||"Noto Sans KR"}', sans-serif`;
       },
     };
+  }
+
+  // ── 캡처 대상 요소의 scale을 임시 해제하고 캡처 후 복원 ──
+  async function _captureEl(el, bg) {
+    const outer = document.getElementById('gr-rpt-outer');
+    const prevTransform = outer ? outer.style.transform : '';
+    const prevOrigin    = outer ? outer.style.transformOrigin : '';
+    // ★ 캡처 전 scale 임시 제거
+    if (outer) { outer.style.transform = 'none'; outer.style.transformOrigin = ''; }
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try {
+      const canvas = await html2canvas(el, _captureOpts(bg));
+      return canvas;
+    } finally {
+      // ★ 캡처 후 scale 복원
+      if (outer) { outer.style.transform = prevTransform; outer.style.transformOrigin = prevOrigin; }
+    }
   }
 
   async function _deliverReport() {
@@ -1704,7 +1725,7 @@ const GradeApp = (() => {
     _toast('📸 이미지 생성 중...', 'success');
     try {
       await _waitFonts();
-      const canvas = await html2canvas(el, _captureOpts(_st.rptBg));
+      const canvas = await _captureEl(el, _st.rptBg);
 
       canvas.toBlob(async blob => {
         if (!blob) { _toast('⚠️ 캡처 실패'); return; }
@@ -2280,15 +2301,10 @@ const GradeApp = (() => {
     if(typeof html2canvas!=='undefined'){
       _toast('🖨️ 캡처 중...','info',2000);
       await _waitFonts();
-      html2canvas(el,{..._captureOpts(),
-        onclone:(doc)=>{
-          // 인쇄 불필요한 요소 숨김
-          doc.querySelectorAll('.gr-rpt-fixed-btns,.gr-rpt-cfg').forEach(e=>e.style.display='none');
-        }
-      }).then(canvas=>{
+      _captureEl(el).then(canvas=>{
         const imgUrl=canvas.toDataURL('image/png');
-        const pw={A4:'210mm',A5:'148mm',B5:'176mm'}[_st.pageSize]||'210mm';
-        const ph={A4:'297mm',A5:'210mm',B5:'250mm'}[_st.pageSize]||'297mm';
+        const pw={A4:'210mm',A5:'148mm',B5:'176mm',Letter:'216mm',Card:'105mm',Narrow:'127mm',Wide:'210mm'}[_st.pageSize]||'210mm';
+        const ph={A4:'297mm',A5:'210mm',B5:'250mm',Letter:'279mm',Card:'148mm',Narrow:'180mm',Wide:'297mm'}[_st.pageSize]||'297mm';
         const html='<!DOCTYPE html><html><head>'+
           '<style>@page{size:'+pw+' '+ph+';margin:0}body{margin:0;padding:0}'+
           'img{width:100%;height:auto;display:block}</style></head>'+
@@ -2324,7 +2340,7 @@ const GradeApp = (() => {
     const fname= `${safe(cls?.name)}_${safe(book?.name)}_${safe(stu?.name)}_Report_${ymd}_${hms}.png`;
     if(typeof html2canvas!=='undefined'){
       await _waitFonts();
-      const c=await html2canvas(el,_captureOpts());
+      const c=await _captureEl(el);
       const a=document.createElement('a');
       a.href=c.toDataURL('image/png');
       a.download=fname;
@@ -3243,7 +3259,7 @@ const GradeApp = (() => {
     _toast('📸 캡처 중...','success');
     try {
       await _waitFonts();
-      const canvas = await html2canvas(el, _captureOpts(_ov.cfg.bg||'#ffffff'));
+      const canvas = await _captureEl(el, _ov.cfg.bg||'#ffffff');
       const title  = `${_getCls(_st.classId)?.name||'반'} 성취율 현황`;
       canvas.toBlob(async blob=>{
         if(!blob){_toast('⚠️ 캡처 실패');return;}
