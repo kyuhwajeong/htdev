@@ -3172,8 +3172,6 @@ const GradeApp = (() => {
 
   /* ════════════════════════════════════════════════════ */
 
-  /* ════════════════════════════════════════════════
-  /* ════════════════════════════════════════════════
   function openReport() {
     if(!_st.classId||!_st.bookId){_toast('⚠️ 반과 교재를 선택해주세요');return;}
     const ov=document.getElementById('gr-rpt-ov'),sh=document.getElementById('gr-rpt-sh');if(!ov||!sh)return;
