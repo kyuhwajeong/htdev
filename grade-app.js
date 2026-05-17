@@ -228,7 +228,8 @@ const GradeApp = (() => {
 .gr-card-save-btn:active{opacity:.85;}
 
 /* ══ REPORT ══ */
-.gr-report-panel{padding:0 0 80px;display:flex;flex-direction:column;height:100%;}
+.gr-report-panel{padding:0;display:flex;flex-direction:column;height:100%;overflow:hidden;}
+#page-grade.report-active .gr-chart-wrap{display:none!important;height:0!important;padding:0!important;border:none!important;margin:0!important;overflow:hidden!important;}
 .gr-rpt-preview{background:var(--surf2);flex:1;min-height:0;display:flex;justify-content:center;padding:20px 12px;overflow:auto;}
 
 /* ── 플로팅 설정 패널 ── */
@@ -2649,6 +2650,8 @@ const GradeApp = (() => {
     // ★ 리포트 뷰에서는 하단 차트 영역 + 모달 바텀시트 완전 숨김
     const chartWrap = document.getElementById('gr-chart-wrap');
     if (chartWrap) chartWrap.style.display = 'none';
+    // ★ page-grade에 report-active 클래스 토글 (리포트 뷰 하단 여백 제거용)
+    document.getElementById('page-grade')?.classList.toggle('report-active', mode==='report');
     // ★ 뷰 전환 시 항상 전체 성적표 바텀시트 모달 닫기
     //    openReport()가 이전에 호출되어 gr-rpt-ov에서 hidden이 제거된 경우 복원
     document.getElementById('gr-rpt-ov')?.classList.add('hidden');
