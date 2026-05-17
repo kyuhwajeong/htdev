@@ -29,32 +29,31 @@ const GradeApp = (() => {
     viewMode:  'excel',
     data:      {},
     dirty:     new Set(),
-    sortCol:   null,   // null | 'name' | 'wordAch' | 'rdAch'
+    sortCol:   null,
     sortDesc:  true,
     slideIdx:  0,
     reportBold:      localStorage.getItem('gr_reportBold') === 'true',
     reportGraph:     localStorage.getItem('gr_graph')    !== 'false',
+    reportLayout:    Number(localStorage.getItem('gr_layout'))     || 1,   // ★ 추가
     pageSize:        localStorage.getItem('gr_pageSize') || 'A4',
-    rptScale:        Number(localStorage.getItem('gr_rptScale'))  || 100,
-    reportTitleSize: Number(localStorage.getItem('gr_titleSz'))   || 18,
-    reportBodySize:  Number(localStorage.getItem('gr_bodySz'))    || 12,
+    rptScale:        Number(localStorage.getItem('gr_rptScale'))   || 100,
+    reportTitleSize: Number(localStorage.getItem('gr_titleSz'))    || 18,
+    reportBodySize:  Number(localStorage.getItem('gr_bodySz'))     || 12,
     rptBg:           localStorage.getItem('gr_rptBg')    || '#ffffff',
     fontFamily:      localStorage.getItem('gr_fontFamily')|| 'Noto Sans KR',
     dividerColor:    localStorage.getItem('gr_divClr')   || '#e2e8f0',
-    dividerWidth:    Number(localStorage.getItem('gr_divW'))      || 1,
+    dividerWidth:    Number(localStorage.getItem('gr_divW'))       || 1,
     titleAlign:      localStorage.getItem('gr_titleAlign') || 'center',
     tblHeaderBg:     localStorage.getItem('gr_tblHdrBg')   || '#f1f5f9',
     tblHeaderColor:  localStorage.getItem('gr_tblHdrClr')  || '#475569',
     tblCellBg:       localStorage.getItem('gr_tblCellBg')  || '#ffffff',
     tableRound:      localStorage.getItem('gr_tblRound') === 'true',
-    graphAlign:      localStorage.getItem('gr_graphAlign')|| 'left',
-    logoSize:        Number(localStorage.getItem('gr_logoSz'))    || 80,
-    hdrFontSize:     Number(localStorage.getItem('gr_hdrFontSz')) || 12,
-    excelFontSize:   Number(localStorage.getItem('gr_excelFontSz')) || 12,
-    cardFontSize:    Number(localStorage.getItem('gr_cardFontSz'))  || 12,
-    graphStyle:      Number(localStorage.getItem('gr_graphStyle'))  || 1, // 1=수직, 2=수평
-    graphAlign:      'left',
-    logoSize:        80,
+    graphAlign:      localStorage.getItem('gr_graphAlign') || 'left',  // ★ 하드코딩 제거
+    logoSize:        Number(localStorage.getItem('gr_logoSz'))     || 80, // ★ 하드코딩 제거
+    hdrFontSize:     Number(localStorage.getItem('gr_hdrFontSz'))  || 12,
+    excelFontSize:   Number(localStorage.getItem('gr_excelFontSz'))|| 12,
+    cardFontSize:    Number(localStorage.getItem('gr_cardFontSz')) || 12,
+    graphStyle:      Number(localStorage.getItem('gr_graphStyle')) || 1,
     touchStartX: 0,
   };
 
@@ -1112,7 +1111,13 @@ const GradeApp = (() => {
       </div>
     </div>`;
     /* ★ 초기 렌더 후 모든 설정값 일괄 적용 (폰트·색상·정렬 등) */
-    requestAnimationFrame(_applyRptStyles);
+    requestAnimationFrame(()=>{
+      _applyRptStyles();
+      // ★ 페이지 크기 복원
+      if (_st.pageSize && _st.pageSize !== 'A4') _setPageSize(_st.pageSize);
+      // ★ 배율 복원
+      if (_st.rptScale && _st.rptScale !== 100) _setRptScale(_st.rptScale);
+    });
   }
 
   function _buildReport(s) {
