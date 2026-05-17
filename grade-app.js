@@ -35,6 +35,7 @@ const GradeApp = (() => {
     reportBold:      localStorage.getItem('gr_reportBold') === 'true',
     reportGraph:     localStorage.getItem('gr_graph')    !== 'false',
     pageSize:        localStorage.getItem('gr_pageSize') || 'A4',
+    rptScale:        Number(localStorage.getItem('gr_rptScale'))  || 100,
     reportTitleSize: Number(localStorage.getItem('gr_titleSz'))   || 18,
     reportBodySize:  Number(localStorage.getItem('gr_bodySz'))    || 12,
     rptBg:           localStorage.getItem('gr_rptBg')    || '#ffffff',
@@ -1477,15 +1478,17 @@ const GradeApp = (() => {
     panel.style.top  = initTop  + 'px';
 
     const FONTS = [
-      { key: 'Noto Sans KR',   label: '나눔 (Noto)',  style: "'Noto Sans KR', sans-serif" },
-      { key: 'IBM Plex Sans KR', label: 'IBM 플렉스', style: "'IBM Plex Sans KR', sans-serif" },
-      { key: 'Nanum Gothic',   label: '나눔고딕',     style: "'Nanum Gothic', sans-serif" },
+      { key: 'Noto Sans KR',      label: 'Noto',   style: "'Noto Sans KR', sans-serif" },
+      { key: 'IBM Plex Sans KR',  label: 'IBM',    style: "'IBM Plex Sans KR', sans-serif" },
+      { key: 'Nanum Gothic',      label: '나눔고딕', style: "'Nanum Gothic', sans-serif" },
+      { key: 'Nanum Myeongjo',    label: '명조',    style: "'Nanum Myeongjo', serif" },
+      { key: 'Spoqa Han Sans Neo',label: 'Spoqa',  style: "'Spoqa Han Sans Neo','Noto Sans KR',sans-serif" },
     ];
 
     panel.innerHTML = `
       <div class="gr-float-cfg-hdr" id="gr-float-cfg-hdr">
         <span class="gr-float-cfg-title">⚙️ 리포트 설정</span>
-        <button class="gr-float-cfg-close" onclick="document.getElementById('gr-float-cfg')?.remove()">✕</button>
+        <button class="gr-float-cfg-close" id="gr-float-cfg-close-btn">✕</button>
       </div>
       <div class="gr-float-cfg-body">
 
@@ -1526,14 +1529,27 @@ const GradeApp = (() => {
 
         <!-- 페이지 -->
         <div class="gr-float-section">
-          <div class="gr-float-lbl">📄 페이지 · 🖼 로고</div>
-          <div class="gr-float-row" style="margin-bottom:6px">
-            ${['A4','A5','B5'].map(p=>`<button id="gr-ps-${p}" onclick="GradeApp._setPageSize('${p}')"
-              style="padding:4px 11px;border-radius:7px;border:1.5px solid ${_st.pageSize===p?'var(--a)':'var(--bdr2)'};background:${_st.pageSize===p?'var(--a20)':'var(--surf2)'};color:${_st.pageSize===p?'var(--a)':'var(--tx3)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">${p}</button>`).join('')}
+          <div class="gr-float-lbl">📄 페이지 크기</div>
+          <div class="gr-float-row" style="flex-wrap:wrap;gap:5px;margin-bottom:8px">
+            ${[
+              {k:'A4',    l:'A4',      d:'일반 출력'},
+              {k:'A5',    l:'A5',      d:'절반 크기'},
+              {k:'B5',    l:'B5',      d:'A4보다 작음'},
+              {k:'Letter',l:'Letter',  d:'미국 표준'},
+              {k:'Card',  l:'📇 카드', d:'학부모 전달용'},
+              {k:'Narrow',l:'📱 좁게', d:'모바일 캡처용'},
+              {k:'Wide',  l:'↔ 전체폭',d:'화면 꽉 채우기'},
+            ].map(({k,l,d})=>`<button id="gr-ps-${k}" onclick="GradeApp._setPageSize('${k}')" title="${d}"
+              style="padding:3px 9px;border-radius:7px;border:1.5px solid ${_st.pageSize===k?'var(--a)':'var(--bdr2)'};background:${_st.pageSize===k?'var(--a20)':'var(--surf2)'};color:${_st.pageSize===k?'var(--a)':'var(--tx3)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">${l}</button>`).join('')}
           </div>
-          <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:6px">로고
+          <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:6px">🖼 로고
             <input type="range" min="40" max="160" value="${_st.logoSize}" oninput="GradeApp._setLogoSize(this.value)" style="flex:1;accent-color:var(--a)">
             <span id="gr-rpt-logo-sz" style="min-width:34px;text-align:right">${_st.logoSize}px</span>
+          </label>
+          <!-- 확대/축소 -->
+          <label style="font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:6px;margin-top:6px">🔍 배율
+            <input type="range" min="60" max="150" step="5" value="${_st.rptScale}" oninput="GradeApp._setRptScale(+this.value)" style="flex:1;accent-color:var(--a)">
+            <span id="gr-rpt-scale-lbl" style="min-width:34px;text-align:right">${_st.rptScale}%</span>
           </label>
         </div>
 
@@ -1593,16 +1609,33 @@ const GradeApp = (() => {
 
     document.body.appendChild(panel);
 
+    // ── 닫기 버튼: click + touchend 모두 처리 (모바일 터치 누락 방지) ──
+    const closeBtn = document.getElementById('gr-float-cfg-close-btn');
+    const _doClose = e => { e.preventDefault(); e.stopPropagation(); document.getElementById('gr-float-cfg')?.remove(); };
+    closeBtn.addEventListener('click',      _doClose);
+    closeBtn.addEventListener('touchend',   _doClose, {passive:false});
+
     // ── 드래그 기능 ──
     const hdr = document.getElementById('gr-float-cfg-hdr');
-    let ox=0, oy=0, dragging=false;
-    function onMove(cx,cy){ panel.style.left=Math.max(0,Math.min(window.innerWidth-panel.offsetWidth,cx-ox))+'px'; panel.style.top=Math.max(0,Math.min(window.innerHeight-60,cy-oy))+'px'; }
-    hdr.addEventListener('mousedown', e=>{ dragging=true; ox=e.clientX-panel.offsetLeft; oy=e.clientY-panel.offsetTop; panel.classList.add('dragging'); e.preventDefault(); });
+    let ox=0, oy=0, dragging=false, moved=false;
+    function onMove(cx,cy){
+      moved=true;
+      panel.style.left=Math.max(0,Math.min(window.innerWidth-panel.offsetWidth,cx-ox))+'px';
+      panel.style.top=Math.max(0,Math.min(window.innerHeight-60,cy-oy))+'px';
+    }
+    hdr.addEventListener('mousedown', e=>{ dragging=true; moved=false; ox=e.clientX-panel.offsetLeft; oy=e.clientY-panel.offsetTop; panel.classList.add('dragging'); e.preventDefault(); });
     document.addEventListener('mousemove', e=>{ if(dragging) onMove(e.clientX,e.clientY); });
     document.addEventListener('mouseup', ()=>{ dragging=false; panel.classList.remove('dragging'); });
-    // 터치
-    hdr.addEventListener('touchstart', e=>{ const t=e.touches[0]; ox=t.clientX-panel.offsetLeft; oy=t.clientY-panel.offsetTop; e.preventDefault(); },{passive:false});
-    hdr.addEventListener('touchmove',  e=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY); e.preventDefault(); },{passive:false});
+    // 터치 드래그
+    hdr.addEventListener('touchstart', e=>{
+      // 닫기 버튼은 드래그 이벤트에서 제외
+      if(e.target.id==='gr-float-cfg-close-btn') return;
+      const t=e.touches[0]; moved=false; ox=t.clientX-panel.offsetLeft; oy=t.clientY-panel.offsetTop;
+      e.preventDefault();
+    },{passive:false});
+    hdr.addEventListener('touchmove', e=>{
+      const t=e.touches[0]; onMove(t.clientX,t.clientY); e.preventDefault();
+    },{passive:false});
   }
 
   // ── Bold 설정 ──
@@ -1797,22 +1830,32 @@ const GradeApp = (() => {
   function _setPageSize(size){
     _st.pageSize = size;
     localStorage.setItem('gr_pageSize', size);
-    const pxW = {A4:794, A5:559, B5:665};
-    const w = (pxW[size] || 794) + 'px';
-    /* rpt-wrap 너비 조정 */
+    // ★ 7가지 페이지 크기 (Wide=100% 전체폭)
+    const pxW = {A4:794, A5:559, B5:665, Letter:816, Card:420, Narrow:480, Wide:'100%'};
+    const w = pxW[size] ?? 794;
+    const wStr = (w === '100%') ? '100%' : w + 'px';
     const wrap = document.getElementById('gr-rpt-preview');
-    if (wrap) { wrap.style.width = w; wrap.style.maxWidth = w; }
-    /* 외부 중앙 컨테이너 너비도 맞춤 */
+    if (wrap) { wrap.style.width = wStr; wrap.style.maxWidth = wStr; }
     const outer = document.getElementById('gr-rpt-outer');
-    if (outer) { outer.style.maxWidth = w; }
-    /* 버튼 하이라이트 */
-    document.querySelectorAll('[onclick*="_setPageSize"]').forEach(b => {
-      const s = b.textContent.trim();
-      const active = s === size;
+    if (outer) { outer.style.maxWidth = wStr; }
+    // 버튼 하이라이트 업데이트
+    document.querySelectorAll('[id^="gr-ps-"]').forEach(b => {
+      const k = b.id.replace('gr-ps-','');
+      const active = k === size;
       b.style.borderColor = active ? 'var(--a)' : 'var(--bdr2)';
       b.style.background  = active ? 'var(--a20)' : 'var(--surf2)';
       b.style.color       = active ? 'var(--a)' : 'var(--tx3)';
     });
+  }
+
+  // ── 배율(확대/축소) 설정 ──
+  function _setRptScale(pct){
+    _st.rptScale = pct;
+    localStorage.setItem('gr_rptScale', pct);
+    const outer = document.getElementById('gr-rpt-outer');
+    if(outer){ outer.style.transform=`scale(${pct/100})`; outer.style.transformOrigin='top center'; }
+    const lbl = document.getElementById('gr-rpt-scale-lbl');
+    if(lbl) lbl.textContent = pct + '%';
   }
   function _setRptFontSize(type,val){
     val=Number(val);
@@ -1983,6 +2026,12 @@ const GradeApp = (() => {
     pw.querySelectorAll('.rpt-title').forEach(el => {
       el.style.textAlign = _st.titleAlign || 'center';
     });
+    /* ★ 배율 복원 */
+    const outer = document.getElementById('gr-rpt-outer');
+    if(outer && _st.rptScale && _st.rptScale !== 100){
+      outer.style.transform = `scale(${_st.rptScale/100})`;
+      outer.style.transformOrigin = 'top center';
+    }
   }
 
   function _setGraphStyleMode(n) {
@@ -3511,7 +3560,7 @@ const GradeApp = (() => {
     _slideTo, _ts, _te,
     _onCtxTable, _closeCtxMenu,
     saveOne, saveAll, resetOne,
-    _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _openFloatCfg, _setReportBold, _deliverReport, _setRptBg,
+    _setLayout, _setHdrFontSize, _exportAllGrades, _importAllGrades, _toggleGraph, _setChartStyle, _setPageSize, _setRptFontSize, _setGraphAlign, _setDivider, _setLogoSize, _setTableRound, _bindColResize, _setFontFamily, _openFloatCfg, _setReportBold, _deliverReport, _setRptBg, _setRptScale,
     _setTitleAlign, _setTblColor, _applyTheme, _applyRptStyles,
     _setGraphStyleMode, _fixStickyHeaderTops,
     _copyReport, _shareReport, _printReport, _captureReport, _captureAllReports, _showShareModal, _showDeliverModal,
