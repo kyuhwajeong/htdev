@@ -1647,6 +1647,54 @@ const GradeApp = (() => {
   }
 
   // ── 📲 전달: 캡처 → 클립보드 복사 + 공유 ──
+  // ── html2canvas 캡처 전 웹폰트 완전 로드 대기 ──
+  // Google Fonts가 CORS로 인해 캡처 시 로드 안 되는 문제 방지
+  async function _waitFonts() {
+    try {
+      // 1. document.fonts.ready 대기
+      if (document.fonts?.ready) await document.fonts.ready;
+      // 2. 폰트 실제 렌더 확인 (TextMetrics 기반)
+      const testEl = document.createElement('span');
+      testEl.style.cssText = 'position:absolute;visibility:hidden;font-size:24px;left:-9999px';
+      testEl.textContent = '가나다ABCabc';
+      document.body.appendChild(testEl);
+      // 현재 적용된 폰트로 강제 렌더
+      testEl.style.fontFamily = `'${_st.fontFamily||"Noto Sans KR"}', sans-serif`;
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      document.body.removeChild(testEl);
+      // 3. 추가 안전 대기 (폰트 패치 완료)
+      await new Promise(r => setTimeout(r, 120));
+    } catch(e) { /* 실패해도 진행 */ }
+  }
+
+  function _captureOpts(bg) {
+    return {
+      scale:           2,
+      useCORS:         true,
+      allowTaint:      false,   // allowTaint=true 시 폰트 taint 문제 발생, false 유지
+      backgroundColor: bg || _st.rptBg || '#ffffff',
+      logging:         false,
+      imageTimeout:    0,
+      removeContainer: true,
+      // ★ 웹폰트를 인라인으로 포함 (캡처 시 폰트 깨짐 방지)
+      onclone: (clonedDoc) => {
+        // 원본 document의 style/link 태그를 복제 문서에 동기화
+        const links = [...document.querySelectorAll('link[rel="stylesheet"]')];
+        links.forEach(lk => {
+          const already = clonedDoc.querySelector(`link[href="${lk.href}"]`);
+          if (!already) {
+            const nl = clonedDoc.createElement('link');
+            nl.rel = 'stylesheet'; nl.href = lk.href;
+            clonedDoc.head.appendChild(nl);
+          }
+        });
+        // 현재 폰트 패밀리를 클론 body에 명시
+        clonedDoc.body.style.fontFamily = `'${_st.fontFamily||"Noto Sans KR"}', sans-serif`;
+      },
+    };
+  }
+
   async function _deliverReport() {
     const el = document.getElementById('gr-rpt-preview'); if(!el){ _toast('⚠️ 리포트를 먼저 열어주세요'); return; }
     const s  = _getStudents().find(st=>st.id===_st.studentId) || _getStudents()[0];
@@ -1655,11 +1703,8 @@ const GradeApp = (() => {
 
     _toast('📸 이미지 생성 중...', 'success');
     try {
-      const canvas = await html2canvas(el, {
-        scale: 2, useCORS: true,
-        backgroundColor: _st.rptBg || '#ffffff',
-        logging: false,
-      });
+      await _waitFonts();
+      const canvas = await html2canvas(el, _captureOpts(_st.rptBg));
 
       canvas.toBlob(async blob => {
         if (!blob) { _toast('⚠️ 캡처 실패'); return; }
@@ -2227,15 +2272,15 @@ const GradeApp = (() => {
   }
 
   
-  function _printReport(){
+  async function _printReport(){
     const el=document.getElementById('gr-rpt-preview');if(!el)return;
 
     // ★ 방법: html2canvas로 현재 화면 이미지 캡처 후 인쇄창에 이미지로 출력
     // html2canvas 없으면 @media print 방식으로 폴백
     if(typeof html2canvas!=='undefined'){
       _toast('🖨️ 캡처 중...','info',2000);
-      html2canvas(el,{
-        scale:2, backgroundColor:'#fff', useCORS:true, logging:false,
+      await _waitFonts();
+      html2canvas(el,{..._captureOpts(),
         onclone:(doc)=>{
           // 인쇄 불필요한 요소 숨김
           doc.querySelectorAll('.gr-rpt-fixed-btns,.gr-rpt-cfg').forEach(e=>e.style.display='none');
@@ -2278,7 +2323,8 @@ const GradeApp = (() => {
     const safe = s => (s||'').replace(/[\\/:"*?<>|]/g,'').replace(/\s+/g,'_');
     const fname= `${safe(cls?.name)}_${safe(book?.name)}_${safe(stu?.name)}_Report_${ymd}_${hms}.png`;
     if(typeof html2canvas!=='undefined'){
-      const c=await html2canvas(el,{scale:2,backgroundColor:_st.rptBg||'#fff',useCORS:true,logging:false});
+      await _waitFonts();
+      const c=await html2canvas(el,_captureOpts());
       const a=document.createElement('a');
       a.href=c.toDataURL('image/png');
       a.download=fname;
@@ -2342,10 +2388,8 @@ const GradeApp = (() => {
         // 렌더 완료까지 대기
         await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
-        const canvas=await html2canvas(offWrap.firstChild,{
-          scale:2,backgroundColor:_st.rptBg||'#ffffff',useCORS:true,logging:false,
-          width:offWrap.offsetWidth,
-        });
+        await _waitFonts();
+        const canvas=await html2canvas(offWrap.firstChild,{..._captureOpts(), width:offWrap.offsetWidth});
 
         const fname=`${safe(cls?.name||'개인')}_${safe(book?.name)}_${safe(s.name)}_Report_${ymd}.png`;
         const a=document.createElement('a');
@@ -3198,7 +3242,8 @@ const GradeApp = (() => {
     const el = document.getElementById('gr-ov-wrap'); if(!el){_toast('⚠️ 반을 먼저 선택해주세요');return;}
     _toast('📸 캡처 중...','success');
     try {
-      const canvas = await html2canvas(el, {scale:2,useCORS:true,backgroundColor:_ov.cfg.bg||'#ffffff',logging:false});
+      await _waitFonts();
+      const canvas = await html2canvas(el, _captureOpts(_ov.cfg.bg||'#ffffff'));
       const title  = `${_getCls(_st.classId)?.name||'반'} 성취율 현황`;
       canvas.toBlob(async blob=>{
         if(!blob){_toast('⚠️ 캡처 실패');return;}
