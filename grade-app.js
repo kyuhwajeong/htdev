@@ -2072,6 +2072,9 @@ const GradeApp = (() => {
       el.style.fontSize = ((_st.reportBodySize||12) + 2) + 'px'
     );
 
+    /* ★ Bold 설정 복원 */
+    pw.style.fontWeight = _st.reportBold ? '700' : '400';
+
     /* ── 표 헤더·셀 색상 ── */
     pw.querySelectorAll('.rpt-tbl th, .rpt-two-col th').forEach(el => {
       el.style.background  = _st.tblHeaderBg    || '#f1f5f9';
