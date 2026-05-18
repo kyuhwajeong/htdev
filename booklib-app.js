@@ -2666,6 +2666,12 @@ const BooklibApp = (() => {
     /* 4. 예외 설정 가져오기 (모달에서 설정한 값) */
     const exceptionOn = _csvImportState.exceptionOn;
 
+    /* ★ 기존 체크 데이터 초기화 (타임스탬프 제외)
+     *   xlsx/확장 반영 시 기존 데이터와 무관하게 새 데이터가 최종값
+     *   → clearChecks로 완전히 비운 후 새로 쓰기 */
+    await BookLibDB.clearChecks(classId, bookId);
+    _checks = {}; // 로컬 캐시도 초기화
+
     /* ★ 중복 이름 집합: 같은 반 학생 중 givenName이 겹치는 경우 full 이름으로 매칭 */
     const dupGivens = _buildDupGivens(students);
 
@@ -3644,12 +3650,12 @@ const BooklibApp = (() => {
   // ★ 확장 프로그램용: ClassCard 데이터를 xlsx 파이프라인으로 직접 처리
   // ClassCard rows → xlsx rows 형식 변환 → _syncChaptersFromXlsx → _processCsv
   async function _applyClassCardData(clsId, bkId, ccRows) {
-    // 이전 matrixClassId/bookId 백업
     const prevCls = _st.matrixClassId, prevBk = _st.matrixBookId;
     try {
       _st.matrixClassId = clsId || null;
       _st.matrixBookId  = bkId;
       const cid = clsId || '__noclass__';
+
       _checks = BookLibDB.getMatrixChecks(cid, bkId);
       _stamps = BookLibDB.getStamps(cid, bkId);
 
