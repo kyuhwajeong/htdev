@@ -1872,8 +1872,8 @@ const BooklibApp = (() => {
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
         <input type="file" id="bl-csv-inp" accept=".xlsx,.xls,.csv" style="display:none"
                onchange="if(this.files[0]){BooklibApp.openCsvImportModal(this.files[0]);this.value=''}">
-        <button class="bl-report-btn" onclick="BooklibApp._exportDebugData()" title="현재 체크 데이터 JSON 내보내기 (디버그용)"
-          style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.4);color:#7c3aed">🛠 디버그</button>
+        <button class="bl-report-btn" onclick="BooklibApp._exportDebugData()" title="현재 체크 데이터 JSON 내보내기"
+          style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.4);color:#7c3aed">📤 내보내기</button>
       </div>
     </div>
     <div style="font-size:10px;color:var(--tx3);padding:4px 12px;flex-shrink:0;background:var(--surf2);border-bottom:1px solid var(--bdr)">${stampNote}</div>
@@ -3675,13 +3675,12 @@ const BooklibApp = (() => {
       _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length > 0;
 
       // ★ 디버그 모드: JSON 파일로 결과 내보내기
-      const _debugMode = localStorage.getItem('bl_debug_cc') === 'true';
       function _debugExport(label, data) {
-        if (!_debugMode) return;
+        // 항상 실행 - localStorage 설정 불필요
         const json = JSON.stringify(data, null, 2);
         const w = window.open('', '_blank');
         if (w) {
-          w.document.write('<pre style="font-size:11px;padding:16px;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap">' + json + '</pre>');
+          w.document.write('<pre style="font-size:11px;padding:16px;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap">' + json.replace(/</g,'&lt;') + '</pre>');
           w.document.title = 'debug: ' + label;
         } else {
           navigator.clipboard.writeText(json).catch(()=>{});
@@ -3711,7 +3710,7 @@ const BooklibApp = (() => {
       await _syncChaptersFromXlsx(rows, bkId);
 
       // 디버그: 입력 rows 내보내기
-      if (_debugMode) {
+      {
         const bkNow = BookLibDB.getBookById(bkId);
         _debugExport('01_input_rows', {
           clsId, bkId,
@@ -3726,7 +3725,7 @@ const BooklibApp = (() => {
       const res = await _processCsv(rows);
 
       // 디버그: 반영 결과 내보내기
-      if (_debugMode) {
+      {
         const cid2 = clsId || '__noclass__';
         _debugExport('02_result_checks', {
           clsId, bkId,
