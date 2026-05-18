@@ -1872,6 +1872,8 @@ const BooklibApp = (() => {
                 onclick="document.getElementById('bl-csv-inp').click()" title="XLSX/CSV 파일로 학습현황 자동 반영">📊 XLSX</button>
         <input type="file" id="bl-csv-inp" accept=".xlsx,.xls,.csv" style="display:none"
                onchange="if(this.files[0]){BooklibApp.openCsvImportModal(this.files[0]);this.value=''}">
+        <button class="bl-report-btn" onclick="BooklibApp._exportDebugData()" title="현재 체크 데이터 JSON 내보내기 (디버그용)"
+          style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.4);color:#7c3aed">🛠 디버그</button>
       </div>
     </div>
     <div style="font-size:10px;color:var(--tx3);padding:4px 12px;flex-shrink:0;background:var(--surf2);border-bottom:1px solid var(--bdr)">${stampNote}</div>
@@ -3672,6 +3674,18 @@ const BooklibApp = (() => {
       );
       _csvImportState.exceptionOn = Object.keys(_csvImportState.exceptions).length > 0;
 
+      // ★ 디버그 모드: JSON 파일로 결과 내보내기
+      const _debugMode = localStorage.getItem('bl_debug_cc') === 'true';
+      function _debugExport(label, data) {
+        if (!_debugMode) return;
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `htdev_debug_${label}_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
       // ★ ClassCard rows → xlsx rows 형식 변환
       // ClassCard: {setTitle, setType, name, mem, recall, spell, speak, game, test, done}
       // xlsx:      {세트 제목, 타입, 학생명, 암기, 리콜, 스펠, 스피킹, 게임, 테스트, 완료여부}
@@ -3694,8 +3708,32 @@ const BooklibApp = (() => {
       // ★ 챕터 동기화 (xlsx와 완전 동일)
       await _syncChaptersFromXlsx(rows, bkId);
 
+      // 디버그: 입력 rows 내보내기
+      if (_debugMode) {
+        const bkNow = BookLibDB.getBookById(bkId);
+        _debugExport('01_input_rows', {
+          clsId, bkId,
+          bookName: bkNow?.name,
+          chapters: (bkNow?.chapters||[]).map(c=>({id:c.id,title:c.title,order:c.order})),
+          rowCount: rows.length,
+          rows: rows,
+        });
+      }
+
       // ★ 성적 반영 (xlsx와 완전 동일)
       const res = await _processCsv(rows);
+
+      // 디버그: 반영 결과 내보내기
+      if (_debugMode) {
+        const cid2 = clsId || '__noclass__';
+        _debugExport('02_result_checks', {
+          clsId, bkId,
+          result: res,
+          checks: BookLibDB.getMatrixChecks(cid2, bkId),
+          stamps: BookLibDB.getStamps(cid2, bkId),
+        });
+      }
+
       return { ok: true, done: res.done, undone: res.undone, stampTitle: res.stampTitle };
     } catch(e) {
       console.error('[_applyClassCardData]', e);
@@ -3710,6 +3748,74 @@ const BooklibApp = (() => {
         _stamps = BookLibDB.getStamps(_rc, prevBk);
       }
     }
+  }
+
+  // ★ 디버그: 현재 상태 전체 JSON 내보내기
+  function _exportDebugData() {
+    const clsId   = _st.matrixClassId || '__noclass__';
+    const bkId    = _st.matrixBookId;
+    if (!bkId) { _toast('교재를 먼저 선택하세요', 'error'); return; }
+
+    const bk       = BookLibDB.getBookById(bkId);
+    const cls      = _st.matrixClassId ? _getCls(_st.matrixClassId) : null;
+    const students = cls
+      ? (typeof StudentDB!=='undefined' ? StudentDB.getFiltered({classCode:cls.name, status:'재원'}) : [])
+      : (()=>{
+          const sIds = bk?.studentIds||[];
+          return typeof StudentDB!=='undefined' ? StudentDB.getAll().filter(s=>sIds.includes(s.id)) : [];
+        })();
+
+    const checksRaw = BookLibDB.getMatrixChecks(clsId, bkId);
+    const stampsRaw = BookLibDB.getStamps(clsId, bkId);
+    const chs       = bk?.chapters || [];
+
+    // 학생×챕터 매트릭스로 변환
+    const matrix = students.map(stu => {
+      const row = { studentId: stu.id, studentName: stu.name, chapters: {} };
+      chs.forEach(ch => {
+        const key  = stu.id + '__' + ch.id;
+        const raw  = checksRaw[key];
+        if (raw) {
+          const parsed = raw.split(':');
+          row.chapters[ch.title] = {
+            checked: true,
+            date:   parsed[0] || '',
+            tasks:  parsed[1] ? parsed[1].split(',') : []
+          };
+        } else {
+          row.chapters[ch.title] = { checked: false };
+        }
+      });
+      return row;
+    });
+
+    // 스탬프 정보
+    const stamps = Object.entries(stampsRaw).map(([chId, ts]) => {
+      const ch = chs.find(c => c.id === chId);
+      return { chapterId: chId, chapterTitle: ch?.title || '?', timestamp: ts };
+    });
+
+    const debugData = {
+      exportedAt:   new Date().toISOString(),
+      classId:      clsId,
+      className:    cls?.name || '미배정',
+      bookId:       bkId,
+      bookName:     bk?.name || '?',
+      chapterCount: chs.length,
+      studentCount: students.length,
+      chapters:     chs.map(c=>({id:c.id, title:c.title, order:c.order})),
+      stamps,
+      matrix,
+      rawChecks:    checksRaw,
+    };
+
+    const blob = new Blob([JSON.stringify(debugData, null, 2)], {type:'application/json'});
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `htdev_debug_${cls?.name||'noclass'}_${bk?.name||bkId}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    _toast('🛠 디버그 데이터 내보내기 완료', 'success');
   }
 
   function openBatchImport(){
@@ -4506,7 +4612,7 @@ const BooklibApp = (() => {
     _chWider,_chNarrow,_applyChWidth,_mtblFontSize,_applyFontSize,_toggleMemo,_saveMemo,_restoreMemoState,_toggleCollapse,
     openShare,closeShare,_copyText,_getShareText,
     openClassReport,closeReport,_getReportText,_webShare,_printReport,
-    importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx, _applyClassCardData,
+    importCsv, openCsvImportModal, _confirmCsvImport, _syncChaptersFromXlsx, _applyClassCardData, _exportDebugData,
     openBatchImport, _addBatchFiles, _removeBatchFile, _runBatchImport,
     _setLibView, _renderBooksByClass, _renderClsFilterBtns, _rerenderBookGroups,
     openExemptList, _deleteExemptItem, openExemptMgr_cls,
