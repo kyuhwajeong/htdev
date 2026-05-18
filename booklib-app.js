@@ -3690,6 +3690,8 @@ const BooklibApp = (() => {
       // ★ ClassCard rows → xlsx rows 형식 변환
       // ClassCard: {setTitle, setType, name, mem, recall, spell, speak, game, test, done}
       // xlsx:      {세트 제목, 타입, 학생명, 암기, 리콜, 스펠, 스피킹, 게임, 테스트, 완료여부}
+      // ClassCard 데이터를 xlsx 행 형식으로 변환
+      // 완료여부를 1차 기준으로 그대로 사용 (어떤 조건으로도 변경하지 않음)
       const rows = ccRows.map(r => ({
         '세트 제목': r.setTitle || '',
         '타입':     r.setType  || '',
@@ -3701,7 +3703,6 @@ const BooklibApp = (() => {
         '게임':     r.game     || '',
         '테스트':   r.test     || '',
         '완료여부': r.done     || '',
-        // _processCsv 호환용
         '제목':     r.setTitle || '',
         '완료':     r.done     || '',
       }));
