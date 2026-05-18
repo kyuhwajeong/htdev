@@ -3678,12 +3678,14 @@ const BooklibApp = (() => {
       const _debugMode = localStorage.getItem('bl_debug_cc') === 'true';
       function _debugExport(label, data) {
         if (!_debugMode) return;
-        const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `htdev_debug_${label}_${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(a.href);
+        const json = JSON.stringify(data, null, 2);
+        const w = window.open('', '_blank');
+        if (w) {
+          w.document.write('<pre style="font-size:11px;padding:16px;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap">' + json + '</pre>');
+          w.document.title = 'debug: ' + label;
+        } else {
+          navigator.clipboard.writeText(json).catch(()=>{});
+        }
       }
 
       // ★ ClassCard rows → xlsx rows 형식 변환
@@ -3809,13 +3811,19 @@ const BooklibApp = (() => {
       rawChecks:    checksRaw,
     };
 
-    const blob = new Blob([JSON.stringify(debugData, null, 2)], {type:'application/json'});
-    const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = `htdev_debug_${cls?.name||'noclass'}_${bk?.name||bkId}_${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    _toast('🛠 디버그 데이터 내보내기 완료', 'success');
+    const json = JSON.stringify(debugData, null, 2);
+    // ★ 새 탭으로 표시 (다운로드 차단 우회)
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write('<pre style="font-size:12px;padding:16px;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap">' + json + '</pre>');
+      w.document.title = 'htdev debug';
+      _toast('🛠 새 탭에서 디버그 데이터 확인하세요', 'success');
+    } else {
+      // 팝업 차단 시 클립보드 복사
+      navigator.clipboard.writeText(json).then(()=>{
+        _toast('🛠 클립보드에 복사됨 (메모장에 붙여넣기)', 'success');
+      });
+    }
   }
 
   function openBatchImport(){
